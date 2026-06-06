@@ -213,6 +213,172 @@ body {
 .deputy-vote.ne { background: rgba(90,106,133,0.2); color: var(--text-muted); }
 .deputy-vote.vid { background: rgba(90,106,133,0.15); color: var(--text-muted); }
 
+/* ===== VOTE BLOCKS (clickable vote bars → factions → deputies) ===== */
+.vote-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+.vote-block:hover { border-color: rgba(74,158,255,0.3); }
+.vote-block.expanded { border-color: var(--accent-blue); }
+
+.vote-block-header {
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.vote-block-header:hover { background: var(--bg-hover); }
+
+.vote-block-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.vote-block-summary {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.vote-count { white-space: nowrap; }
+.vote-count.za { color: var(--accent-green); }
+.vote-count.proti { color: var(--accent-red); }
+.vote-count.utr { color: var(--accent-orange); }
+.vote-count.ne { color: var(--text-muted); }
+.vote-count.vid { color: var(--text-muted); opacity: 0.7; }
+
+.vote-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  margin-bottom: 6px;
+}
+.vote-bar-seg { height: 100%; transition: width 0.3s; }
+.vote-bar-seg.za { background: var(--accent-green); }
+.vote-bar-seg.proti { background: var(--accent-red); }
+.vote-bar-seg.utr { background: var(--accent-orange); }
+.vote-bar-seg.ne { background: var(--text-muted); }
+.vote-bar-seg.vid { background: #3a3a5a; }
+
+.vote-expand-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+.vote-block.expanded .vote-expand-hint {
+  color: var(--accent-blue);
+}
+
+.vote-factions {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+  border-top: 1px solid transparent;
+}
+.vote-block.expanded .vote-factions {
+  max-height: 5000px;
+  border-top-color: var(--border-color);
+}
+
+/* Faction detail items inside vote block */
+.faction-detail-list {
+  padding: 8px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.faction-detail-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+.faction-detail-item:hover { border-color: rgba(74,158,255,0.2); }
+.faction-detail-item.open { border-color: var(--accent-blue); }
+
+.faction-detail-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  gap: 10px;
+  transition: var(--transition);
+}
+.faction-detail-header:hover { background: var(--bg-hover); }
+
+.faction-mini-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  margin-left: auto;
+}
+.mini-stat.za { color: var(--accent-green); }
+.mini-stat.proti { color: var(--accent-red); }
+.mini-stat.utr { color: var(--accent-orange); }
+.mini-stat.ne { color: var(--text-muted); }
+.mini-stat.vid { color: var(--text-muted); opacity: 0.7; }
+
+.faction-deputies-wrap {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.faction-detail-item.open .faction-deputies-wrap {
+  max-height: 3000px;
+}
+
+.deputies-filter {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.filter-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.filter-btn.active {
+  background: rgba(74,158,255,0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.deputies-list {
+  padding: 4px 14px 10px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.deputies-list .deputy-row {
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.deputies-list .deputy-name {
+  font-size: 12px;
+}
+.deputies-list .deputy-vote {
+  font-size: 10px;
+  padding: 1px 8px;
+}
+
 /* Bill list */
 .bill-search {
   width: 100%;
@@ -1009,21 +1175,32 @@ function toggleBillDetail(id) {
   
   const panel = document.getElementById('billDetailPanel');
   
+  // Build vote bars — clickable, expand to show factions
   let votesHtml = '';
-  bill.votes.forEach(v => {
+  bill.votes.forEach((v, vi) => {
     const total = v.za + v.proti + v.utr + v.ne + v.vid || 1;
-    const barW = p => Math.round(p/total*100) + '%';
-    votesHtml += `<div style="margin-bottom:10px;font-size:13px;">
-      <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-        <span>${v.desc}</span>
-        <span style="color:var(--text-muted)">За:${v.za} Проти:${v.proti} Утр:${v.utr} Не голос:${v.ne}</span>
+    const barW = p => Math.max(0, Math.round(p/total*100));
+    votesHtml += `
+    <div class="vote-block" data-vote-idx="${vi}">
+      <div class="vote-block-header">
+        <div class="vote-block-title">${v.desc}</div>
+        <div class="vote-block-summary">
+          <span class="vote-count za">✅ ${v.za} За</span>
+          <span class="vote-count proti">❌ ${v.proti} Проти</span>
+          <span class="vote-count utr">⏸️ ${v.utr} Утр</span>
+          <span class="vote-count ne">⬜ ${v.ne} Не голос</span>
+          <span class="vote-count vid">🚫 ${v.vid} Відсут</span>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-bar-seg za" style="width:${barW(v.za)}%"></div>
+          <div class="vote-bar-seg proti" style="width:${barW(v.proti)}%"></div>
+          <div class="vote-bar-seg utr" style="width:${barW(v.utr)}%"></div>
+          <div class="vote-bar-seg ne" style="width:${barW(v.ne)}%"></div>
+          <div class="vote-bar-seg vid" style="width:${barW(v.vid)}%"></div>
+        </div>
+        <span class="vote-expand-hint">▼ Фракції</span>
       </div>
-      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;">
-        <div style="background:var(--accent-green);width:${barW(v.za)}"></div>
-        <div style="background:var(--accent-red);width:${barW(v.proti)}"></div>
-        <div style="background:var(--accent-orange);width:${barW(v.utr)}"></div>
-        <div style="background:var(--text-muted);width:${barW(v.ne)}"></div>
-      </div>
+      <div class="vote-factions" id="vote-factions-${vi}"></div>
     </div>`;
   });
 
@@ -1038,6 +1215,7 @@ function toggleBillDetail(id) {
 
     <div class="detail-section">
       <h3>🗳️ Результати голосувань</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Натисніть на голосування щоб побачити розбивку по фракціях та депутатах</p>
       ${votesHtml}
     </div>
 
@@ -1063,11 +1241,11 @@ function toggleBillDetail(id) {
         </div>
         <div class="risk-item">
           <div class="label">Бюджетний ризик</div>
-          <div class="score" style="color:${bill.llm.overall > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.budget}</div>
+          <div class="score" style="color:${bill.llm.budget > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.budget}</div>
         </div>
         <div class="risk-item">
           <div class="label">Економічний ризик</div>
-          <div class="score" style="color:${bill.llm.overall > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.economic}</div>
+          <div class="score" style="color:${bill.llm.economic > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.economic}</div>
         </div>
         <div class="risk-item">
           <div class="label">Юридичний ризик</div>
@@ -1085,6 +1263,125 @@ function toggleBillDetail(id) {
   `;
   panel.classList.add('open');
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Attach click handlers for vote blocks → render factions on expand
+  bill.votes.forEach((v, vi) => {
+    const block = panel.querySelector(`.vote-block[data-vote-idx="${vi}"]`);
+    if (block) {
+      const header = block.querySelector('.vote-block-header');
+      const factionsContainer = block.querySelector('.vote-factions');
+      let rendered = false;
+      header.addEventListener('click', () => {
+        block.classList.toggle('expanded');
+        if (!rendered && factionsContainer) {
+          renderVoteFactions(bill, vi, factionsContainer);
+          rendered = true;
+        }
+      });
+    }
+  });
+}
+
+// Render factions for a specific vote in the bill detail panel
+function renderVoteFactions(bill, voteIdx, container) {
+  const vote = bill.votes[voteIdx];
+  if (!vote) return;
+
+  // Deterministic deputy votes based on bill+voteIdx (so they don't change on re-render)
+  const seed = bill.id * 100 + voteIdx;
+  
+  const factionsHtml = FACTIONS.map(f => {
+    const names = DEPUTY_NAMES[f.id] || [];
+    const prof = FACTION_VOTE_PROFILES[f.id] || { za:0.5, proti:0.05, utr:0.1, ne:0.2, vid:0.15 };
+    
+    // Simulate faction totals
+    let za = 0, proti = 0, utr = 0, ne = 0, vid = 0;
+    const deputyVotes = [];
+    
+    for (const name of names) {
+      // Use a simple hash for deterministic "random" per deputy
+      const r = pseudoRandom(seed + name.length + name.charCodeAt(0));
+      let cum = 0;
+      let state = 'vid';
+      for (const s of VOTE_STATES) {
+        cum += prof[s] || 0;
+        if (r < cum) { state = s; break; }
+      }
+      if (state === 'za') za++;
+      else if (state === 'proti') proti++;
+      else if (state === 'utr') utr++;
+      else if (state === 'ne') ne++;
+      else vid++;
+      
+      deputyVotes.push({ name, state });
+    }
+    
+    const total = za + proti + utr + ne + vid || 1;
+    const pct = v => Math.round(v/total*100);
+    
+    const vmap = {
+      za: ['za','✅ За'],
+      proti: ['proti','❌ Проти'],
+      utr: ['utr','⏸️ Утримався'],
+      ne: ['ne','⬜ Не голосував'],
+      vid: ['vid','🚫 Відсутній']
+    };
+    
+    // Build deputy list HTML
+    const deputiesHtml = deputyVotes.map(d => {
+      const vd = vmap[d.state] || vmap.vid;
+      return `<div class="deputy-row"><span class="deputy-name">${d.name}</span><span class="deputy-vote ${vd[0]}">${vd[1]}</span></div>`;
+    }).join('');
+    
+    return `
+      <div class="faction-detail-item" data-faction="${f.id}">
+        <div class="faction-detail-header" onclick="this.parentElement.classList.toggle('open')">
+          <span class="faction-color" style="background:${f.color}"></span>
+          <span class="faction-name">${f.name}</span>
+          <span class="faction-mini-stats">
+            <span class="mini-stat za">✅${za}</span>
+            <span class="mini-stat proti">❌${proti}</span>
+            <span class="mini-stat utr">⏸️${utr}</span>
+            <span class="mini-stat ne">⬜${ne}</span>
+            <span class="mini-stat vid">🚫${vid}</span>
+          </span>
+          <span class="faction-arrow">▼</span>
+        </div>
+        <div class="faction-deputies-wrap">
+          <div class="deputies-filter">
+            <button class="filter-btn active" onclick="filterDeputies(this, 'all')">Всі</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'za')">За</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'proti')">Проти</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'utr')">Утримались</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'vid')">Відсутні</button>
+          </div>
+          <div class="deputies-list">${deputiesHtml}</div>
+        </div>
+      </div>`;
+  }).join('');
+  
+  container.innerHTML = `<div class="faction-detail-list">${factionsHtml}</div>`;
+}
+
+// Simple pseudo-random for deterministic deputy votes
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 9301 + 49297) * 49297;
+  return x - Math.floor(x);
+}
+
+// Filter deputies by vote type
+function filterDeputies(btn, type) {
+  const wrap = btn.closest('.faction-deputies-wrap');
+  wrap.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  wrap.querySelectorAll('.deputy-row').forEach(row => {
+    if (type === 'all') {
+      row.style.display = '';
+    } else {
+      const voteSpan = row.querySelector('.deputy-vote');
+      row.style.display = voteSpan.classList.contains(type) ? '' : 'none';
+    }
+  });
 }
 
 document.getElementById('billSearch').addEventListener('input', function() {
