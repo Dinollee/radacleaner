@@ -1,32 +1,45 @@
-"""Telegram бот для відправки сповіщень."""
-import os
+"""Telegram сповіщення — відправка повідомлень про нові закони та ризики."""
 import asyncio
+import logging
+
 from telegram import Bot
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+from .config import TELEGRAM_TOKEN, TELEGRAM_CHAT_ID
+
+log = logging.getLogger(__name__)
 
 
-async def send_telegram_async(text: str, chat_id: str = None):
-    """Асинхронна відправка повідомлення в Telegram."""
-    if not TELEGRAM_TOKEN:
-        print("TELEGRAM_TOKEN not set")
-        return False
-    bot = Bot(token=TELEGRAM_TOKEN)
-    cid = chat_id or TELEGRAM_CHAT_ID
-    if not cid:
-        print("TELEGRAM_CHAT_ID not set")
-        return False
-    await bot.send_message(chat_id=cid, text=text[:4000], parse_mode='HTML')
+async def _send_async(text: str, chat_id: str, token: str) -> bool:
+    """Асинхронна відправка одного повідомлення."""
+    bot = Bot(token=token)
+    await bot.send_message(chat_id=chat_id, text=text[:4000], parse_mode="HTML")
     return True
 
 
-def send_telegram(text: str, chat_id: str = None):
-    """Синхронна обгортка для відправки в Telegram."""
+def send_message(text: str, chat_id: str | None = None) -> bool:
+    """Синхронна відправка повідомлення в Telegram.
+
+    Args:
+        text: Текст повідомлення (до 4000 символів, з HTML-розміткою).
+        chat_id: ID чату (за замовчуванням з конфіга).
+
+    Returns:
+        True якщо успішно, False при помилці.
+    """
+    token = TELEGRAM_TOKEN
+    cid = chat_id or TELEGRAM_CHAT_ID
+
+    if not token:
+        log.warning("TELEGRAM_TOKEN не встановлено — повідомлення не відправлено")
+        return False
+    if not cid:
+        log.warning("TELEGRAM_CHAT_ID не встановлено — повідомлення не відправлено")
+        return False
+
     try:
-        asyncio.run(send_telegram_async(text, chat_id))
-        print("Sent to TG")
+        asyncio.run(_send_async(text, cid, token))
+        log.info("Telegram повідомлення відправлено (chat=%s)", cid)
         return True
     except Exception as e:
-        print(f"TG error: {e}")
+        log.error("Помилка відправки Telegram: %s: %s", type(e).__name__, str(e)[:200])
         return False

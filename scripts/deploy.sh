@@ -1,29 +1,52 @@
 #!/bin/bash
-# deploy.sh — Розгортання radacleaner на сервері
+# deploy.sh — Deploy dashboard to dev or main server
+# Usage: ./deploy.sh [dev|main]
+#
+# dev  = port 8081 (dev branch)
+# main = port 8080 (main branch)
 
 set -e
 
-REMOTE_HOST="${1:-192.168.1.221}"
-REMOTE_USER="${2:-test-agent}"
-REMOTE_DIR="/home/${REMOTE_USER}/radacleaner"
+BRANCH="${1:-dev}"
+REPO_DIR="/home/radamon/radacleaner"
+DASHBOARD_SRC="${REPO_DIR}/dashboard/index.html"
 
-echo "=== Deploying radacleaner to ${REMOTE_HOST} ==="
+if [ "$BRANCH" = "dev" ]; then
+    PORT=8081
+    DEPLOY_DIR="/home/radamon/straj-dev"
+    SCREEN_NAME="dev-server"
+    LABEL="DEV"
+elif [ "$BRANCH" = "main" ]; then
+    PORT=8080
+    DEPLOY_DIR="/home/radamon/straj"
+    SCREEN_NAME="main-server"
+    LABEL="MAIN"
+else
+    echo "Usage: $0 [dev|main]"
+    exit 1
+fi
 
-# Створюємо директорію на сервері
-ssh ${REMOTE_USER}@${REMOTE_HOST} "mkdir -p ${REMOTE_DIR}/src ${REMOTE_DIR}/migrations ${REMOTE_DIR}/tests"
+echo "=== Deploying to ${LABEL} (port ${PORT}, branch ${BRANCH}) ==="
 
-# Копіюємо файли
-rsync -avz --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
-    ./ ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/
+# 1. Pull latest code
+cd "$REPO_DIR"
+git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" origin/"$BRANCH"
+git pull --rebase origin "$BRANCH"
 
-# Встановлюємо залежності
-ssh ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_DIR} && pip3 install -r requirements.txt"
+# 2. Copy dashboard files
+cp "$DASHBOARD_SRC" "$DEPLOY_DIR/index.html"
 
-# Ініціалізуємо БД (якщо ще не створена)
-ssh ${REMOTE_USER}@${REMOTE_HOST} "cd ${REMOTE_DIR} && psql -h \${DB_HOST:-192.168.1.229} -U \${DB_USER:-hermes} -d \${DB_NAME:-my_bills} -f migrations/001_initial.sql 2>/dev/null || echo 'DB already initialized'"
+# 3. Restart web server
+pkill -f "http.server $PORT" 2>/dev/null || true
+sleep 1
+screen -dmS "$SCREEN_NAME" bash -c "cd $DEPLOY_DIR && python3 -m http.server $PORT --bind 0.0.0.0"
 
-# Налаштовуємо cron
-ssh ${REMOTE_USER}@${REMOTE_HOST} "crontab -l 2>/dev/null | grep -v 'radacleaner' | { cat; echo '55 * * * * cd ${REMOTE_DIR} && python3 -m src.sync_bills list >> /tmp/sync.log 2>&1'; echo '0 * * * * cd ${REMOTE_DIR} && python3 -m src.rag_monitor >> /tmp/rag_monitor.log 2>&1'; echo '0 3 * * * cd ${REMOTE_DIR} && python3 -m src.sync_bills full >> /tmp/sync_full.log 2>&1'; } | crontab -"
-
-echo "=== Deploy complete ==="
-echo "Don't forget to create .env file on the server!"
+# 4. Verify
+sleep 1
+HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/")
+if [ "$HTTP_CODE" = "200" ]; then
+    echo "✅ ${LABEL} deployed successfully! http://192.168.1.235:${PORT}/"
+else
+    echo "❌ ${LABBEL} deployment failed (HTTP ${HTTP_CODE})"
+    exit 1
+fi

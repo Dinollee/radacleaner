@@ -1,21 +1,21 @@
-"""Загальні утиліти для роботи з БД."""
-import os
-import psycopg2
-import psycopg2.extras
+"""З'єднання з PostgreSQL базою даних."""
 from contextlib import contextmanager
 
-DB_PARAMS = {
-    "host": os.environ.get("DB_HOST", "192.168.1.229"),
-    "port": int(os.environ.get("DB_PORT", "5432")),
-    "dbname": os.environ.get("DB_NAME", "my_bills"),
-    "user": os.environ.get("DB_USER", "hermes"),
-    "password": os.environ.get("DB_PASSWORD", "hermes"),
-}
+import psycopg2
+import psycopg2.extras
+
+from .config import DB_PARAMS
 
 
 @contextmanager
 def db():
-    """Context manager для з'єднання з БД."""
+    """Context manager для з'єднання з БД.
+
+    Use:
+        with db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT ...")
+    """
     conn = psycopg2.connect(**DB_PARAMS)
     try:
         yield conn
@@ -24,5 +24,5 @@ def db():
 
 
 def db_conn():
-    """Повертає нове з'єднання з БД."""
+    """Повертає пряме з'єднання з БД (не забудьте закрити)."""
     return psycopg2.connect(**DB_PARAMS)

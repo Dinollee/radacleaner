@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="radacleaner",
-    version="0.1.0",
+    version="0.2.0",
     description="Моніторинг законопроектів ВРУ з LLM-аналізом ризиків",
     author="Leonid Zyryanov",
     license="MIT",
@@ -17,8 +17,8 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "radacleaner-sync=src.sync_bills:main",
-            "radacleaner-monitor=src.rag_monitor:main",
+            "radacleaner-sync=src.bill_sync:main",
+            "radacleaner-monitor=src.rag_engine:main",
         ],
     },
 )
