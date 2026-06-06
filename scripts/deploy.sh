@@ -1,9 +1,9 @@
 #!/bin/bash
-# deploy.sh — Deploy dashboard to dev or main server
-# Usage: ./deploy.sh [dev|main]
+# deploy.sh — Deploy dashboard to dev server or Cloudflare Pages
+# Usage: ./deploy.sh [dev|pages]
 #
-# dev  = port 8081 (dev branch)
-# main = port 8080 (main branch)
+# dev   = port 8081 (локальний HTTP сервер)
+# pages = Cloudflare Pages + Worker API
 
 set -e
 
@@ -16,37 +16,31 @@ if [ "$BRANCH" = "dev" ]; then
     DEPLOY_DIR="/home/radamon/straj-dev"
     SCREEN_NAME="dev-server"
     LABEL="DEV"
-elif [ "$BRANCH" = "main" ]; then
-    PORT=8080
-    DEPLOY_DIR="/home/radamon/straj"
-    SCREEN_NAME="main-server"
-    LABEL="MAIN"
-else
-    echo "Usage: $0 [dev|main]"
-    exit 1
-fi
 
-echo "=== Deploying to ${LABEL} (port ${PORT}, branch ${BRANCH}) ==="
+    echo "=== Deploying to ${LABEL} (port ${PORT}) ==="
 
-# 1. Pull latest code
-cd "$REPO_DIR"
-git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" origin/"$BRANCH"
-git pull --rebase origin "$BRANCH"
+    cd "$REPO_DIR"
+    cp "$DASHBOARD_SRC" "$DEPLOY_DIR/index.html"
 
-# 2. Copy dashboard files
-cp "$DASHBOARD_SRC" "$DEPLOY_DIR/index.html"
+    pkill -f "http.server $PORT" 2>/dev/null || true
+    sleep 1
+    screen -dmS "$SCREEN_NAME" bash -c "cd $DEPLOY_DIR && python3 -m http.server $PORT --bind 0.0.0.0"
 
-# 3. Restart web server
-pkill -f "http.server $PORT" 2>/dev/null || true
-sleep 1
-screen -dmS "$SCREEN_NAME" bash -c "cd $DEPLOY_DIR && python3 -m http.server $PORT --bind 0.0.0.0"
+    sleep 1
+    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/")
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo "✅ ${LABEL} deployed! http://192.168.1.235:${PORT}/"
+    else
+        echo "❌ ${LABEL} deployment failed (HTTP ${HTTP_CODE})"
+        exit 1
+    fi
 
-# 4. Verify
-sleep 1
-HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/")
-if [ "$HTTP_CODE" = "200" ]; then
-    echo "✅ ${LABEL} deployed successfully! http://192.168.1.235:${PORT}/"
-else
-    echo "❌ ${LABBEL} deployment failed (HTTP ${HTTP_CODE})"
-    exit 1
+elif [ "$BRANCH" = "pages" ]; then
+    echo "=== Deploying to Cloudflare Pages ==="
+
+    cd "$REPO_DIR"
+    npx wrangler pages deploy dashboard --project-name radacleaner-dashboard --branch main
+
+    echo "✅ Dashboard on Pages: https://radacleaner-dashboard.pages.dev"
+    echo "✅ Worker API: https://rada-monitor-api.distih.workers.dev"
 fi

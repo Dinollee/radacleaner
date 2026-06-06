@@ -71,8 +71,8 @@ def migrate_bills():
     """Мігрує законопроекти (PG: bills → D1: bills)."""
     conn = pg_conn()
     cur = conn.cursor()
-    # PG має іншу схему — bill_id замість id, status замість current_status
-    cur.execute("SELECT bill_id, COALESCE(title,''), COALESCE(status,'new'), date_registered, COALESCE(url,'') FROM bills")
+    # PG: bills(id, bill_number, title, current_status, registration_date, ...)
+    cur.execute("SELECT bill_number, COALESCE(title,''), COALESCE(current_status,'new'), registration_date, COALESCE(url,'') FROM bills")
     rows = cur.fetchall()
     total = len(rows)
     print(f"\n📜 Bills: {total} to migrate")
@@ -157,10 +157,10 @@ def migrate_risk_assessments():
     """Мігрує оцінки ризиків (PG: ризики в окремих колонках → D1: JSON колонки)."""
     conn = pg_conn()
     cur = conn.cursor()
-    # PG має social, economic, legal, environmental, institutional замість budget_risk/legal_risk/etc
+    # PG має ті ж колонки що й D1 (social_risk, economic_risk, budget_risk, ...)
     cur.execute("""
-        SELECT id, bill_id, document_id, overall_score, social, economic,
-               legal, environmental, institutional, risks_json, raw_response
+        SELECT id, bill_id, document_id, overall_score, social_risk, economic_risk,
+               legal_risk, budget_risk, corruption_risk, json_data, raw_response
         FROM risk_assessments
     """)
     rows = cur.fetchall()
@@ -178,15 +178,15 @@ def migrate_risk_assessments():
     done = 0
     for row in rows:
         data = {
-            "document_id": row[2],          # document_id
-            "bill_id": row[1],              # bill_id
+            "document_id": row[2],
+            "bill_id": row[1],
             "model_used": "openai/gpt-oss-120b",
             "overall_score": float(row[3]) if row[3] else 0,
-            "budget_risk": js({"finding": str(row[5] or "Не виявлено")}),     # economic → budget
-            "legal_risk": js({"finding": str(row[6] or "Не виявлено")}),       # legal
-            "economic_risk": js({"finding": str(row[7] or "Не виявлено")}),    # environmental → economic
-            "social_risk": js({"finding": str(row[4] or "Не виявлено")}),      # social
-            "corruption_risk": js({"finding": str(row[8] or "Не виявлено")}),  # institutional → corruption
+            "social_risk": js(row[4] or "{}"),
+            "economic_risk": js(row[5] or "{}"),
+            "legal_risk": js(row[6] or "{}"),
+            "budget_risk": js(row[7] or "{}"),
+            "corruption_risk": js(row[8] or "{}"),
             "raw_response": js(row[10] or "{}"),
             "raw_analysis": "",
             "json_data": js(row[9] or "{}"),

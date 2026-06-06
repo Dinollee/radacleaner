@@ -39,6 +39,7 @@ from .risk_storage import (
     insert_new_document,
     insert_chunks,
 )
+from .cf_push import push_risk, push_law_version
 from .telegram_notifier import send_message
 
 log = logging.getLogger(__name__)
@@ -332,6 +333,24 @@ def process_bill(info: dict, test_mode: bool = False):
             (analysis_summary, risks_json_str, bill_id, all_pdf_hash),
         )
         conn.commit()
+
+    # === Push у Cloudflare Worker ===
+    push_risk(
+        bill_number=bill_number,
+        overall_score=data.get("overall_score", 0),
+        model_used=GROQ_MODEL,
+        json_data=json.dumps(data, ensure_ascii=False),
+        raw_analysis=analysis_summary,
+        insufficient_text=bool(data.get("insufficient_text", False)),
+    )
+    push_law_version(
+        bill_number=bill_number,
+        status_at_moment=status,
+        text_hash=all_pdf_hash,
+        plain_text=plain_text[:50000],
+        analysis_summary=analysis_summary,
+        risks_json=risks_json_str,
+    )
 
     return info, data
 

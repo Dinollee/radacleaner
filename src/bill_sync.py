@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
+from .cf_push import push_bill, push_change_log
 from .config import log, DB_PARAMS
 from .risk_storage import db_conn
 
@@ -180,6 +181,14 @@ def sync_billinfo_list(data: bytes) -> int:
             if row:
                 log_change(cur, row[0], "new", None, "new")
                 added += 1
+                # Push to Cloudflare Worker
+                push_bill(
+                    bill_number=bn,
+                    title=title,
+                    registration_date=reg_date,
+                    committee=subject,
+                    url=url,
+                )
 
         conn.commit()
     return added
@@ -217,6 +226,17 @@ def process_full_data(data: bytes) -> int:
                 )
                 log_change(cur, db_id, "status_change", old_status, new_status)
                 updated += 1
+                # Push статусу закону в Worker
+                push_bill(
+                    bill_number=bn,
+                    current_status=new_status,
+                )
+                push_change_log(
+                    bill_number=bn,
+                    change_type="status_change",
+                    old_value=old_status,
+                    new_value=new_status,
+                )
 
             if new_rubric:
                 cur.execute(

@@ -46,12 +46,12 @@ export default {
 					]);
 
 				return json({
-					totalBills: totalBills?.count || 0,
+					totalBills: totalBills?.[0]?.count || 0,
 					byStage: byStage || [],
-					highRiskBills: highRisk?.count || 0,
-					recentChanges: recentChanges?.count || 0,
-					totalVotes: totalVotes?.count || 0,
-					totalMps: totalMps?.count || 0,
+					highRiskBills: highRisk?.[0]?.count || 0,
+					recentChanges: recentChanges?.[0]?.count || 0,
+					totalVotes: totalVotes?.[0]?.count || 0,
+					totalMps: totalMps?.[0]?.count || 0,
 					lastSync: recentSync?.last_checked || null,
 				});
 			}
@@ -167,6 +167,15 @@ export default {
 				const body = await request.json();
 				const { type, data } = body;
 
+				// Допоміжна функція: знайти D1 bill_id за bill_number
+				async function resolveBillId(billNumber) {
+					if (!billNumber) return null;
+					const bill = await env.radacleaner_db.prepare(
+						'SELECT id FROM bills WHERE bill_number = ?'
+					).bind(String(billNumber)).first();
+					return bill ? bill.id : null;
+				}
+
 				switch (type) {
 					case 'bill':
 						await env.radacleaner_db.prepare(`
@@ -180,7 +189,14 @@ export default {
 						).run();
 						return json({ success: true });
 
-					case 'risk':
+					case 'risk': {
+						// Підтримка bill_number як альтернативи bill_id
+						let billId = data.bill_id;
+						if (!billId && data.bill_number) {
+							billId = await resolveBillId(data.bill_number);
+						}
+						if (!billId) return error('risk requires bill_id or bill_number', 400);
+
 						await env.radacleaner_db.prepare(`
 							INSERT INTO risk_assessments (document_id, bill_id, model_used, overall_score, budget_risk, legal_risk,
 								economic_risk, social_risk, corruption_risk, raw_response, raw_analysis, json_data,
@@ -188,7 +204,7 @@ export default {
 							VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 							ON CONFLICT(bill_id) DO UPDATE SET assessed_at=datetime('now')
 						`).bind(
-							data.document_id||null, data.bill_id, data.model_used||'', data.overall_score||0,
+							data.document_id||null, billId, data.model_used||'', data.overall_score||0,
 							data.budget_risk||'{}', data.legal_risk||'{}', data.economic_risk||'{}',
 							data.social_risk||'{}', data.corruption_risk||'{}',
 							data.raw_response||'{}', data.raw_analysis||'', data.json_data||'{}',
@@ -196,20 +212,37 @@ export default {
 							data.confidence_level||5, data.insufficient_text?1:0,
 						).run();
 						return json({ success: true });
+					}
 
-					case 'change_log':
+					case 'change_log': {
+						// Підтримка bill_number як альтернативи bill_id
+						let billId = data.bill_id;
+						if (!billId && data.bill_number) {
+							billId = await resolveBillId(data.bill_number);
+						}
+						if (!billId) return error('change_log requires bill_id or bill_number', 400);
+
 						await env.radacleaner_db.prepare(
 							'INSERT INTO change_log (bill_id, change_type, old_value, new_value) VALUES (?,?,?,?)'
-						).bind(data.bill_id, data.change_type, data.old_value||null, data.new_value||null).run();
+						).bind(billId, data.change_type, data.old_value||null, data.new_value||null).run();
 						return json({ success: true });
+					}
 
-					case 'law_version':
+					case 'law_version': {
+						// Підтримка bill_number як альтернативи law_id
+						let lawId = data.law_id;
+						if (!lawId && data.bill_number) {
+							lawId = await resolveBillId(data.bill_number);
+						}
+						if (!lawId) return error('law_version requires law_id or bill_number', 400);
+
 						await env.radacleaner_db.prepare(`
 							INSERT INTO law_versions (law_id, status_at_moment, text_hash, plain_text, analysis_summary, risks_json)
 							VALUES (?,?,?,?,?,?) ON CONFLICT(law_id, text_hash) DO NOTHING
-						`).bind(data.law_id, data.status_at_moment||'', data.text_hash,
+						`).bind(lawId, data.status_at_moment||'', data.text_hash,
 							data.plain_text||'', data.analysis_summary||'', data.risks_json||'{}').run();
 						return json({ success: true });
+					}
 
 					default: return error(`Unknown type: ${type}`, 400);
 				}

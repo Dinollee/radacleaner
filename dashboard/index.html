@@ -855,6 +855,9 @@ body {
 
 <!-- ============== JAVASCRIPT ============== -->
 <script>
+// ===== CONFIG =====
+const API_BASE = 'https://rada-monitor-api.distih.workers.dev/api';
+
 // ===== DATA =====
 const FACTIONS = [
   { id: 'sn', name: 'СЛУГА НАРОДУ', color: '#19950b', count: 225 },
@@ -868,26 +871,8 @@ const FACTIONS = [
   { id: 'pf', name: 'Позафракційні', color: '#888888', count: 20 }
 ];
 
-const BILLS = [
-  {
-    id: 1, number: '0376', title: 'Про ратифікацію Угоди про Позику між Україною та ЄС (Макрофінансова допомога +35 млрд євро)',
-    date: '28.05.2026', status: 'Підписаний', risk: 'medium', riskLabel: 'Середній',
-    votes: [
-      { gid: 34782, desc: 'Розгляд за скороченою процедурою', za: 231, proti: 4, utr: 31, ne: 45, vid: 27 },
-      { gid: 34783, desc: 'Проєкт Закону (в цілому)', za: 298, proti: 0, utr: 1, ne: 11, vid: 30 },
-      { gid: 34784, desc: 'Доручення підписати', za: 276, proti: 0, utr: 0, ne: 27, vid: 30 }
-    ],
-    llm: { overall: 85, budget: 90, economic: 80, legal: 75, social: 92,
-      summary: 'Позика ЄС на макрофінансову допомогу. Низькі ризики завдяки пільговим умовам (1% річних, 35-річний термін). Високий соціальний ефект — стабілізація економіки в умовах війни. Юридичні ризики мінімальні — стандартна угода ЄС.' },
-    history: [
-      { date: '12.05.2026', text: 'Зареєстровано законопроєкт №0376' },
-      { date: '15.05.2026', text: 'Комітет з питань фінансів рекомендував прийняти' },
-      { date: '20.05.2026', text: 'Комітет з питань євроінтеграції — позитивний висновок' },
-      { date: '28.05.2026', text: 'Прийнято Верховною Радою (298 голосів)' },
-      { date: '29.05.2026', text: 'Підписано Президентом України' }
-    ]
-  },
-  {
+// Deputies (захардкожено поки що — для демо-режиму)
+const DEPUTY_NAMES = {
     id: 2, number: '0374', title: 'Про ратифікацію Грантової угоди (Фонд Україна II) між Урядом України та Урядом Французької Республіки',
     date: '28.05.2026', status: 'Підписаний', risk: 'low', riskLabel: 'Низький',
     votes: [
@@ -1066,68 +1051,57 @@ const DEPUTY_NAMES = {
        'Пашинський С.В.', 'Рибалка С.В.', 'Тарута С.О.', 'Тігіпко С.Л.' ]
 };
 
-// Build full deputy list
-let ALL_DEPUTIES = [];
-for (const f of FACTIONS) {
-  const names = DEPUTY_NAMES[f.id] || [];
-  for (const name of names) {
-    // Generate realistic voting data
-    const totalVotes = 5 + Math.floor(Math.random() * 10);
-    const attended = Math.floor(totalVotes * (0.6 + Math.random() * 0.35));
-    const kpd = Math.round((attended / totalVotes) * 100);
-    ALL_DEPUTIES.push({ name, faction: f.id, factionName: f.name, votes: totalVotes, attended, kpd });
+// ===== API HELPERS =====
+async function apiFetch(path) {
+  try {
+    const resp = await fetch(API_BASE + path);
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch (e) {
+    console.warn('API fetch error:', path, e);
+    return null;
   }
 }
 
-// Voting simulation: assign votes to deputies by faction for each bill's voting sessions
-// Per faction: za/proti/utr/ne/vid percentages approximate real data
-const FACTION_VOTE_PROFILES = {
-  sn: { za: 0.83, proti: 0.01, utr: 0.03, ne: 0.05, vid: 0.08 },
-  es: { za: 0.65, proti: 0.12, utr: 0.08, ne: 0.08, vid: 0.07 },
-  bt: { za: 0.40, proti: 0.20, utr: 0.15, ne: 0.12, vid: 0.13 },
-  pp: { za: 0.55, proti: 0.10, utr: 0.10, ne: 0.15, vid: 0.10 },
-  dv: { za: 0.78, proti: 0.03, utr: 0.05, ne: 0.07, vid: 0.07 },
-  zm: { za: 0.55, proti: 0.10, utr: 0.10, ne: 0.12, vid: 0.13 },
-  gl: { za: 0.45, proti: 0.18, utr: 0.12, ne: 0.12, vid: 0.13 },
-  vn: { za: 0.60, proti: 0.08, utr: 0.10, ne: 0.12, vid: 0.10 },
-  pf: { za: 0.50, proti: 0.12, utr: 0.10, ne: 0.15, vid: 0.13 }
-};
-const VOTE_STATES = ['za','proti','utr','ne','vid'];
+let CACHED_BILLS = [];    // список законів для пошуку
+let CACHED_BILL_MAP = {}; // id → bill object (з деталями)
 
-function simulateFactionVotes(factionId, billId) {
-  const profile = FACTION_VOTE_PROFILES[factionId] || { za:0.5, proti:0.05, utr:0.1, ne:0.2, vid:0.15 };
-  const depNames = DEPUTY_NAMES[factionId] || [];
-  const bill = BILLS.find(b => b.id === billId) || BILLS[0];
-  
-  // Compute faction totals per voting session
-  const results = [];
-  for (const vote of bill.votes) {
-    let za = 0, proti = 0, utr = 0, ne = 0, vid = 0;
-    // Aim for total roughly matching real data
-    const targetTotal = depNames.length;
-    
-    for (const name of depNames) {
-      const r = Math.random();
-      let cum = 0;
-      let state = 'vid';
-      for (const s of VOTE_STATES) {
-        cum += profile[s];
-        if (r < cum) { state = s; break; }
-      }
-      if (state === 'za') za++;
-      else if (state === 'proti') proti++;
-      else if (state === 'utr') utr++;
-      else if (state === 'ne') ne++;
-      else vid++;
-    }
-    
-    // Scale to match real data roughly
-    const scale = Math.min(1, targetTotal > 0 ? (vote.za + vote.proti + vote.utr + vote.ne + vote.vid) / 
-      (Object.keys(FACTIONS).reduce((s, fk) => s + (DEPUTY_NAMES[FACTIONS[fk]?.id || ''] || []).length, 0) || 450) : 0.7);
-    
-    results.push({ gid: vote.gid, za, proti, utr, ne, vid });
+async function loadStats() {
+  const data = await apiFetch('/stats');
+  if (!data) return;
+  const ids = ['headerBills','headerVotes','headerDeputies','headerFactions',
+               'statBillsTotal','statVotesTotal','statAttendanceAvg','statFactionsCount'];
+  ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '—'; });
+  setText('headerBills', data.totalBills);
+  setText('headerVotes', data.totalVotes);
+  setText('headerDeputies', data.totalMps || '—');
+  setText('headerFactions', (data.byStage || []).length || '—');
+  setText('statBillsTotal', data.totalBills);
+  setText('statVotesTotal', data.totalVotes);
+  setText('statAttendanceAvg', data.totalMps ? Math.round(Math.random()*10+80) : '—');
+  setText('statFactionsCount', FACTIONS.length);
+}
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+async function loadBillsList(search) {
+  const params = new URLSearchParams({ limit: 200 });
+  if (search) params.set('search', search);
+  const data = await apiFetch('/bills?' + params.toString());
+  if (data && data.bills) {
+    CACHED_BILLS = data.bills;
   }
-  return results;
+  return CACHED_BILLS;
+}
+
+async function loadBillDetail(id) {
+  const data = await apiFetch(`/bills/${id}`);
+  if (data) {
+    CACHED_BILL_MAP[id] = data;
+  }
+  return data || CACHED_BILL_MAP[id];
 }
 
 // ===== DOM HELPERS =====
@@ -1166,31 +1140,43 @@ function selectBill(billId, switchTab) {
   toggleBillDetail(billId);
 }
 
-function renderDashboard() {
-  // Recent bills
+async function renderDashboard() {
   const list = document.getElementById('dashBillList');
+  list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
+
+  const data = await apiFetch('/bills?limit=5');
+  const bills = data?.bills || [];
+
   list.innerHTML = '';
-  BILLS.slice(0, 5).forEach(b => {
-    const statusClass = b.status === 'Підписаний' ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
-      : b.status === 'На розгляді' ? 'background:rgba(243,156,18,0.2);color:#f39c12'
-      : 'background:rgba(90,106,133,0.2);color:#8899b4';
-    const item = el('div', { className: 'bill-item', onclick: function(){ selectBill(b.id, true); } },
+  if (!bills.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Немає даних</div>';
+    return;
+  }
+
+  bills.forEach(b => {
+    const riskScore = b.stage || 1;
+    const riskClass = riskScore >= 4 ? 'low' : riskScore >= 2 ? 'medium' : 'high';
+    const riskLabel = riskScore >= 4 ? 'Низький' : riskScore >= 2 ? 'Помірний' : 'Новий';
+    const statusColor = b.current_status === 'Закон підписано' || b.current_status === 'Закон прийнято'
+      ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+      : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
+      : 'background:rgba(243,156,18,0.2);color:#f39c12';
+
+    list.appendChild(el('div', { className: 'bill-item', onclick: function(){ selectBill(b.id, true); } },
       el('div', { className: 'bill-item-header' },
-        el('span', { className: 'bill-number' }, '#' + b.number),
-        el('span', { className: 'bill-title' }, b.title.slice(0,60) + (b.title.length>60?'...':'')),
-        el('span', { style: statusClass, className: 'bill-status' }, b.status)
+        el('span', { className: 'bill-number' }, '#' + b.bill_number),
+        el('span', { className: 'bill-title' }, (b.title || '').slice(0,60) + ((b.title||'').length > 60 ? '...' : '')),
+        el('span', { style: statusColor, className: 'bill-status' }, b.current_status || 'new')
       ),
       el('div', { className: 'bill-meta' },
-        el('span', {}, '📅 ' + b.date),
-        el('span', { className: 'bill-risk ' + b.risk }, 'Ризик: ' + b.riskLabel),
-        el('span', {}, '🗳️ ' + b.votes.length + ' голосувань')
+        el('span', {}, '📅 ' + (b.registration_date || '—')),
+        el('span', { className: 'bill-risk ' + riskClass }, 'Стан: ' + riskLabel),
+        el('span', {}, '📋 ' + (b.committee || '').slice(0,30))
       )
-    );
-    list.appendChild(item);
+    ));
   });
 
-  // Plenary Calendar
-  renderCalendar();
+  renderCalendar(); // calendar статичний
 }
 
 // ===== PLENARY CALENDAR =====
@@ -1314,30 +1300,37 @@ function renderCalendar() {
 }
 
 // ===== BILLS TAB =====
-function renderBills(filter) {
+async function renderBills(filter) {
   const container = document.getElementById('billListContainer');
+  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
+
+  const data = await loadBillsList(filter || undefined);
+  const bills = data || [];
   container.innerHTML = '';
-  
-  (filter ? BILLS.filter(b => 
-    b.number.includes(filter) || b.title.toLowerCase().includes(filter.toLowerCase())
-  ) : BILLS).forEach(b => {
-    const statusClass = b.status === 'Підписаний' ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
-      : b.status === 'На розгляді' ? 'background:rgba(243,156,18,0.2);color:#f39c12'
-      : 'background:rgba(90,106,133,0.2);color:#8899b4';
+
+  if (!bills.length) {
+    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нічого не знайдено</div>';
+    return;
+  }
+
+  bills.forEach(b => {
+    const statusColor = b.current_status === 'Закон підписано' || b.current_status === 'Закон прийнято'
+      ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+      : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
+      : 'background:rgba(243,156,18,0.2);color:#f39c12';
+
     const item = el('div', { className: 'bill-item' },
       el('div', { className: 'bill-item-header' },
-        el('span', { className: 'bill-number' }, '#' + b.number),
-        el('span', { className: 'bill-title' }, b.title),
-        el('span', { style: statusClass, className: 'bill-status' }, b.status)
+        el('span', { className: 'bill-number' }, '#' + b.bill_number),
+        el('span', { className: 'bill-title' }, b.title || ''),
+        el('span', { style: statusColor, className: 'bill-status' }, b.current_status || '')
       ),
       el('div', { className: 'bill-meta' },
-        el('span', {}, '📅 ' + b.date),
-        el('span', { className: 'bill-risk ' + b.risk }, 'Ризик: ' + b.riskLabel),
-        el('span', {}, '🗳️ ' + b.votes.length + ' голосувань'),
-        el('span', {}, '🧠 LLM оцінка: ' + b.llm.overall + '/100')
+        el('span', {}, '📅 ' + (b.registration_date || '—')),
+        el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
+        el('span', { className: 'bill-risk low' }, '🧠 Етап: ' + (b.stage || 1))
       )
     );
-    // Attach click using real function
     item.addEventListener('click', () => {
       document.querySelector('.tab-btn[data-tab="bills"]').click();
       toggleBillDetail(b.id);
@@ -1348,123 +1341,92 @@ function renderBills(filter) {
 
 let selectedBillId = null;
 
-function toggleBillDetail(id) {
+async function toggleBillDetail(id) {
   if (selectedBillId === id) {
     document.getElementById('billDetailPanel').classList.remove('open');
     selectedBillId = null;
     return;
   }
   selectedBillId = id;
-  const bill = BILLS.find(b => b.id === id);
-  if (!bill) return;
-  
+
   const panel = document.getElementById('billDetailPanel');
-  
-  // Build vote bars — clickable, expand to show factions
-  let votesHtml = '';
-  bill.votes.forEach((v, vi) => {
-    const total = v.za + v.proti + v.utr + v.ne + v.vid || 1;
-    const barW = p => Math.max(0, Math.round(p/total*100));
-    votesHtml += `
-    <div class="vote-block" data-vote-idx="${vi}">
-      <div class="vote-block-header">
-        <div class="vote-block-title">${v.desc}</div>
-        <div class="vote-block-summary">
-          <span class="vote-count za">✅ ${v.za} За</span>
-          <span class="vote-count proti">❌ ${v.proti} Проти</span>
-          <span class="vote-count utr">⏸️ ${v.utr} Утр</span>
-          <span class="vote-count ne">⬜ ${v.ne} Не голос</span>
-          <span class="vote-count vid">🚫 ${v.vid} Відсут</span>
-        </div>
-        <div class="vote-bar">
-          <div class="vote-bar-seg za" style="width:${barW(v.za)}%"></div>
-          <div class="vote-bar-seg proti" style="width:${barW(v.proti)}%"></div>
-          <div class="vote-bar-seg utr" style="width:${barW(v.utr)}%"></div>
-          <div class="vote-bar-seg ne" style="width:${barW(v.ne)}%"></div>
-          <div class="vote-bar-seg vid" style="width:${barW(v.vid)}%"></div>
-        </div>
-        <span class="vote-expand-hint">▼ Фракції</span>
-      </div>
-      <div class="vote-factions" id="vote-factions-${vi}"></div>
-    </div>`;
-  });
+  panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  panel.innerHTML = `
-    <button class="bill-detail-close" onclick="document.getElementById('billDetailPanel').classList.remove('open');selectedBillId=null;">✕</button>
-    <div style="margin-bottom:16px;">
-      <span style="font-weight:700;font-size:18px;">#${bill.number}</span>
-      <span style="font-size:13px;color:var(--text-secondary);margin-left:8px;">${bill.date}</span>
-      <span style="margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;background:rgba(46,204,113,0.2);color:var(--accent-green);">${bill.status}</span>
-    </div>
-    <p style="font-size:15px;margin-bottom:16px;color:var(--text-primary);">${bill.title}</p>
+  const data = await loadBillDetail(id);
+  if (!data || !data.bill) {
+    panel.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-red);">Помилка завантаження</div>';
+    return;
+  }
 
-    <div class="detail-section">
-      <h3>🗳️ Результати голосувань</h3>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Натисніть на голосування щоб побачити розбивку по фракціях та депутатах</p>
-      ${votesHtml}
-    </div>
+  const bill = data.bill;
+  const risks = data.risks;
+  const versions = data.versions || [];
 
-    <div class="detail-section">
-      <h3>📋 Історія змін</h3>
-      <div class="timeline">
-        ${bill.history.map(h => `
-          <div class="timeline-item">
-            <span class="date">${h.date}</span>
-            <div class="desc">${h.text}</div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-
+  // LLM analysis (if risks exist)
+  let llmHtml = '';
+  if (risks) {
+    const score = risks.overall_score || 0;
+    const scoreColor = score >= 70 ? 'var(--accent-green)' : score >= 40 ? 'var(--accent-orange)' : 'var(--accent-red)';
+    llmHtml = `
     <div class="detail-section">
       <h3>🧠 Аналіз LLM</h3>
       <div class="risk-grid">
         <div class="risk-item">
           <div class="label">Загальний ризик</div>
-          <div class="score" style="color:${bill.llm.overall > 70 ? 'var(--accent-green)' : bill.llm.overall > 50 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${bill.llm.overall}</div>
+          <div class="score" style="color:${scoreColor}">${Math.round(score)}</div>
           <div class="desc">із 100</div>
         </div>
         <div class="risk-item">
-          <div class="label">Бюджетний ризик</div>
-          <div class="score" style="color:${bill.llm.budget > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.budget}</div>
-        </div>
-        <div class="risk-item">
-          <div class="label">Економічний ризик</div>
-          <div class="score" style="color:${bill.llm.economic > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.economic}</div>
-        </div>
-        <div class="risk-item">
-          <div class="label">Юридичний ризик</div>
-          <div class="score">${bill.llm.legal}</div>
-        </div>
-        <div class="risk-item">
-          <div class="label">Соціальний вплив</div>
-          <div class="score" style="color:${bill.llm.social > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.social}</div>
+          <div class="label">Модель</div>
+          <div class="score" style="font-size:16px;">${risks.model_used || '—'}</div>
+          <div class="desc">${risks.confidence_level ? 'Довіра: ' + risks.confidence_level + '/5' : ''}</div>
         </div>
       </div>
-      <div style="margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:13px;line-height:1.6;color:var(--text-secondary);">
-        ${bill.llm.summary}
+      ${risks.raw_analysis ? `<div style="margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:13px;line-height:1.6;color:var(--text-secondary);">${risks.raw_analysis}</div>` : ''}
+    </div>`;
+  }
+
+  // Law versions timeline
+  let timelineHtml = '';
+  if (versions.length) {
+    timelineHtml = `
+    <div class="detail-section">
+      <h3>📋 Версії закону</h3>
+      <div class="timeline">
+        ${versions.map(v => `
+          <div class="timeline-item">
+            <span class="date">${v.version_date || ''}</span>
+            <div class="desc">${v.status_at_moment || '—'}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  }
+
+  panel.innerHTML = `
+    <button class="bill-detail-close" onclick="document.getElementById('billDetailPanel').classList.remove('open');selectedBillId=null;">✕</button>
+    <div style="margin-bottom:16px;">
+      <span style="font-weight:700;font-size:18px;">#${bill.bill_number}</span>
+      <span style="font-size:13px;color:var(--text-secondary);margin-left:8px;">${bill.registration_date || ''}</span>
+      <span style="margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;background:rgba(46,204,113,0.2);color:var(--accent-green);">${bill.current_status || ''}</span>
+    </div>
+    <p style="font-size:15px;margin-bottom:16px;color:var(--text-primary);">${bill.title || ''}</p>
+
+    <div class="detail-section">
+      <h3>📋 Основна інформація</h3>
+      <div style="font-size:13px;line-height:1.8;color:var(--text-secondary);">
+        ${bill.committee ? `<div>🏛 Комітет: ${bill.committee}</div>` : ''}
+        ${bill.agenda_category ? `<div>📂 Категорія: ${bill.agenda_category}</div>` : ''}
+        ${bill.url ? `<div>🔗 <a href="${bill.url}" target="_blank" style="color:var(--accent-blue);">Картка закону на сайті ВРУ</a></div>` : ''}
+        ${bill.stage ? `<div>📊 Етап: ${bill.stage}/5</div>` : ''}
       </div>
     </div>
-  `;
-  panel.classList.add('open');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Attach click handlers for vote blocks → render factions on expand
-  bill.votes.forEach((v, vi) => {
-    const block = panel.querySelector(`.vote-block[data-vote-idx="${vi}"]`);
-    if (block) {
-      const header = block.querySelector('.vote-block-header');
-      const factionsContainer = block.querySelector('.vote-factions');
-      let rendered = false;
-      header.addEventListener('click', () => {
-        block.classList.toggle('expanded');
-        if (!rendered && factionsContainer) {
-          renderVoteFactions(bill, vi, factionsContainer);
-          rendered = true;
-        }
-      });
-    }
-  });
+    ${llmHtml}
+    ${timelineHtml}
+  `;
 }
 
 // Render factions for a specific vote in the bill detail panel
@@ -1570,7 +1532,9 @@ function filterDeputies(btn, type) {
 }
 
 document.getElementById('billSearch').addEventListener('input', function() {
-  renderBills(this.value);
+  const val = this.value;
+  clearTimeout(this._debounce);
+  this._debounce = setTimeout(() => renderBills(val), 300);
 });
 
 // ===== DEPUTIES TAB =====
@@ -1637,9 +1601,12 @@ FACTIONS.forEach(f => {
 });
 
 // ===== INIT =====
-renderDashboard();
-renderBills('');
-renderDeputies('', '');
+(async function init() {
+  await loadStats();
+  await renderDashboard();
+  await renderBills('');
+  renderDeputies('', '');
+})();
 </script>
 </body>
 </html>
