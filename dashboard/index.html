@@ -490,6 +490,176 @@ body {
 .timeline-item .date { font-size: 11px; color: var(--text-muted); }
 .timeline-item .desc { color: var(--text-primary); }
 
+/* ===== PLENARY CALENDAR ===== */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.cal-header {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  font-weight: 600;
+}
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: default;
+  transition: var(--transition);
+  position: relative;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+.cal-day:hover { background: var(--bg-hover); }
+.cal-day.empty { background: transparent; }
+.cal-day.today {
+  border: 2px solid var(--accent-blue);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.cal-day.session {
+  background: rgba(74,158,255,0.15);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+.cal-day.session::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+}
+.cal-day.vote-day {
+  background: rgba(46,204,113,0.15);
+  color: var(--accent-green);
+  font-weight: 600;
+}
+.cal-day.vote-day::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-green);
+}
+.cal-day.weekend {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.cal-day .cal-bills {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.cal-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.cal-legend-dot.session { background: rgba(74,158,255,0.4); }
+.cal-legend-dot.vote { background: rgba(46,204,113,0.4); }
+.cal-legend-dot.today { border: 2px solid var(--accent-blue); background: transparent; }
+
+/* Calendar month nav */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cal-nav-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.cal-nav-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.cal-month-year {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+/* Session list below calendar */
+.cal-sessions {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+.cal-session-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.cal-session-item:last-child { border-bottom: none; }
+.cal-session-date {
+  min-width: 70px;
+  text-align: center;
+}
+.cal-session-date .day {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  line-height: 1;
+}
+.cal-session-date .month {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cal-session-info { flex: 1; }
+.cal-session-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.cal-session-bills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cal-session-bill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(74,158,255,0.1);
+  color: var(--accent-blue);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.cal-session-bill:hover { background: rgba(74,158,255,0.25); }
+
 /* LLM Analysis */
 .risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 10px; }
 .risk-item {
@@ -647,15 +817,10 @@ body {
       <div id="dashBillList"></div>
     </div>
 
-    <!-- Right: Voting by factions -->
+    <!-- Right: Plenary Calendar -->
     <div class="card">
-      <div class="card-title">🗳️ Голосування за фракціями</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:13px;color:var(--text-secondary);">Закон:</label>
-        <select id="dashBillSelect" style="margin-left:8px;padding:6px 12px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-family:var(--font);"></select>
-        <select id="dashVoteSelect" style="margin-left:8px;padding:6px 12px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:6px;color:var(--text-primary);font-family:var(--font);"></select>
-      </div>
-      <div id="dashFactionVotes"></div>
+      <div class="card-title">📅 Календарь пленарних засідань</div>
+      <div id="dashCalendar"></div>
     </div>
   </div>
 </section>
@@ -1024,108 +1189,128 @@ function renderDashboard() {
     list.appendChild(item);
   });
 
-  // Bill selector
-  const sel = document.getElementById('dashBillSelect');
-  sel.innerHTML = '';
-  BILLS.forEach(b => {
-    const opt = document.createElement('option');
-    opt.value = b.id;
-    opt.textContent = '#' + b.number + ' — ' + b.title.slice(0,45) + '...';
-    sel.appendChild(opt);
-  });
-  updateDashboardVotes();
+  // Plenary Calendar
+  renderCalendar();
 }
 
-function updateDashboardVotes() {
-  const billId = parseInt(document.getElementById('dashBillSelect').value);
-  const bill = BILLS.find(b => b.id === billId);
-  if (!bill) return;
+// ===== PLENARY CALENDAR =====
+// Demo data: plenary sessions for current month
+const PLENARY_SESSIONS = [
+  { date: '2026-06-03', title: 'Пленарне засідання №42', bills: ['0376', '0374'] },
+  { date: '2026-06-04', title: 'Пленарне засідання №42 (продовження)', bills: ['0371'] },
+  { date: '2026-06-10', title: 'Пленарне засідання №43', bills: ['3495'] },
+  { date: '2026-06-11', title: 'Пленарне засідання №43 (продовження)', bills: ['3495', '3612'] },
+  { date: '2026-06-17', title: 'Пленарне засідання №44', bills: [] },
+  { date: '2026-06-18', title: 'Пленарне засідання №44 (продовження)', bills: [] },
+  { date: '2026-06-24', title: 'Пленарне засідання №45', bills: [] },
+  { date: '2026-06-25', title: 'Пленарне засідання №45 (продовження)', bills: [] },
+];
 
-  // Vote selector
-  const voteSel = document.getElementById('dashVoteSelect');
-  voteSel.innerHTML = '';
-  bill.votes.forEach((v, i) => {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = v.desc;
-    voteSel.appendChild(opt);
-  });
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
 
-  renderFactionVotes(bill, parseInt(voteSel.value) || 0);
-}
-
-document.getElementById('dashBillSelect').addEventListener('change', updateDashboardVotes);
-document.getElementById('dashVoteSelect').addEventListener('change', () => {
-  const billId = parseInt(document.getElementById('dashBillSelect').value);
-  const bill = BILLS.find(b => b.id === billId);
-  if (bill) renderFactionVotes(bill, parseInt(document.getElementById('dashVoteSelect').value));
-});
-
-function renderFactionVotes(bill, voteIdx) {
-  const container = document.getElementById('dashFactionVotes');
-  container.innerHTML = '';
-
-  const vote = bill.votes[voteIdx];
-  if (!vote) {
-    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;">Виберіть голосування</div>';
-    return;
-  }
-
-  const list = el('div', { className: 'faction-list' });
+function renderCalendar() {
+  const container = document.getElementById('dashCalendar');
+  if (!container) return;
   
-  for (const f of FACTIONS) {
-    const factionVotes = simulateFactionVotes(f.id, bill.id);
-    const fv = factionVotes[voteIdx] || { za:0, proti:0, utr:0, ne:0, vid:0 };
-    const total = fv.za + fv.proti + fv.utr + fv.ne + fv.vid || 1;
-    const pct = v => Math.round(v/total*100);
-
-    const header = el('div', { className: 'faction-header', onclick: function() {
-      this.parentElement.classList.toggle('open');
-    }},
-      el('span', { className: 'faction-color', style: 'background:' + f.color }),
-      el('span', { className: 'faction-name' }, f.name),
-      el('span', { className: 'faction-stats' },
-        el('span', { className: 'faction-stat stat-za' }, el('span', {className:'n'}, fv.za), el('span', {className:'l'},'За '+pct(fv.za)+'%')),
-        el('span', { className: 'faction-stat stat-proti' }, el('span', {className:'n'}, fv.proti), el('span', {className:'l'},'Проти')),
-        el('span', { className: 'faction-stat stat-utr' }, el('span', {className:'n'}, fv.utr), el('span', {className:'l'},'Утр')),
-        el('span', { className: 'faction-stat stat-vid' }, el('span', {className:'n'}, fv.ne), el('span', {className:'l'},'Не голос'))
-      ),
-      el('span', { className: 'faction-arrow' }, '▼')
-    );
-
-    // Deputy list
-    const depDiv = el('div', { className: 'faction-deputies' });
-    const names = DEPUTY_NAMES[f.id] || [];
-    
-    // Assign realistic votes to each deputy
-    for (const name of names) {
-      let voteStatus, voteClass, voteLabel;
-      const r = Math.random();
-      const prof = FACTION_VOTE_PROFILES[f.id] || {};
-      let cum = 0;
-      for (const s of VOTE_STATES) {
-        cum += prof[s] || 0;
-        if (r < cum) { 
-          voteStatus = s; 
-          break; 
-        }
-      }
-      voteStatus = voteStatus || 'vid';
-      const vmap = { za: ['za','✅ За'], proti: ['proti','❌ Проти'], utr: ['utr','⏸️ Утримався'], ne: ['ne','⬜ Не голосував'], vid: ['vid','🚫 Відсутній'] };
-      const vd = vmap[voteStatus] || vmap.vid;
-      
-      const row = el('div', { className: 'deputy-row' },
-        el('span', { className: 'deputy-name' }, name),
-        el('span', { className: 'deputy-vote ' + vd[0] }, vd[1])
-      );
-      depDiv.appendChild(row);
-    }
-
-    const item = el('div', { className: 'faction-item' }, header, depDiv);
-    list.appendChild(item);
+  const months = ['Січень','Лютий','Березень','Квітень','Травень','Червень',
+                  'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+  
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  
+  // Build session date set for quick lookup
+  const sessionDates = {};
+  PLENARY_SESSIONS.forEach(s => { sessionDates[s.date] = s; });
+  
+  // First day of month
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  const startDow = (firstDay.getDay() + 6) % 7; // Mon=0
+  const totalDays = lastDay.getDate();
+  
+  let html = `
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calMonth--; if(calMonth<0){calMonth=11;calYear--}; renderCalendar()">◀</button>
+      <span class="cal-month-year">${months[calMonth]} ${calYear}</span>
+      <button class="cal-nav-btn" onclick="calMonth++; if(calMonth>11){calMonth=0;calYear++}; renderCalendar()">▶</button>
+    </div>
+    <div class="cal-grid">
+  `;
+  
+  // Day headers
+  days.forEach(d => { html += `<div class="cal-header">${d}</div>`; });
+  
+  // Empty cells before first day
+  for (let i = 0; i < startDow; i++) {
+    html += `<div class="cal-day empty"></div>`;
   }
-
-  container.appendChild(list);
+  
+  // Days
+  for (let d = 1; d <= totalDays; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(calYear, calMonth, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isToday = dateStr === todayStr;
+    const session = sessionDates[dateStr];
+    
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (session) cls += session.bills.length ? ' vote-day' : ' session';
+    if (isWeekend) cls += ' weekend';
+    
+    const billsLabel = session && session.bills.length ? `${session.bills.length} закон.` : '';
+    
+    html += `<div class="${cls}" title="${session ? session.title : ''}">
+      <span>${d}</span>
+      ${billsLabel ? `<span class="cal-bills">${billsLabel}</span>` : ''}
+    </div>`;
+  }
+  
+  html += `</div>`;
+  
+  // Legend
+  html += `
+    <div class="cal-legend">
+      <div class="cal-legend-item"><span class="cal-legend-dot today"></span> Сьогодні</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot session"></span> Засідання</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot vote"></span> Голосування</div>
+    </div>
+  `;
+  
+  // Upcoming sessions list
+  const upcoming = PLENARY_SESSIONS.filter(s => s.date >= todayStr).slice(0, 4);
+  if (upcoming.length) {
+    html += `<div class="cal-sessions">`;
+    upcoming.forEach(s => {
+      const dt = s.date.split('-');
+      const dayNum = parseInt(dt[2]);
+      const monthName = months[parseInt(dt[1])-1].slice(0,3).toLowerCase();
+      html += `
+        <div class="cal-session-item">
+          <div class="cal-session-date">
+            <div class="day">${dayNum}</div>
+            <div class="month">${monthName}</div>
+          </div>
+          <div class="cal-session-info">
+            <div class="cal-session-title">${s.title}</div>
+            ${s.bills.length ? `
+              <div class="cal-session-bills">
+                ${s.bills.map(b => {
+                  const bill = BILLS.find(x => x.number === b);
+                  return `<span class="cal-session-bill" onclick="selectBill(${bill ? bill.id : 0}, true)">#${b}${bill ? ' — ' + bill.title.slice(0,40) + '...' : ''}</span>`;
+                }).join('')}
+              </div>
+            ` : '<div style="font-size:12px;color:var(--text-muted);">Законопроєкти не заплановано</div>'}
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+  
+  container.innerHTML = html;
 }
 
 // ===== BILLS TAB =====
