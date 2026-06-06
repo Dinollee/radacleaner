@@ -1,3 +1,5 @@
 .env
 __pycache__/
 *.pyc
+worker/node_modules/
+worker/package-lock.json
