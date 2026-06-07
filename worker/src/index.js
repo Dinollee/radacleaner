@@ -122,7 +122,19 @@ export default {
 					'SELECT * FROM change_log WHERE bill_id = ? ORDER BY created_at DESC LIMIT 20'
 				).bind(id).all();
 
-				return json({ bill, risks, versions, changes });
+				// Fetch votes with deputy-level details
+				const { results: votes } = await env.radacleaner_db.prepare(
+					'SELECT * FROM votes WHERE bill_id = ? ORDER BY vote_date ASC'
+				).bind(id).all();
+
+				for (const vote of votes) {
+					const { results: deputies } = await env.radacleaner_db.prepare(
+						'SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id WHERE mv.vote_id = ? ORDER BY mv.mp_faction, mv.mp_name'
+					).bind(vote.vote_id).all();
+					vote.deputies = deputies;
+				}
+
+				return json({ bill, risks, versions, changes, votes });
 			}
 
 			// --- BILL RISKS ---
