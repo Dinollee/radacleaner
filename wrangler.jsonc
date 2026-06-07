@@ -3,7 +3,6 @@
   "name": "rada-monitor-api",
   "main": "worker/src/index.js",
   "compatibility_date": "2026-06-06",
-  "pages_build_output_dir": "dashboard",
   "d1_databases": [
     {
       "binding": "radacleaner_db",
