@@ -258,6 +258,12 @@ def process_full_data(data: bytes) -> int:
                     "UPDATE bills SET act_number=%s, act_date=%s WHERE id=%s",
                     (new_act_number, new_act_date, db_id),
                 )
+                # Push act_number в Worker (навіть якщо статус не змінився)
+                push_bill(
+                    bill_number=bn,
+                    act_number=new_act_number,
+                    act_date=new_act_date,
+                )
 
             # Document references
             docs = b.get("documents", {})
