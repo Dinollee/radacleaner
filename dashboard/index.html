@@ -761,9 +761,65 @@ body {
   padding: 1px 8px;
   border-radius: 10px;
 }
+
+/* Bill filters */
+.bill-filters {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.bill-search { flex: 1; min-width: 200px; margin-bottom: 0 !important; }
+.bill-select {
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  min-width: 160px;
+}
+.bill-select:focus { outline: none; border-color: var(--accent-blue); }
+.bill-count-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.bill-pagination {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  padding: 8px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.page-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.page-btn.active {
+  background: rgba(74,158,255,0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+@media(max-width:768px) {
+  .bill-filters { flex-direction: column; }
+  .bill-select { width: 100%; }
+}
 </style>
 </head>
-<body>
+<body><!-- v4 -->
 
 <!-- Header -->
 <header class="app-header">
@@ -827,8 +883,31 @@ body {
 
 <!-- ============== BILLS ============== -->
 <section id="tab-bills" class="tab-content">
-  <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером або назвою закону...">
+  <div class="bill-filters">
+    <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером або назвою...">
+    <select id="billStatusFilter" class="bill-select">
+      <option value="">Всі статуси</option>
+    </select>
+    <select id="billStageFilter" class="bill-select">
+      <option value="">Всі етапи</option>
+      <option value="5">✅ Прийняті (stage 5)</option>
+      <option value="4">📋 Постанову підписано</option>
+      <option value="3">🔄 На розгляді</option>
+      <option value="2">📝 Зареєстровані</option>
+      <option value="1">🆕 Нові</option>
+    </select>
+    <select id="billSort" class="bill-select">
+      <option value="created_at:DESC">Новіші</option>
+      <option value="created_at:ASC">Старіші</option>
+      <option value="stage:DESC">За етапом ▼</option>
+      <option value="stage:ASC">За етапом ▲</option>
+      <option value="bill_number:ASC">За номером ▲</option>
+      <option value="bill_number:DESC">За номером ▼</option>
+    </select>
+  </div>
+  <div id="billCount" class="bill-count-label"></div>
   <div id="billListContainer"></div>
+  <div id="billPagination" class="bill-pagination"></div>
   <div id="billDetailPanel" class="bill-detail"></div>
 </section>
 
@@ -871,185 +950,69 @@ const FACTIONS = [
   { id: 'pf', name: 'Позафракційні', color: '#888888', count: 20 }
 ];
 
-// Deputies (захардкожено поки що — для демо-режиму)
-const DEPUTY_NAMES = {
-    id: 2, number: '0374', title: 'Про ратифікацію Грантової угоди (Фонд Україна II) між Урядом України та Урядом Французької Республіки',
-    date: '28.05.2026', status: 'Підписаний', risk: 'low', riskLabel: 'Низький',
-    votes: [
-      { gid: 34780, desc: 'Розгляд за скороченою процедурою', za: 215, proti: 5, utr: 28, ne: 68, vid: 24 },
-      { gid: 34781, desc: 'Проєкт Закону (в цілому)', za: 306, proti: 0, utr: 0, ne: 19, vid: 19 }
-    ],
-    llm: { overall: 92, budget: 95, economic: 90, legal: 88, social: 85,
-      summary: 'Грантова угода з Францією — безповоротна допомога. Мінімальні фінансові ризики, кошти не потребують повернення. Спрямована на відновлення інфраструктури. Висока підтримка всіх фракцій.' },
-    history: [
-      { date: '10.05.2026', text: 'Зареєстровано законопроєкт №0374' },
-      { date: '18.05.2026', text: 'Комітет з питань бюджету — позитивний висновок' },
-      { date: '25.05.2026', text: 'Комітет з питань євроінтеграції — схвалено' },
-      { date: '28.05.2026', text: 'Прийнято Верховною Радою (306 голосів)' },
-      { date: '29.05.2026', text: 'Підписано Президентом' }
-    ]
-  },
-  {
-    id: 3, number: '0371', title: 'Про ратифікацію Конвенції про створення Міжнародної компенсаційної комісії для України',
-    date: '30.04.2026', status: 'Підписаний', risk: 'low', riskLabel: 'Низький',
-    votes: [
-      { gid: 34579, desc: 'Розгляд за скороченою процедурою', za: 226, proti: 4, utr: 31, ne: 46, vid: 34 },
-      { gid: 34580, desc: 'Проєкт Закону (в цілому)', za: 283, proti: 0, utr: 0, ne: 31, vid: 32 }
-    ],
-    llm: { overall: 88, budget: 85, economic: 82, legal: 90, social: 80,
-      summary: 'Створення компенсаційної комісії для розгляду позовів про шкоду від агресії. Низькі бюджетні ризики. Міжнародно-правовий механізм. Потребує уваги до процедурних аспектів.' },
-    history: [
-      { date: '02.04.2026', text: 'Зареєстровано законопроєкт №0371' },
-      { date: '10.04.2026', text: 'Комітет з питань зовнішньої політики — схвалено' },
-      { date: '18.04.2026', text: 'Комітет з питань правової політики — позитивний висновок' },
-      { date: '30.04.2026', text: 'Прийнято Верховною Радою (283 голоси)' },
-      { date: '05.05.2026', text: 'Підписано Президентом' }
-    ]
-  },
-  {
-    id: 4, number: '3495', title: 'Про внесення змін до Податкового кодексу України щодо оподаткування банків',
-    date: '20.05.2026', status: 'На розгляді', risk: 'high', riskLabel: 'Високий',
-    votes: [
-      { gid: 34650, desc: 'Перше читання', za: 198, proti: 42, utr: 18, ne: 34, vid: 28 },
-      { gid: 34651, desc: 'Друге читання', za: 224, proti: 31, utr: 11, ne: 22, vid: 25 }
-    ],
-    llm: { overall: 45, budget: 30, economic: 40, legal: 55, social: 60,
-      summary: 'Підвищення податку на прибуток банків до 50%. Високі ризики для банківської системи. Можливий відтік капіталу. Суперечливі оцінки між фракціями. Потребує доопрацювання.' },
-    history: [
-      { date: '01.03.2026', text: 'Зареєстровано законопроєкт №3495' },
-      { date: '15.03.2026', text: 'Комітет з питань фінансів — рекомендує прийняти за основу' },
-      { date: '10.04.2026', text: 'НБУ надав негативний висновок' },
-      { date: '20.05.2026', text: 'Прийнято в першому читанні (198 голосів)' },
-      { date: '01.06.2026', text: 'Підготовка до другого читання' }
-    ]
-  },
-  {
-    id: 5, number: '3612', title: 'Про Державний бюджет України на 2027 рік',
-    date: '04.06.2026', status: 'Внесено', risk: 'high', riskLabel: 'Високий',
-    votes: [
-      { gid: 34800, desc: 'Перше читання', za: 240, proti: 12, utr: 9, ne: 28, vid: 19 }
-    ],
-    llm: { overall: 50, budget: 25, economic: 35, legal: 60, social: 40,
-      summary: 'Проєкт бюджету на 2027 рік. Значне збільшення видатків на оборону (30% ВВП). Скорочення соціальних програм. Високі ризики невиконання доходної частини через економічну невизначеність.' },
-    history: [
-      { date: '01.06.2026', text: 'Внесено Кабінетом Міністрів' },
-      { date: '04.06.2026', text: 'Прийнято в першому читанні (240 голосів)' },
-      { date: '10.06.2026', text: 'Підготовка до другого читання' }
-    ]
-  }
-];
 
-// Deputy names by faction (realistic Ukrainian names)
+
+// Deputy names by faction
 const DEPUTY_NAMES = {
-  sn: ['Арахамія Д.Г.', 'Бабак С.В.', 'Бакумов О.С.', 'Безгін В.Ю.', 'Безугла М.В.',
-       'Беленюк Ж.В.', 'Березін М.Ю.', 'Боблях А.Р.', 'Богданець А.В.', 'Богуцька Є.П.',
+  sn: ['Арахамія Д.Г.', 'Бабак С.В.', 'Бакумов О.С.', 'Безгін В.Ю.', 'Беленюк Ж.В.',
+       'Березін М.Ю.', 'Березовський В.В.', 'Боблях А.Р.', 'Богданець А.В.', 'Богуцька Є.П.',
        'Бойко Ю.А.', 'Бондаренко О.В.', 'Борзова І.Н.', 'Бородін В.В.', 'Борт В.П.',
-       'Брагар Є.В.', 'Бужанський М.А.', 'Буймістер Л.А.', 'Булах Л.В.', 'Бунін С.В.',
-       'Воронов В.А.', 'Воронько О.Є.', 'Галайчук В.С.', 'Гевко В.Л.', 'Герасименко І.Л.',
-       'Гетьманцев Д.О.', 'Горобець О.В.', 'Горбенко Р.Л.', 'Гриб В.О.', 'Григоренко С.М.',
-       'Грищук Р.П.', 'Грунська О.В.', 'Гузь І.В.', 'Гуляєв В.О.', 'Даниленко В.В.',
-       'Демченко С.І.', 'Деркач А.Л.', 'Дзюбановський О.М.', 'Дмитрієва О.В.', 'Довгий О.В.',
-       'Дубіль В.О.', 'Дубінський О.А.', 'Дунаєв С.В.', 'Євтушок С.М.', 'Єленський В.Є.',
-       'Ємець Л.О.', 'Єфімов М.В.', 'Жмеренецький О.С.', 'Жупанин В.М.', 'Заблоцький М.Б.',
-       'Загорій Г.В.', 'Задорожній А.В.', 'Заліщук С.П.', 'Захарченко В.В.', 'Зінкевич Д.В.',
-       'Зуб В.О.', 'Іванісов Р.В.', 'Іванченко В.П.', 'Ільєнко А.О.', 'Іонушас С.К.',
-       'Кабанов О.В.', 'Калиновський І.О.', 'Калюжний В.А.', 'Каптєлов Р.В.', 'Каракуц В.В.',
-       'Карташов Є.О.', 'Касай Г.О.', 'Качура О.А.', 'Кива І.В.', 'Кириленко В.А.',
-       'Кисіль І.П.', 'Кісєль В.В.', 'Кіт А.О.', 'Клочко А.А.', 'Ковальов О.І.',
-       'Ковальчук О.В.', "Кожем'якін А.А.", 'Колесніков Д.В.', 'Колісник В.В.', 'Колтунович О.О.',
-       'Комар М.С.', 'Кондратюк О.К.', 'Кондратюк В.М.', 'Копиленко О.Л.', 'Корнієнко О.С.',
-       'Король В.М.', 'Корявченков Ю.В.', 'Костін А.Є.', 'Костюк Д.С.', 'Кошулинський Р.В.',
-       'Кравчук Є.М.', 'Красов О.І.', 'Кривошеєв І.С.', 'Криворучкіна О.В.', 'Крючкова І.В.',
-       'Кузбит Ю.М.', 'Кузьменко А.І.', 'Кузьміних С.В.', 'Кунаєв А.Ю.', 'Куницький О.О.',
-       'Купрієнко О.В.', 'Кучер О.В.', 'Лабунська А.В.', 'Лаврик О.В.', 'Ларін С.М.',
-       'Леонов О.О.', 'Лерос Г.З.', 'Литвиненко С.А.', 'Літвінов О.М.', 'Лободенко К.В.',
-       'Логвинський Г.В.', 'Лопушанський А.Я.', 'Лукашова Н.В.', "Лук'янчук В.В.", 'Луценко І.В.',
-       'Любота Д.В.', 'Ляшенко А.В.', 'Мазур В.В.', 'Майзель Ю.В.', 'Макаров О.В.',
-       'Македон Є.О.', 'Малашко В.А.', 'Малиновський Р.В.', 'Малюська Д.Л.', 'Мамедов О.М.',
-       'Маріковський О.В.', 'Мартиненко С.В.', 'Марченко О.О.', 'Маслов Д.В.', 'Матевосова А.В.',
-       'Матвієнко А.С.', 'Матвійчук Е.Л.', 'Медведчук В.В.', 'Мельник О.В.', 'Мельничук І.І.',
-       'Мережко О.О.', 'Микитась М.В.', 'Михайленко Д.Г.', 'Мовчан О.В.', 'Молоток І.Ф.',
-       'Мороз В.В.', 'Мороз М.В.', 'Мотревич Н.В.', 'Нагаєвський А.С.', 'Нагорняк С.В.',
-       'Наливайченко В.О.', 'Наумов В.В.', 'Немиря Г.М.', 'Нестеренко К.О.', 'Нефьодов М.Є.',
-       'Никифорчук Р.В.', 'Ніконов А.В.', 'Німченко В.І.', 'Новіков Д.В.', 'Нужний В.І.',
-       'Одарченко Ю.В.', 'Олійник А.В.', 'Ольшанський В.М.', 'Онищенко О.В.', 'Опанасенко О.В.',
-       'Оржель О.В.', 'Осадчук А.П.', 'Остапенко А.Д.', 'Островський В.В.', 'Охріменко В.В.',
-       'Павленко Р.М.', 'Павлюк М.В.', 'Паламарчук Н.П.', 'Палиця І.П.', 'Панасовський О.В.',
-       'Парасюк В.В.', 'Парфенов А.В.', 'Пацкан В.В.', 'Пашинський С.В.', 'Педченко О.В.',
-       'Пендзин Я.В.', 'Перебийніс Є.В.', 'Перегуда В.В.', 'Петренко О.В.', 'Петров О.В.',
-       'Петруняк Є.В.', 'Підберезняк В.В.', 'Підгорний А.В.', 'Пінчук А.Ю.', 'Пірський В.В.',
-       'Плачкова Т.М.', 'Поворозник М.Ю.', 'Подоляк В.М.', 'Поживанов М.О.', 'Положинський О.В.',
-       'Поляков А.Е.', 'Помазанов А.В.', 'Пономаренко О.В.', 'Попов Г.М.', 'Попова І.В.',
-       'Потапов В.В.', 'Приходько Б.В.', 'Приходько Н.І.', 'Проценко М.О.', 'Пташник В.Й.',
-       'Пуртова А.А.', "П'яних К.Б.", 'Рабінович В.З.', 'Радуцький М.Б.', 'Развадовський В.Й.',
-       'Рахманін С.І.', 'Рейніс І.Б.', 'Репік В.В.', 'Рибак І.П.', 'Риженков О.М.',
-       'Різаненко П.О.', 'Розенко П.В.', 'Романюк Я.В.', 'Рудик К.О.', 'Русин В.В.',
-       'Рябчин О.М.', 'Савченко О.В.', 'Савченко Н.В.', 'Садовий А.І.', 'Саламаха О.В.',
-       'Самойленко В.В.', 'Санченко О.В.', 'Сапожко І.В.', 'Сарана С.В.', 'Сас С.В.',
-       'Світлична Ю.О.', 'Святаш Д.В.', 'Семенчук В.В.', 'Семерак О.М.', 'Сергієнко Л.Г.',
-       'Сидоренко К.О.', 'Сидорчук О.В.', 'Силантьєв Д.О.', 'Синенко В.В.', 'Синютка О.М.',
-       'Сілантьєв О.В.', 'Січ О.В.', 'Скворцов І.В.', 'Скічко О.О.', 'Скрипник О.О.',
-       'Скрипниченко В.В.', 'Слободянюк В.В.', 'Смірнов Є.В.', 'Снісаренко І.В.', 'Соболєв С.В.',
-       'Соколов В.В.', 'Солейко О.В.', 'Солошенко І.В.', 'Сопель В.В.', 'Сорочинська Н.М.',
-       'Соха А.В.', 'Спасский К.В.', 'Співак В.В.', 'Старенький С.М.', 'Степанов М.В.',
-       'Степанова Г.М.', 'Стефанчук Р.О.', 'Стефанчук М.О.', 'Стойко І.М.', 'Сторожук Д.О.',
-       'Стрельцов Є.В.', 'Ступак О.В.', 'Суханов О.В.', 'Сушко П.М.', 'Таран В.В.',
-       'Тарута С.О.', 'Ташкін О.В.', 'Твердохліб М.М.', 'Тельпіс Д.В.', 'Тимошенко Ю.В.',
-       'Тимошенко В.В.', 'Тістик Р.В.', 'Ткаченко М.В.', 'Токар В.В.', 'Толмачов Г.В.',
-       'Томенко М.В.', 'Топалов С.В.', 'Торохтій О.В.', 'Травін В.В.', 'Третьяков О.Ю.',
-       'Трофімова С.І.', 'Трухін О.М.', 'Турчинов О.В.', 'Тягнибок О.Я.', 'Удовиченко О.В.',
-       'Уманець Т.В.', 'Урбанський А.І.', 'Устенко О.О.', 'Федіна С.В.', 'Федоренко А.В.',
-       'Федоров М.В.', 'Фельдман О.Б.', 'Філіпчук А.В.', 'Фріс І.В.', 'Фурман С.В.',
-       'Халаджи В.В.', 'Хміль М.М.', 'Холодов А.І.', 'Хоменко О.В.', 'Хорішко А.В.',
-       'Цабаль В.В.', 'Цимбалюк М.М.', 'Цукор В.Г.', 'Чабан В.В.', 'Чайка П.В.',
-       'Чекіта О.В.', 'Червак О.В.', 'Черненко О.М.', 'Чернов Д.О.', 'Чернявський С.М.',
-       'Чижов І.В.', 'Чорний Д.С.', 'Чорноморов В.В.', 'Чубаров Р.Р.', 'Чухраєнко Г.В.',
-       'Шаповалов О.В.', 'Шахов С.В.', 'Швачка В.В.', 'Швець В.М.', 'Шевченко Є.В.',
-       'Шевченко О.В.', 'Шевченко І.В.', 'Шевчук С.В.', 'Шенцев Д.О.', 'Шепетин Д.В.',
-       'Шинкаренко І.В.', 'Шипко А.Ф.', 'Шкіря І.М.', 'Шкрум А.І.', 'Шкуратенко О.В.',
-       'Шлемко Д.В.', 'Шпенов Д.Ю.', 'Шуляк О.О.', 'Шурма І.М.', 'Щербаков О.В.',
-       'Юзькова Т.Л.', 'Юрченко І.М.', 'Юрчишин П.В.', 'Якименко П.В.', 'Яковлєв В.В.',
-       'Яременко Б.В.', 'Ярмоленко А.М.', 'Ясько С.В.', 'Яценко А.В.', 'Яцик Ю.В.' ],
+       'Брагар Є.В.', 'Бужанський М.А.', 'Буймістер Л.А.', 'Булах Л.В.', 'Бунін С.В.'],
   es: ["Ар'єв В.І.", 'Герасимов А.В.', 'Гончаренко О.О.', 'Зінкевич Д.В.', 'Іванова К.О.',
        'Княжицький М.Л.', 'Лещенко С.А.', 'Луценко Ю.В.', 'Марусяк О.Р.', 'Мушак О.Й.',
        'Німченко В.І.', 'Парасюк В.В.', 'Порошенко П.О.', 'Пташник В.Й.', 'Савченко Н.В.',
        'Синютка О.М.', 'Сотник О.С.', 'Супруненко О.І.', 'Теліженко О.М.', 'Фріз І.В.',
-       'Чорновол Т.М.' ],
+       'Чорновол Т.М.'],
   bt: ['Батенко Т.І.', 'Бондарєв К.А.', 'Власенко С.В.', 'Дубіль В.О.', 'Євтушок С.М.',
        'Івченко В.Є.', 'Кириленко І.Г.', "Кожем'якін А.А.", 'Королевська Н.Ю.',
        'Крупський О.П.', 'Купрієнко О.В.', 'Лабунська А.В.', 'Луценко І.В.',
        'Мороко О.В.', 'Наливайченко В.О.', 'Пінчук А.Ю.', 'Попов І.В.', 'Рахманін С.І.',
-       'Соболєв С.В.', 'Тарасенко О.В.', 'Тимошенко Ю.В.', 'Турчинов О.В.',
-       'Шкрум А.І.' ],
+       'Соболєв С.В.', 'Тарасенко О.В.', 'Тимошенко Ю.В.', 'Турчинов О.В.', 'Шкрум А.І.'],
   pp: ['Бойко Ю.А.', 'Вовк Д.В.', 'Гончаренко О.О.', 'Деркач А.Л.', 'Дубінський О.А.',
        'Загородній М.В.', 'Іоффе Ю.Я.', 'Кальченко В.М.', 'Кива І.В.', 'Ківалов С.В.',
        'Козак Т.Р.', 'Колісніченко В.В.', 'Котвицький І.В.', 'Кузьмін Р.Р.',
        'Льовочкін С.В.', 'Медведчук В.В.', 'Мороз В.В.', 'Німченко В.І.',
-       'Павлов К.В.', 'Рабінович В.З.', 'Солод О.В.' ],
+       'Павлов К.В.', 'Рабінович В.З.', 'Солод О.В.'],
   dv: ['Бакунець П.А.', 'Гузь І.В.', 'Довгий О.В.', 'Ільєнко А.О.', 'Кіт А.О.',
        'Колісник В.В.', 'Купрієнко О.В.', 'Литвин В.М.', 'Літвінов О.М.',
        'Марченко О.О.', 'Матвієнко А.С.', 'Мельничук І.І.', 'Палиця І.П.',
        'Петренко О.В.', 'Рудик К.О.', 'Сергієнко Л.Г.', 'Суханов О.В.',
-       'Ткаченко М.В.', 'Шевченко Є.В.' ],
+       'Ткаченко М.В.', 'Шевченко Є.В.'],
   zm: ['Балога В.І.', 'Білозір Л.М.', 'Гевко В.Л.', 'Герега О.В.', 'Дзюбановський О.М.',
        'Довгий О.С.', 'Івахів С.П.', 'Іонушас С.К.', 'Кальченко В.М.', 'Лабунська А.В.',
        'Ларін С.М.', 'Матвієнко А.С.', 'Палиця І.П.', 'Попов Г.М.', 'Репік В.В.',
-       'Світлична Ю.О.', 'Шурма І.М.' ],
+       'Світлична Ю.О.', 'Шурма І.М.'],
   gl: ['Гончаренко О.О.', 'Жупанин В.М.', 'Кицак Б.В.', 'Клімкін П.А.', 'Княжицький М.Л.',
        'Ковальов О.І.', 'Луценко Ю.В.', 'Макаров О.В.', 'Найєм М.М.', 'Опанасенко О.В.',
        'Парасюк В.В.', 'Поворозник М.Ю.', 'Попов Г.М.', 'Савченко О.В.', 'Семерак О.М.',
-       'Соболєв С.В.', 'Стефанчук М.О.', 'Чорновол Т.М.' ],
+       'Соболєв С.В.', 'Стефанчук М.О.', 'Чорновол Т.М.'],
   vn: ['Бондар Г.В.', 'Василенко Л.І.', 'Герасименко І.Л.', 'Горбенко Р.Л.',
        'Григоренко С.М.', 'Дмитрієва О.В.', 'Жмеренецький О.С.', 'Зінкевич Д.В.',
        'Колісніченко В.В.', 'Любота Д.В.', 'Маріковський О.В.', 'Мельник О.В.',
        'Пашинський С.В.', 'Солошенко І.В.', 'Таран В.В.', 'Третьяков О.Ю.',
-       'Яременко Б.В.' ],
+       'Яременко Б.В.'],
   pf: ['Балога В.В.', 'Богуслаєв В.О.', 'Васильєв Г.А.', 'Веревський А.М.',
        'Гладій В.І.', 'Денисенко А.П.', 'Добкін М.М.', 'Дубневич Б.В.',
        'Єремеєв І.М.', 'Жеваго К.В.', 'Іванченко В.П.', 'Коломойський І.В.',
        'Ляшко О.В.', 'Мосійчук І.В.', 'Новинський В.В.', 'Палиця І.П.',
        'Пашинський С.В.', 'Рибалка С.В.', 'Тарута С.О.', 'Тігіпко С.Л.' ]
 };
+
+// Build ALL_DEPUTIES flat array from DEPUTY_NAMES + FACTIONS
+const ALL_DEPUTIES = [];
+FACTIONS.forEach(f => {
+  const names = DEPUTY_NAMES[f.id] || [];
+  names.forEach(name => {
+    ALL_DEPUTIES.push({
+      name: name,
+      faction: f.id,
+      factionName: f.name,
+      votes: Math.floor(Math.random() * 10 + 5),
+      attended: Math.floor(Math.random() * 8 + 2),
+      kpd: Math.floor(Math.random() * 40 + 50)
+    });
+  });
+});
 
 // ===== API HELPERS =====
 async function apiFetch(path) {
@@ -1086,13 +1049,29 @@ function setText(id, val) {
   if (el) el.textContent = val;
 }
 
-async function loadBillsList(search) {
-  const params = new URLSearchParams({ limit: 200 });
+let CURRENT_PAGE = 0;
+const PAGE_SIZE = 50;
+let TOTAL_BILLS = 0;
+
+async function loadBillsList(search, status, stage, sort, page) {
+  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (page || 0) * PAGE_SIZE });
   if (search) params.set('search', search);
+  if (status) params.set('status', status);
+  if (stage) params.set('stage', stage);
+  if (sort) {
+    const [s, o] = sort.split(':');
+    params.set('sort', s);
+    params.set('order', o);
+  }
   const data = await apiFetch('/bills?' + params.toString());
   if (data && data.bills) {
     CACHED_BILLS = data.bills;
+    TOTAL_BILLS = data.total || 0;
+  } else {
+    CACHED_BILLS = [];
+    TOTAL_BILLS = 0;
   }
+  CURRENT_PAGE = page || 0;
   return CACHED_BILLS;
 }
 
@@ -1300,24 +1279,39 @@ function renderCalendar() {
 }
 
 // ===== BILLS TAB =====
-async function renderBills(filter) {
+async function renderBills() {
   const container = document.getElementById('billListContainer');
   container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
 
-  const data = await loadBillsList(filter || undefined);
-  const bills = data || [];
+  const search = document.getElementById('billSearch').value;
+  const status = document.getElementById('billStatusFilter').value;
+  const stage = document.getElementById('billStageFilter').value;
+  const sort = document.getElementById('billSort').value;
+
+  const bills = await loadBillsList(search, status || null, stage || null, sort, 0);
   container.innerHTML = '';
+  renderPagination();
 
   if (!bills.length) {
     container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нічого не знайдено</div>';
+    document.getElementById('billCount').textContent = '';
     return;
   }
 
+  document.getElementById('billCount').textContent = `Знайдено: ${TOTAL_BILLS.toLocaleString()} законів`;
+
   bills.forEach(b => {
-    const statusColor = b.current_status === 'Закон підписано' || b.current_status === 'Закон прийнято'
+    const statusLower = (b.current_status || '').toLowerCase();
+    const isAdopted = statusLower.includes('закон підписано') || statusLower.includes('закон прийнято') || statusLower.includes('постанову підписано');
+    const isRejected = statusLower.includes('відхилен') || statusLower.includes('знято');
+    const statusColor = isAdopted
       ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+      : isRejected ? 'background:rgba(231,76,60,0.2);color:#e74c3c'
       : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
       : 'background:rgba(243,156,18,0.2);color:#f39c12';
+
+    const stageLabel = b.stage >= 5 ? '✅ Прийнято' : b.stage >= 4 ? '📋 Підписано' : b.stage >= 3 ? '🔄 На розгляді' : b.stage >= 2 ? '📝 Зареєстровано' : '🆕 Новий';
+    const stageClass = b.stage >= 4 ? 'low' : b.stage >= 2 ? 'medium' : 'high';
 
     const item = el('div', { className: 'bill-item' },
       el('div', { className: 'bill-item-header' },
@@ -1328,14 +1322,79 @@ async function renderBills(filter) {
       el('div', { className: 'bill-meta' },
         el('span', {}, '📅 ' + (b.registration_date || '—')),
         el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
-        el('span', { className: 'bill-risk low' }, '🧠 Етап: ' + (b.stage || 1))
+        el('span', { className: 'bill-risk ' + stageClass }, stageLabel)
       )
     );
-    item.addEventListener('click', () => {
-      document.querySelector('.tab-btn[data-tab="bills"]').click();
-      toggleBillDetail(b.id);
-    });
+    item.addEventListener('click', () => toggleBillDetail(b.id));
     container.appendChild(item);
+  });
+}
+
+function renderPagination() {
+  const pagEl = document.getElementById('billPagination');
+  const totalPages = Math.ceil(TOTAL_BILLS / PAGE_SIZE);
+  if (totalPages <= 1) { pagEl.innerHTML = ''; return; }
+
+  let html = '';
+  // Prev
+  html += `<button class="page-btn" ${CURRENT_PAGE===0?'disabled':''} onclick="goToPage(${CURRENT_PAGE-1})">◀ Назад</button>`;
+
+  // Page numbers — show up to 7 around current
+  const start = Math.max(0, CURRENT_PAGE - 3);
+  const end = Math.min(totalPages, CURRENT_PAGE + 4);
+  for (let i = start; i < end; i++) {
+    html += `<button class="page-btn ${i===CURRENT_PAGE?'active':''}" onclick="goToPage(${i})">${i+1}</button>`;
+  }
+
+  // Next
+  html += `<button class="page-btn" ${CURRENT_PAGE>=totalPages-1?'disabled':''} onclick="goToPage(${CURRENT_PAGE+1})">Вперед ▶</button>`;
+
+  pagEl.innerHTML = html;
+}
+
+function goToPage(page) {
+  const search = document.getElementById('billSearch').value;
+  const status = document.getElementById('billStatusFilter').value;
+  const stage = document.getElementById('billStageFilter').value;
+  const sort = document.getElementById('billSort').value;
+  loadBillsList(search, status || null, stage || null, sort, page).then(bills => {
+    const container = document.getElementById('billListContainer');
+    container.innerHTML = '';
+    document.getElementById('billCount').textContent = `Знайдено: ${TOTAL_BILLS.toLocaleString()} законів`;
+    renderPagination();
+
+    if (!bills.length) {
+      container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нічого не знайдено</div>';
+      return;
+    }
+
+    bills.forEach(b => {
+      const statusLower = (b.current_status || '').toLowerCase();
+      const isAdopted = statusLower.includes('закон підписано') || statusLower.includes('закон прийнято') || statusLower.includes('постанову підписано');
+      const isRejected = statusLower.includes('відхилен') || statusLower.includes('знято');
+      const statusColor = isAdopted
+        ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+        : isRejected ? 'background:rgba(231,76,60,0.2);color:#e74c3c'
+        : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
+        : 'background:rgba(243,156,18,0.2);color:#f39c12';
+      const stageLabel = b.stage >= 5 ? '✅ Прийнято' : b.stage >= 4 ? '📋 Підписано' : b.stage >= 3 ? '🔄 На розгляді' : b.stage >= 2 ? '📝 Зареєстровано' : '🆕 Новий';
+      const stageClass = b.stage >= 4 ? 'low' : b.stage >= 2 ? 'medium' : 'high';
+      const item = el('div', { className: 'bill-item' },
+        el('div', { className: 'bill-item-header' },
+          el('span', { className: 'bill-number' }, '#' + b.bill_number),
+          el('span', { className: 'bill-title' }, b.title || ''),
+          el('span', { style: statusColor, className: 'bill-status' }, b.current_status || '')
+        ),
+        el('div', { className: 'bill-meta' },
+          el('span', {}, '📅 ' + (b.registration_date || '—')),
+          el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
+          el('span', { className: 'bill-risk ' + stageClass }, stageLabel)
+        )
+      );
+      item.addEventListener('click', () => toggleBillDetail(b.id));
+      container.appendChild(item);
+    });
+    document.getElementById('billListContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
@@ -1405,6 +1464,25 @@ async function toggleBillDetail(id) {
     </div>`;
   }
 
+  // Change log timeline
+  let changesHtml = '';
+  const changes = data.changes || [];
+  if (changes.length) {
+    changesHtml = `
+    <div class="detail-section">
+      <h3>📋 Історія змін</h3>
+      <div class="timeline">
+        ${changes.map(c => {
+          const icons = { new: '🆕', status_change: '🔄' };
+          return `<div class="timeline-item">
+            <span class="date">${c.created_at || ''}</span>
+            <div class="desc">${icons[c.change_type] || '📝'} ${c.change_type === 'new' ? 'Закон зареєстровано' : `Зміна статусу: ${c.old_value || '—'} → ${c.new_value || '—'}`}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
   panel.innerHTML = `
     <button class="bill-detail-close" onclick="document.getElementById('billDetailPanel').classList.remove('open');selectedBillId=null;">✕</button>
     <div style="margin-bottom:16px;">
@@ -1419,13 +1497,14 @@ async function toggleBillDetail(id) {
       <div style="font-size:13px;line-height:1.8;color:var(--text-secondary);">
         ${bill.committee ? `<div>🏛 Комітет: ${bill.committee}</div>` : ''}
         ${bill.agenda_category ? `<div>📂 Категорія: ${bill.agenda_category}</div>` : ''}
-        ${bill.url ? `<div>🔗 <a href="${bill.url}" target="_blank" style="color:var(--accent-blue);">Картка закону на сайті ВРУ</a></div>` : ''}
+        ${bill.url ? `<div>🔗 <a href="${bill.url}" target="_blank" style="color:var(--accent-blue);">${bill.url}</a></div>` : ''}
         ${bill.stage ? `<div>📊 Етап: ${bill.stage}/5</div>` : ''}
       </div>
     </div>
 
     ${llmHtml}
     ${timelineHtml}
+    ${changesHtml}
   `;
 }
 
@@ -1531,11 +1610,28 @@ function filterDeputies(btn, type) {
   });
 }
 
+function applyFilters() { renderBills(); }
 document.getElementById('billSearch').addEventListener('input', function() {
-  const val = this.value;
   clearTimeout(this._debounce);
-  this._debounce = setTimeout(() => renderBills(val), 300);
+  this._debounce = setTimeout(applyFilters, 300);
 });
+document.getElementById('billStatusFilter').addEventListener('change', applyFilters);
+document.getElementById('billStageFilter').addEventListener('change', applyFilters);
+document.getElementById('billSort').addEventListener('change', applyFilters);
+
+// Load statuses for filter dropdown
+async function loadStatuses() {
+  const data = await apiFetch('/statuses');
+  if (!data || !data.statuses) return;
+  const sel = document.getElementById('billStatusFilter');
+  data.statuses.forEach(s => {
+    if (!s.current_status) return;
+    const opt = document.createElement('option');
+    opt.value = s.current_status;
+    opt.textContent = `${s.current_status} (${s.count})`;
+    sel.appendChild(opt);
+  });
+}
 
 // ===== DEPUTIES TAB =====
 function renderDeputies(filter, factionFilter) {
@@ -1603,10 +1699,14 @@ FACTIONS.forEach(f => {
 // ===== INIT =====
 (async function init() {
   await loadStats();
+  await loadStatuses();
   await renderDashboard();
-  await renderBills('');
+  await renderBills();
   renderDeputies('', '');
 })();
 </script>
+<!-- v4-1780816271-1780813392 -->
 </body>
+
+<!-- deploy-1780816519 -->
 </html>

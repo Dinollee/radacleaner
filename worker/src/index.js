@@ -32,6 +32,22 @@ export default {
 		}
 
 		try {
+			// --- STATUSES (for filter dropdown) ---
+			if (method === 'GET' && pathname === '/api/statuses') {
+				const { results } = await env.radacleaner_db.prepare(
+					'SELECT current_status, COUNT(*) as count FROM bills WHERE current_status IS NOT NULL AND current_status != "" GROUP BY current_status ORDER BY count DESC'
+				).all();
+				return json({ statuses: results });
+			}
+
+			// --- BY STAGE (for dashboard quick filter) ---
+			if (method === 'GET' && pathname === '/api/by-stage') {
+				const { results } = await env.radacleaner_db.prepare(
+					'SELECT stage, current_status, COUNT(*) as count FROM bills GROUP BY stage, current_status ORDER BY stage, count DESC'
+				).all();
+				return json({ data: results });
+			}
+
 			// --- STATS ---
 			if (method === 'GET' && pathname === '/api/stats') {
 				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, recentSync] =
@@ -61,19 +77,34 @@ export default {
 				const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 200);
 				const offset = Number(url.searchParams.get('offset')) || 0;
 				const stage = url.searchParams.get('stage');
+				const status = url.searchParams.get('status');
 				const search = url.searchParams.get('search');
+				const sort = url.searchParams.get('sort') || 'created_at';
+				const order = (url.searchParams.get('order') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
 				let query = 'SELECT * FROM bills WHERE 1=1';
 				const params = [];
 
 				if (stage) { query += ' AND stage = ?'; params.push(Number(stage)); }
+				if (status) { query += ' AND current_status = ?'; params.push(status); }
 				if (search) { query += ' AND (title LIKE ? OR bill_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
 
-				query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+				// Safe sort columns
+				const safeSort = ['created_at','updated_at','registration_date','bill_number','stage','current_status'].includes(sort) ? sort : 'created_at';
+				query += ` ORDER BY ${safeSort} ${order} LIMIT ? OFFSET ?`;
 				params.push(limit, offset);
 
 				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
-				return json({ bills: results, limit, offset });
+
+				// Also return total count for pagination
+				let countQuery = 'SELECT COUNT(*) as total FROM bills WHERE 1=1';
+				const countParams = [];
+				if (stage) { countQuery += ' AND stage = ?'; countParams.push(Number(stage)); }
+				if (status) { countQuery += ' AND current_status = ?'; countParams.push(status); }
+				if (search) { countQuery += ' AND (title LIKE ? OR bill_number LIKE ?)'; countParams.push(`%${search}%`, `%${search}%`); }
+				const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
+
+				return json({ bills: results, limit, offset, total: countResult?.total || 0 });
 			}
 
 			// --- SINGLE BILL ---
@@ -87,8 +118,11 @@ export default {
 				const { results: versions } = await env.radacleaner_db.prepare(
 					'SELECT id, version_date, status_at_moment, text_hash FROM law_versions WHERE law_id = ? ORDER BY version_date DESC LIMIT 10'
 				).bind(id).all();
+				const { results: changes } = await env.radacleaner_db.prepare(
+					'SELECT * FROM change_log WHERE bill_id = ? ORDER BY created_at DESC LIMIT 20'
+				).bind(id).all();
 
-				return json({ bill, risks, versions });
+				return json({ bill, risks, versions, changes });
 			}
 
 			// --- BILL RISKS ---
@@ -181,11 +215,22 @@ export default {
 						await env.radacleaner_db.prepare(`
 							INSERT INTO bills (bill_number, title, current_status, registration_date, committee, agenda_category, url, stage)
 							VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-							ON CONFLICT(bill_number) DO UPDATE SET current_status=COALESCE(?,current_status), title=COALESCE(?,title), updated_at=datetime('now')
+							ON CONFLICT(bill_number) DO UPDATE SET
+								current_status=COALESCE(?,current_status),
+								title=COALESCE(?,title),
+								registration_date=COALESCE(?,registration_date),
+								committee=COALESCE(?,committee),
+								agenda_category=COALESCE(?,agenda_category),
+								url=COALESCE(?,url),
+								stage=COALESCE(?,stage),
+								updated_at=datetime('now')
 						`).bind(
 							data.bill_number, data.title, data.current_status||'new',
 							data.registration_date||null, data.committee||'', data.agenda_category||'other',
-							data.url||'', data.stage||1, data.current_status||null, data.title||null,
+							data.url||'', data.stage||1,
+							data.current_status||null, data.title||null,
+							data.registration_date||null, data.committee||null,
+							data.agenda_category||null, data.url||null, data.stage||null,
 						).run();
 						return json({ success: true });
 
