@@ -881,7 +881,7 @@ body {
 <!-- ============== BILLS ============== -->
 <section id="tab-bills" class="tab-content">
   <div class="bill-filters">
-    <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером або назвою...">
+    <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером, актом або назвою...">
     <select id="billStatusFilter" class="bill-select">
       <option value="">Всі статуси</option>
     </select>
@@ -1324,7 +1324,8 @@ async function renderBills() {
         el('span', {}, '📅 ' + formatDate(b.registration_date)),
         el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
         el('span', { className: 'bill-risk ' + stageClass }, stageLabel),
-        el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at))
+        el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at)),
+        b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
       )
     );
     item.addEventListener('click', () => toggleBillDetail(b.id));
@@ -1391,7 +1392,8 @@ function goToPage(page) {
           el('span', {}, '📅 ' + formatDate(b.registration_date)),
           el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
           el('span', { className: 'bill-risk ' + stageClass }, stageLabel),
-          el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at))
+          el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at)),
+          b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
         )
       );
       item.addEventListener('click', () => toggleBillDetail(b.id));
@@ -1502,6 +1504,8 @@ async function toggleBillDetail(id) {
         ${bill.agenda_category ? `<div>📂 Категорія: ${bill.agenda_category}</div>` : ''}
         ${bill.url ? `<div>🔗 <a href="${bill.url}" target="_blank" style="color:var(--accent-blue);">${bill.url}</a></div>` : ''}
         ${bill.stage ? `<div>📊 Етап: ${bill.stage}/5</div>` : ''}
+        ${bill.act_number ? `<div>📜 Номер акту: <strong style="color:var(--accent-green);">${bill.act_number}</strong></div>` : ''}
+        ${bill.act_date ? `<div>📅 Дата прийняття: <strong>${formatDate(bill.act_date)}</strong></div>` : ''}
       </div>
     </div>
 

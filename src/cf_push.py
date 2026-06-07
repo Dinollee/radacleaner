@@ -87,18 +87,20 @@ def push_to_worker(type_name: str, data: dict, retries: int = 2) -> bool:
 
 def push_bill(
     bill_number: str,
-    title: str,
+    title: str = "",
     current_status: str = "new",
     registration_date: str | None = None,
     committee: str = "",
     agenda_category: str = "other",
     url: str = "",
     stage: int = 1,
+    act_number: str | None = None,
+    act_date: str | None = None,
 ) -> bool:
     """Відправляє законопроект у Worker.
 
     Args:
-        bill_number: Номер законопроекту.
+        bill_number: Номер законопроекту (реєстраційний).
         title: Назва.
         current_status: Поточний статус.
         registration_date: Дата реєстрації (YYYY-MM-DD).
@@ -106,6 +108,8 @@ def push_bill(
         agenda_category: Категорія.
         url: URL на card картку.
         stage: Етап (1-5).
+        act_number: Номер акту (наприклад 4121-IX), тільки для прийнятих.
+        act_date: Дата прийняття (YYYY-MM-DD).
 
     Returns:
         True якщо успішно.
@@ -119,6 +123,8 @@ def push_bill(
         "agenda_category": agenda_category,
         "url": url,
         "stage": stage,
+        "act_number": act_number,
+        "act_date": act_date,
     }
     return push_to_worker("bill", data)
 

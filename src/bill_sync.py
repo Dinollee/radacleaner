@@ -217,6 +217,8 @@ def process_full_data(data: bytes) -> int:
             new_rubric = b.get("rubric", "").strip()
             new_subject = b.get("subject", "").strip()
             new_url = b.get("url", "").strip()
+            new_act_number = b.get("actNumber", "").strip() or None
+            new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
             db_id, old_status = db_bills[bn]
 
             if new_status and new_status != old_status:
@@ -230,6 +232,8 @@ def process_full_data(data: bytes) -> int:
                 push_bill(
                     bill_number=bn,
                     current_status=new_status,
+                    act_number=new_act_number,
+                    act_date=new_act_date,
                 )
                 push_change_log(
                     bill_number=bn,
@@ -246,6 +250,13 @@ def process_full_data(data: bytes) -> int:
             if new_subject:
                 cur.execute(
                     "UPDATE bills SET committee=%s WHERE id=%s", (new_subject, db_id)
+                )
+
+            # Записуємо номер акту та дату прийняття (якщо є)
+            if new_act_number:
+                cur.execute(
+                    "UPDATE bills SET act_number=%s, act_date=%s WHERE id=%s",
+                    (new_act_number, new_act_date, db_id),
                 )
 
             # Document references
