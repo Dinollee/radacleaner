@@ -90,7 +90,7 @@ export default {
 				if (search) { query += ' AND (title LIKE ? OR bill_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
 
 				// Safe sort columns
-				const safeSort = ['created_at','updated_at','registration_date','bill_number','stage','current_status'].includes(sort) ? sort : 'created_at';
+				const safeSort = ['created_at','updated_at','registration_date','bill_number','stage','current_status'].includes(sort) ? sort : 'updated_at';
 				query += ` ORDER BY ${safeSort} ${order} LIMIT ? OFFSET ?`;
 				params.push(limit, offset);
 
