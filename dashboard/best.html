@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Страж Демократії — Моніторинг ВРУ</title>
+<style>
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-hover: #1e2a45;
+  --text-primary: #e0e6f0;
+  --text-secondary: #8899b4;
+  --text-muted: #5a6a85;
+  --accent-blue: #4a9eff;
+  --accent-green: #2ecc71;
+  --accent-red: #e74c3c;
+  --accent-orange: #f39c12;
+  --accent-yellow: #f1c40f;
+  --accent-purple: #9b59b6;
+  --border-color: #2a2a4a;
+  --shadow: 0 4px 20px rgba(0,0,0,0.3);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  
+  /* Faction colors */
+  --color-sluga: #19950b;
+  --color-es: #ffff00;
+  --color-batkiv: #0057b8;
+  --color-platforma: #ff6600;
+  --color-dovira: #00bcd4;
+  --color-maybutne: #ff9800;
+  --color-golos: #9c27b0;
+  --color-vidnovlennya: #4caf50;
+  --color-pozafrak: #888888;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* Layout */
+.app-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0; z-index: 100;
+}
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.app-header .subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  -webkit-text-fill-color: var(--text-secondary);
+}
+.header-stats {
+  display: flex; gap: 20px; align-items: center;
+}
+.header-stat {
+  text-align: center;
+}
+.header-stat .num { font-size: 20px; font-weight: 700; color: var(--accent-blue); }
+.header-stat .label { font-size: 11px; color: var(--text-secondary); }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+
+/* Tabs */
+.tab-nav {
+  display: flex;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 24px;
+  gap: 4px;
+}
+.tab-btn {
+  padding: 14px 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+.tab-content { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; }
+.tab-content.active { display: block; }
+
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: var(--transition);
+}
+.card:hover { border-color: rgba(74,158,255,0.3); }
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Grids */
+.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media(max-width:1024px){ .grid-4 { grid-template-columns: repeat(2,1fr); } .grid-3 { grid-template-columns: 1fr; } }
+@media(max-width:768px){ .grid-4, .grid-2 { grid-template-columns: 1fr; } }
+
+/* Dashboard stat cards */
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  transition: var(--transition);
+}
+.stat-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
+.stat-card .icon { font-size: 28px; margin-bottom: 8px; }
+.stat-card .value { font-size: 32px; font-weight: 700; }
+.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+
+/* Faction accordion */
+.faction-list { display: flex; flex-direction: column; gap: 6px; }
+.faction-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+.faction-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  gap: 12px;
+  transition: var(--transition);
+}
+.faction-header:hover { background: var(--bg-hover); }
+.faction-color {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.faction-name { flex: 1; font-weight: 500; font-size: 14px; }
+.faction-stats { display: flex; gap: 16px; font-size: 13px; }
+.faction-stat { text-align: center; min-width: 40px; }
+.faction-stat .n { font-weight: 700; display: block; }
+.faction-stat .l { font-size: 10px; color: var(--text-muted); }
+.stat-za .n { color: var(--accent-green); }
+.stat-proti .n { color: var(--accent-red); }
+.stat-utr .n { color: var(--accent-orange); }
+.stat-vid .n { color: var(--text-muted); }
+.faction-arrow { transition: transform 0.3s; color: var(--text-muted); font-size: 12px; }
+.faction-item.open .faction-arrow { transform: rotate(180deg); }
+
+.faction-deputies {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease, padding 0.3s;
+  padding: 0 16px;
+}
+.faction-item.open .faction-deputies {
+  max-height: 2000px;
+  padding: 0 16px 12px;
+}
+.deputy-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  gap: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: var(--transition);
+}
+.deputy-row:hover { background: var(--bg-hover); }
+.deputy-name { flex: 1; }
+.deputy-vote {
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.deputy-vote.za { background: rgba(46,204,113,0.2); color: var(--accent-green); }
+.deputy-vote.proti { background: rgba(231,76,60,0.2); color: var(--accent-red); }
+.deputy-vote.utr { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
+.deputy-vote.ne { background: rgba(90,106,133,0.2); color: var(--text-muted); }
+.deputy-vote.vid { background: rgba(90,106,133,0.15); color: var(--text-muted); }
+
+/* ===== VOTE BLOCKS (clickable vote bars → factions → deputies) ===== */
+.vote-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+.vote-block:hover { border-color: rgba(74,158,255,0.3); }
+.vote-block.expanded { border-color: var(--accent-blue); }
+
+.vote-block-header {
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.vote-block-header:hover { background: var(--bg-hover); }
+
+.vote-block-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.vote-block-summary {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.vote-count { white-space: nowrap; }
+.vote-count.za { color: var(--accent-green); }
+.vote-count.proti { color: var(--accent-red); }
+.vote-count.utr { color: var(--accent-orange); }
+.vote-count.ne { color: var(--text-muted); }
+.vote-count.vid { color: var(--text-muted); opacity: 0.7; }
+
+.vote-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  margin-bottom: 6px;
+}
+.vote-bar-seg { height: 100%; transition: width 0.3s; }
+.vote-bar-seg.za { background: var(--accent-green); }
+.vote-bar-seg.proti { background: var(--accent-red); }
+.vote-bar-seg.utr { background: var(--accent-orange); }
+.vote-bar-seg.ne { background: var(--text-muted); }
+.vote-bar-seg.vid { background: #3a3a5a; }
+
+.vote-expand-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+.vote-block.expanded .vote-expand-hint {
+  color: var(--accent-blue);
+}
+
+.vote-factions {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+  border-top: 1px solid transparent;
+}
+.vote-block.expanded .vote-factions {
+  max-height: 5000px;
+  border-top-color: var(--border-color);
+}
+
+/* Faction detail items inside vote block */
+.faction-detail-list {
+  padding: 8px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.faction-detail-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: var(--transition);
+}
+.faction-detail-item:hover { border-color: rgba(74,158,255,0.2); }
+.faction-detail-item.open { border-color: var(--accent-blue); }
+
+.faction-detail-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  gap: 10px;
+  transition: var(--transition);
+}
+.faction-detail-header:hover { background: var(--bg-hover); }
+
+.faction-mini-stats {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  margin-left: auto;
+}
+.mini-stat.za { color: var(--accent-green); }
+.mini-stat.proti { color: var(--accent-red); }
+.mini-stat.utr { color: var(--accent-orange); }
+.mini-stat.ne { color: var(--text-muted); }
+.mini-stat.vid { color: var(--text-muted); opacity: 0.7; }
+
+.faction-deputies-wrap {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+}
+.faction-detail-item.open .faction-deputies-wrap {
+  max-height: 3000px;
+}
+
+.deputies-filter {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border-color);
+  flex-wrap: wrap;
+}
+.filter-btn {
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.filter-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.filter-btn.active {
+  background: rgba(74,158,255,0.15);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.deputies-list {
+  padding: 4px 14px 10px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.deputies-list .deputy-row {
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.deputies-list .deputy-name {
+  font-size: 12px;
+}
+.deputies-list .deputy-vote {
+  font-size: 10px;
+  padding: 1px 8px;
+}
+
+/* Bill list */
+.bill-search {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  margin-bottom: 16px;
+  font-family: var(--font);
+}
+.bill-search:focus { outline: none; border-color: var(--accent-blue); }
+.bill-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.bill-item:hover { border-color: var(--accent-blue); background: var(--bg-hover); }
+.bill-item-header { display: flex; align-items: flex-start; gap: 12px; }
+.bill-number {
+  font-weight: 700;
+  color: var(--accent-blue);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.bill-title { flex: 1; font-size: 14px; line-height: 1.4; }
+.bill-status {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.bill-meta { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
+.bill-risk {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.bill-risk.high { background: rgba(231,76,60,0.2); color: var(--accent-red); }
+.bill-risk.medium { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
+.bill-risk.low { background: rgba(46,204,113,0.2); color: var(--accent-green); }
+
+/* Bill detail panel */
+.bill-detail {
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-top: 16px;
+  border-left: 3px solid var(--accent-blue);
+}
+.bill-detail.open { display: block; }
+.bill-detail-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.bill-detail-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.detail-section { margin-bottom: 20px; }
+.detail-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Timeline */
+.timeline { position: relative; padding-left: 24px; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--border-color);
+}
+.timeline-item {
+  position: relative;
+  padding: 8px 0 8px 16px;
+  font-size: 13px;
+}
+.timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  border: 2px solid var(--bg-primary);
+}
+.timeline-item .date { font-size: 11px; color: var(--text-muted); }
+.timeline-item .desc { color: var(--text-primary); }
+
+/* ===== PLENARY CALENDAR ===== */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.cal-header {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 4px 0;
+  font-weight: 600;
+}
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: default;
+  transition: var(--transition);
+  position: relative;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+.cal-day:hover { background: var(--bg-hover); }
+.cal-day.empty { background: transparent; }
+.cal-day.today {
+  border: 2px solid var(--accent-blue);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.cal-day.session {
+  background: rgba(74,158,255,0.15);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+.cal-day.session::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+}
+.cal-day.vote-day {
+  background: rgba(46,204,113,0.15);
+  color: var(--accent-green);
+  font-weight: 600;
+}
+.cal-day.vote-day::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent-green);
+}
+.cal-day.weekend {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.cal-day .cal-bills {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.cal-legend {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.cal-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.cal-legend-dot.session { background: rgba(74,158,255,0.4); }
+.cal-legend-dot.vote { background: rgba(46,204,113,0.4); }
+.cal-legend-dot.today { border: 2px solid var(--accent-blue); background: transparent; }
+
+/* Calendar month nav */
+.cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.cal-nav-btn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.cal-nav-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.cal-month-year {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+/* Session list below calendar */
+.cal-sessions {
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 12px;
+}
+.cal-session-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 13px;
+}
+.cal-session-item:last-child { border-bottom: none; }
+.cal-session-date {
+  min-width: 70px;
+  text-align: center;
+}
+.cal-session-date .day {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  line-height: 1;
+}
+.cal-session-date .month {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.cal-session-info { flex: 1; }
+.cal-session-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.cal-session-bills {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cal-session-bill {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: rgba(74,158,255,0.1);
+  color: var(--accent-blue);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.cal-session-bill:hover { background: rgba(74,158,255,0.25); }
+
+/* LLM Analysis */
+.risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 10px; }
+.risk-item {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  text-align: center;
+}
+.risk-item .label { font-size: 12px; color: var(--text-secondary); }
+.risk-item .score { font-size: 24px; font-weight: 700; margin: 4px 0; }
+.risk-item .desc { font-size: 12px; color: var(--text-muted); }
+
+/* Deputies table */
+.deputies-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.deputies-toolbar input, .deputies-toolbar select {
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: var(--font);
+}
+.deputies-toolbar input { flex: 1; min-width: 200px; }
+.deputies-toolbar select { min-width: 160px; }
+.deputies-toolbar input:focus, .deputies-toolbar select:focus { outline: none; border-color: var(--accent-blue); }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 2px solid var(--border-color);
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.data-table th:hover { color: var(--accent-blue); }
+.data-table th .sort-icon { margin-left: 4px; font-size: 10px; }
+.data-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+.data-table tr:hover td { background: var(--bg-hover); }
+.data-table .dep-faction {
+  display: flex; align-items: center; gap: 8px;
+}
+.data-table .faction-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.kpd-bar {
+  display: inline-block;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.kpd-high { color: var(--accent-green); }
+.kpd-mid { color: var(--accent-orange); }
+.kpd-low { color: var(--accent-red); }
+
+/* Responsive */
+@media(max-width:768px){
+  .app-header { flex-direction: column; gap: 8px; text-align: center; }
+  .header-stats { flex-wrap: wrap; justify-content: center; }
+  .tab-btn { padding: 10px 12px; font-size: 12px; }
+  .tab-content { padding: 12px; }
+  .bill-item-header { flex-wrap: wrap; }
+}
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.3s ease; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* Deputies count badge on faction deputies list */
+.dep-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 1px 8px;
+  border-radius: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="app-header">
+  <div>
+    <h1>🏛️ Страж Демократії</h1>
+    <div class="subtitle">Моніторинг Верховної Ради України · IX скликання</div>
+  </div>
+  <div class="header-stats">
+    <div class="header-stat">
+      <div class="num" id="headerBills">5</div>
+      <div class="label">Законів</div>
+    </div>
+    <div class="header-stat">
+      <div class="num" id="headerVotes">14</div>
+      <div class="label">Голосувань</div>
+    </div>
+    <div class="header-stat">
+      <div class="num" id="headerDeputies">394</div>
+      <div class="label">Депутатів</div>
+    </div>
+    <div class="header-stat">
+      <div class="num" id="headerFactions">9</div>
+      <div class="label">Фракцій</div>
+    </div>
+  </div>
+</header>
+
+<!-- Tab Navigation -->
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="dashboard">📊 Дашборд</button>
+  <button class="tab-btn" data-tab="bills">📜 Законопроєкти</button>
+  <button class="tab-btn" data-tab="deputies">👥 Депутати</button>
+</nav>
+
+<!-- ============== DASHBOARD ============== -->
+<section id="tab-dashboard" class="tab-content active">
+
+  <!-- Stats row -->
+  <div class="grid-4 fade-in">
+    <div class="stat-card"><div class="icon">📋</div><div class="value" id="statBillsTotal">5</div><div class="label">Законів прийнято</div></div>
+    <div class="stat-card"><div class="icon">🗳️</div><div class="value" id="statVotesTotal">14</div><div class="label">Голосувань проведено</div></div>
+    <div class="stat-card"><div class="icon">✅</div><div class="value" id="statAttendanceAvg">87</div><div class="label">Середня явка, %</div></div>
+    <div class="stat-card"><div class="icon">🏛️</div><div class="value" id="statFactionsCount">9</div><div class="label">Фракцій та груп</div></div>
+  </div>
+
+  <!-- Main dashboard layout -->
+  <div class="grid-2 fade-in">
+    <!-- Left: Recent bills -->
+    <div class="card">
+      <div class="card-title">📌 Останні закони</div>
+      <div id="dashBillList"></div>
+    </div>
+
+    <!-- Right: Plenary Calendar -->
+    <div class="card">
+      <div class="card-title">📅 Календарь пленарних засідань</div>
+      <div id="dashCalendar"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== BILLS ============== -->
+<section id="tab-bills" class="tab-content">
+  <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером або назвою закону...">
+  <div id="billListContainer"></div>
+  <div id="billDetailPanel" class="bill-detail"></div>
+</section>
+
+<!-- ============== DEPUTIES ============== -->
+<section id="tab-deputies" class="tab-content">
+  <div class="deputies-toolbar">
+    <input type="text" id="depSearch" placeholder="🔍 Пошук за ПІБ або фракцією...">
+    <select id="depFactionFilter"><option value="">Усі фракції</option></select>
+  </div>
+  <div class="card" style="overflow-x:auto;padding:0;">
+    <table class="data-table" id="deputiesTable">
+      <thead>
+        <tr>
+          <th data-sort="name">ПІБ <span class="sort-icon">↕</span></th>
+          <th data-sort="faction">Фракція <span class="sort-icon">↕</span></th>
+          <th data-sort="votes">Голосувань <span class="sort-icon">↕</span></th>
+          <th data-sort="kpd">КПД, % <span class="sort-icon">↕</span></th>
+        </tr>
+      </thead>
+      <tbody id="deputiesBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============== JAVASCRIPT ============== -->
+<script>
+// ===== DATA =====
+const FACTIONS = [
+  { id: 'sn', name: 'СЛУГА НАРОДУ', color: '#19950b', count: 225 },
+  { id: 'es', name: 'Європейська Солідарність', color: '#ffff00', count: 21 },
+  { id: 'bt', name: 'Батьківщина', color: '#0057b8', count: 23 },
+  { id: 'pp', name: 'Платформа за життя та мир', color: '#ff6600', count: 21 },
+  { id: 'dv', name: 'ДОВІРА', color: '#00bcd4', count: 19 },
+  { id: 'zm', name: 'Партія "За майбутнє"', color: '#ff9800', count: 17 },
+  { id: 'gl', name: 'ГОЛОС', color: '#9c27b0', count: 18 },
+  { id: 'vn', name: 'Відновлення України', color: '#4caf50', count: 17 },
+  { id: 'pf', name: 'Позафракційні', color: '#888888', count: 20 }
+];
+
+const BILLS = [
+  {
+    id: 1, number: '0376', title: 'Про ратифікацію Угоди про Позику між Україною та ЄС (Макрофінансова допомога +35 млрд євро)',
+    date: '28.05.2026', status: 'Підписаний', risk: 'medium', riskLabel: 'Середній',
+    votes: [
+      { gid: 34782, desc: 'Розгляд за скороченою процедурою', za: 231, proti: 4, utr: 31, ne: 45, vid: 27 },
+      { gid: 34783, desc: 'Проєкт Закону (в цілому)', za: 298, proti: 0, utr: 1, ne: 11, vid: 30 },
+      { gid: 34784, desc: 'Доручення підписати', za: 276, proti: 0, utr: 0, ne: 27, vid: 30 }
+    ],
+    llm: { overall: 85, budget: 90, economic: 80, legal: 75, social: 92,
+      summary: 'Позика ЄС на макрофінансову допомогу. Низькі ризики завдяки пільговим умовам (1% річних, 35-річний термін). Високий соціальний ефект — стабілізація економіки в умовах війни. Юридичні ризики мінімальні — стандартна угода ЄС.' },
+    history: [
+      { date: '12.05.2026', text: 'Зареєстровано законопроєкт №0376' },
+      { date: '15.05.2026', text: 'Комітет з питань фінансів рекомендував прийняти' },
+      { date: '20.05.2026', text: 'Комітет з питань євроінтеграції — позитивний висновок' },
+      { date: '28.05.2026', text: 'Прийнято Верховною Радою (298 голосів)' },
+      { date: '29.05.2026', text: 'Підписано Президентом України' }
+    ]
+  },
+  {
+    id: 2, number: '0374', title: 'Про ратифікацію Грантової угоди (Фонд Україна II) між Урядом України та Урядом Французької Республіки',
+    date: '28.05.2026', status: 'Підписаний', risk: 'low', riskLabel: 'Низький',
+    votes: [
+      { gid: 34780, desc: 'Розгляд за скороченою процедурою', za: 215, proti: 5, utr: 28, ne: 68, vid: 24 },
+      { gid: 34781, desc: 'Проєкт Закону (в цілому)', za: 306, proti: 0, utr: 0, ne: 19, vid: 19 }
+    ],
+    llm: { overall: 92, budget: 95, economic: 90, legal: 88, social: 85,
+      summary: 'Грантова угода з Францією — безповоротна допомога. Мінімальні фінансові ризики, кошти не потребують повернення. Спрямована на відновлення інфраструктури. Висока підтримка всіх фракцій.' },
+    history: [
+      { date: '10.05.2026', text: 'Зареєстровано законопроєкт №0374' },
+      { date: '18.05.2026', text: 'Комітет з питань бюджету — позитивний висновок' },
+      { date: '25.05.2026', text: 'Комітет з питань євроінтеграції — схвалено' },
+      { date: '28.05.2026', text: 'Прийнято Верховною Радою (306 голосів)' },
+      { date: '29.05.2026', text: 'Підписано Президентом' }
+    ]
+  },
+  {
+    id: 3, number: '0371', title: 'Про ратифікацію Конвенції про створення Міжнародної компенсаційної комісії для України',
+    date: '30.04.2026', status: 'Підписаний', risk: 'low', riskLabel: 'Низький',
+    votes: [
+      { gid: 34579, desc: 'Розгляд за скороченою процедурою', za: 226, proti: 4, utr: 31, ne: 46, vid: 34 },
+      { gid: 34580, desc: 'Проєкт Закону (в цілому)', za: 283, proti: 0, utr: 0, ne: 31, vid: 32 }
+    ],
+    llm: { overall: 88, budget: 85, economic: 82, legal: 90, social: 80,
+      summary: 'Створення компенсаційної комісії для розгляду позовів про шкоду від агресії. Низькі бюджетні ризики. Міжнародно-правовий механізм. Потребує уваги до процедурних аспектів.' },
+    history: [
+      { date: '02.04.2026', text: 'Зареєстровано законопроєкт №0371' },
+      { date: '10.04.2026', text: 'Комітет з питань зовнішньої політики — схвалено' },
+      { date: '18.04.2026', text: 'Комітет з питань правової політики — позитивний висновок' },
+      { date: '30.04.2026', text: 'Прийнято Верховною Радою (283 голоси)' },
+      { date: '05.05.2026', text: 'Підписано Президентом' }
+    ]
+  },
+  {
+    id: 4, number: '3495', title: 'Про внесення змін до Податкового кодексу України щодо оподаткування банків',
+    date: '20.05.2026', status: 'На розгляді', risk: 'high', riskLabel: 'Високий',
+    votes: [
+      { gid: 34650, desc: 'Перше читання', za: 198, proti: 42, utr: 18, ne: 34, vid: 28 },
+      { gid: 34651, desc: 'Друге читання', za: 224, proti: 31, utr: 11, ne: 22, vid: 25 }
+    ],
+    llm: { overall: 45, budget: 30, economic: 40, legal: 55, social: 60,
+      summary: 'Підвищення податку на прибуток банків до 50%. Високі ризики для банківської системи. Можливий відтік капіталу. Суперечливі оцінки між фракціями. Потребує доопрацювання.' },
+    history: [
+      { date: '01.03.2026', text: 'Зареєстровано законопроєкт №3495' },
+      { date: '15.03.2026', text: 'Комітет з питань фінансів — рекомендує прийняти за основу' },
+      { date: '10.04.2026', text: 'НБУ надав негативний висновок' },
+      { date: '20.05.2026', text: 'Прийнято в першому читанні (198 голосів)' },
+      { date: '01.06.2026', text: 'Підготовка до другого читання' }
+    ]
+  },
+  {
+    id: 5, number: '3612', title: 'Про Державний бюджет України на 2027 рік',
+    date: '04.06.2026', status: 'Внесено', risk: 'high', riskLabel: 'Високий',
+    votes: [
+      { gid: 34800, desc: 'Перше читання', za: 240, proti: 12, utr: 9, ne: 28, vid: 19 }
+    ],
+    llm: { overall: 50, budget: 25, economic: 35, legal: 60, social: 40,
+      summary: 'Проєкт бюджету на 2027 рік. Значне збільшення видатків на оборону (30% ВВП). Скорочення соціальних програм. Високі ризики невиконання доходної частини через економічну невизначеність.' },
+    history: [
+      { date: '01.06.2026', text: 'Внесено Кабінетом Міністрів' },
+      { date: '04.06.2026', text: 'Прийнято в першому читанні (240 голосів)' },
+      { date: '10.06.2026', text: 'Підготовка до другого читання' }
+    ]
+  }
+];
+
+// Deputy names by faction (realistic Ukrainian names)
+const DEPUTY_NAMES = {
+  sn: ['Арахамія Д.Г.', 'Бабак С.В.', 'Бакумов О.С.', 'Безгін В.Ю.', 'Безугла М.В.',
+       'Беленюк Ж.В.', 'Березін М.Ю.', 'Боблях А.Р.', 'Богданець А.В.', 'Богуцька Є.П.',
+       'Бойко Ю.А.', 'Бондаренко О.В.', 'Борзова І.Н.', 'Бородін В.В.', 'Борт В.П.',
+       'Брагар Є.В.', 'Бужанський М.А.', 'Буймістер Л.А.', 'Булах Л.В.', 'Бунін С.В.',
+       'Воронов В.А.', 'Воронько О.Є.', 'Галайчук В.С.', 'Гевко В.Л.', 'Герасименко І.Л.',
+       'Гетьманцев Д.О.', 'Горобець О.В.', 'Горбенко Р.Л.', 'Гриб В.О.', 'Григоренко С.М.',
+       'Грищук Р.П.', 'Грунська О.В.', 'Гузь І.В.', 'Гуляєв В.О.', 'Даниленко В.В.',
+       'Демченко С.І.', 'Деркач А.Л.', 'Дзюбановський О.М.', 'Дмитрієва О.В.', 'Довгий О.В.',
+       'Дубіль В.О.', 'Дубінський О.А.', 'Дунаєв С.В.', 'Євтушок С.М.', 'Єленський В.Є.',
+       'Ємець Л.О.', 'Єфімов М.В.', 'Жмеренецький О.С.', 'Жупанин В.М.', 'Заблоцький М.Б.',
+       'Загорій Г.В.', 'Задорожній А.В.', 'Заліщук С.П.', 'Захарченко В.В.', 'Зінкевич Д.В.',
+       'Зуб В.О.', 'Іванісов Р.В.', 'Іванченко В.П.', 'Ільєнко А.О.', 'Іонушас С.К.',
+       'Кабанов О.В.', 'Калиновський І.О.', 'Калюжний В.А.', 'Каптєлов Р.В.', 'Каракуц В.В.',
+       'Карташов Є.О.', 'Касай Г.О.', 'Качура О.А.', 'Кива І.В.', 'Кириленко В.А.',
+       'Кисіль І.П.', 'Кісєль В.В.', 'Кіт А.О.', 'Клочко А.А.', 'Ковальов О.І.',
+       'Ковальчук О.В.', "Кожем'якін А.А.", 'Колесніков Д.В.', 'Колісник В.В.', 'Колтунович О.О.',
+       'Комар М.С.', 'Кондратюк О.К.', 'Кондратюк В.М.', 'Копиленко О.Л.', 'Корнієнко О.С.',
+       'Король В.М.', 'Корявченков Ю.В.', 'Костін А.Є.', 'Костюк Д.С.', 'Кошулинський Р.В.',
+       'Кравчук Є.М.', 'Красов О.І.', 'Кривошеєв І.С.', 'Криворучкіна О.В.', 'Крючкова І.В.',
+       'Кузбит Ю.М.', 'Кузьменко А.І.', 'Кузьміних С.В.', 'Кунаєв А.Ю.', 'Куницький О.О.',
+       'Купрієнко О.В.', 'Кучер О.В.', 'Лабунська А.В.', 'Лаврик О.В.', 'Ларін С.М.',
+       'Леонов О.О.', 'Лерос Г.З.', 'Литвиненко С.А.', 'Літвінов О.М.', 'Лободенко К.В.',
+       'Логвинський Г.В.', 'Лопушанський А.Я.', 'Лукашова Н.В.', "Лук'янчук В.В.", 'Луценко І.В.',
+       'Любота Д.В.', 'Ляшенко А.В.', 'Мазур В.В.', 'Майзель Ю.В.', 'Макаров О.В.',
+       'Македон Є.О.', 'Малашко В.А.', 'Малиновський Р.В.', 'Малюська Д.Л.', 'Мамедов О.М.',
+       'Маріковський О.В.', 'Мартиненко С.В.', 'Марченко О.О.', 'Маслов Д.В.', 'Матевосова А.В.',
+       'Матвієнко А.С.', 'Матвійчук Е.Л.', 'Медведчук В.В.', 'Мельник О.В.', 'Мельничук І.І.',
+       'Мережко О.О.', 'Микитась М.В.', 'Михайленко Д.Г.', 'Мовчан О.В.', 'Молоток І.Ф.',
+       'Мороз В.В.', 'Мороз М.В.', 'Мотревич Н.В.', 'Нагаєвський А.С.', 'Нагорняк С.В.',
+       'Наливайченко В.О.', 'Наумов В.В.', 'Немиря Г.М.', 'Нестеренко К.О.', 'Нефьодов М.Є.',
+       'Никифорчук Р.В.', 'Ніконов А.В.', 'Німченко В.І.', 'Новіков Д.В.', 'Нужний В.І.',
+       'Одарченко Ю.В.', 'Олійник А.В.', 'Ольшанський В.М.', 'Онищенко О.В.', 'Опанасенко О.В.',
+       'Оржель О.В.', 'Осадчук А.П.', 'Остапенко А.Д.', 'Островський В.В.', 'Охріменко В.В.',
+       'Павленко Р.М.', 'Павлюк М.В.', 'Паламарчук Н.П.', 'Палиця І.П.', 'Панасовський О.В.',
+       'Парасюк В.В.', 'Парфенов А.В.', 'Пацкан В.В.', 'Пашинський С.В.', 'Педченко О.В.',
+       'Пендзин Я.В.', 'Перебийніс Є.В.', 'Перегуда В.В.', 'Петренко О.В.', 'Петров О.В.',
+       'Петруняк Є.В.', 'Підберезняк В.В.', 'Підгорний А.В.', 'Пінчук А.Ю.', 'Пірський В.В.',
+       'Плачкова Т.М.', 'Поворозник М.Ю.', 'Подоляк В.М.', 'Поживанов М.О.', 'Положинський О.В.',
+       'Поляков А.Е.', 'Помазанов А.В.', 'Пономаренко О.В.', 'Попов Г.М.', 'Попова І.В.',
+       'Потапов В.В.', 'Приходько Б.В.', 'Приходько Н.І.', 'Проценко М.О.', 'Пташник В.Й.',
+       'Пуртова А.А.', "П'яних К.Б.", 'Рабінович В.З.', 'Радуцький М.Б.', 'Развадовський В.Й.',
+       'Рахманін С.І.', 'Рейніс І.Б.', 'Репік В.В.', 'Рибак І.П.', 'Риженков О.М.',
+       'Різаненко П.О.', 'Розенко П.В.', 'Романюк Я.В.', 'Рудик К.О.', 'Русин В.В.',
+       'Рябчин О.М.', 'Савченко О.В.', 'Савченко Н.В.', 'Садовий А.І.', 'Саламаха О.В.',
+       'Самойленко В.В.', 'Санченко О.В.', 'Сапожко І.В.', 'Сарана С.В.', 'Сас С.В.',
+       'Світлична Ю.О.', 'Святаш Д.В.', 'Семенчук В.В.', 'Семерак О.М.', 'Сергієнко Л.Г.',
+       'Сидоренко К.О.', 'Сидорчук О.В.', 'Силантьєв Д.О.', 'Синенко В.В.', 'Синютка О.М.',
+       'Сілантьєв О.В.', 'Січ О.В.', 'Скворцов І.В.', 'Скічко О.О.', 'Скрипник О.О.',
+       'Скрипниченко В.В.', 'Слободянюк В.В.', 'Смірнов Є.В.', 'Снісаренко І.В.', 'Соболєв С.В.',
+       'Соколов В.В.', 'Солейко О.В.', 'Солошенко І.В.', 'Сопель В.В.', 'Сорочинська Н.М.',
+       'Соха А.В.', 'Спасский К.В.', 'Співак В.В.', 'Старенький С.М.', 'Степанов М.В.',
+       'Степанова Г.М.', 'Стефанчук Р.О.', 'Стефанчук М.О.', 'Стойко І.М.', 'Сторожук Д.О.',
+       'Стрельцов Є.В.', 'Ступак О.В.', 'Суханов О.В.', 'Сушко П.М.', 'Таран В.В.',
+       'Тарута С.О.', 'Ташкін О.В.', 'Твердохліб М.М.', 'Тельпіс Д.В.', 'Тимошенко Ю.В.',
+       'Тимошенко В.В.', 'Тістик Р.В.', 'Ткаченко М.В.', 'Токар В.В.', 'Толмачов Г.В.',
+       'Томенко М.В.', 'Топалов С.В.', 'Торохтій О.В.', 'Травін В.В.', 'Третьяков О.Ю.',
+       'Трофімова С.І.', 'Трухін О.М.', 'Турчинов О.В.', 'Тягнибок О.Я.', 'Удовиченко О.В.',
+       'Уманець Т.В.', 'Урбанський А.І.', 'Устенко О.О.', 'Федіна С.В.', 'Федоренко А.В.',
+       'Федоров М.В.', 'Фельдман О.Б.', 'Філіпчук А.В.', 'Фріс І.В.', 'Фурман С.В.',
+       'Халаджи В.В.', 'Хміль М.М.', 'Холодов А.І.', 'Хоменко О.В.', 'Хорішко А.В.',
+       'Цабаль В.В.', 'Цимбалюк М.М.', 'Цукор В.Г.', 'Чабан В.В.', 'Чайка П.В.',
+       'Чекіта О.В.', 'Червак О.В.', 'Черненко О.М.', 'Чернов Д.О.', 'Чернявський С.М.',
+       'Чижов І.В.', 'Чорний Д.С.', 'Чорноморов В.В.', 'Чубаров Р.Р.', 'Чухраєнко Г.В.',
+       'Шаповалов О.В.', 'Шахов С.В.', 'Швачка В.В.', 'Швець В.М.', 'Шевченко Є.В.',
+       'Шевченко О.В.', 'Шевченко І.В.', 'Шевчук С.В.', 'Шенцев Д.О.', 'Шепетин Д.В.',
+       'Шинкаренко І.В.', 'Шипко А.Ф.', 'Шкіря І.М.', 'Шкрум А.І.', 'Шкуратенко О.В.',
+       'Шлемко Д.В.', 'Шпенов Д.Ю.', 'Шуляк О.О.', 'Шурма І.М.', 'Щербаков О.В.',
+       'Юзькова Т.Л.', 'Юрченко І.М.', 'Юрчишин П.В.', 'Якименко П.В.', 'Яковлєв В.В.',
+       'Яременко Б.В.', 'Ярмоленко А.М.', 'Ясько С.В.', 'Яценко А.В.', 'Яцик Ю.В.' ],
+  es: ["Ар'єв В.І.", 'Герасимов А.В.', 'Гончаренко О.О.', 'Зінкевич Д.В.', 'Іванова К.О.',
+       'Княжицький М.Л.', 'Лещенко С.А.', 'Луценко Ю.В.', 'Марусяк О.Р.', 'Мушак О.Й.',
+       'Німченко В.І.', 'Парасюк В.В.', 'Порошенко П.О.', 'Пташник В.Й.', 'Савченко Н.В.',
+       'Синютка О.М.', 'Сотник О.С.', 'Супруненко О.І.', 'Теліженко О.М.', 'Фріз І.В.',
+       'Чорновол Т.М.' ],
+  bt: ['Батенко Т.І.', 'Бондарєв К.А.', 'Власенко С.В.', 'Дубіль В.О.', 'Євтушок С.М.',
+       'Івченко В.Є.', 'Кириленко І.Г.', "Кожем'якін А.А.", 'Королевська Н.Ю.',
+       'Крупський О.П.', 'Купрієнко О.В.', 'Лабунська А.В.', 'Луценко І.В.',
+       'Мороко О.В.', 'Наливайченко В.О.', 'Пінчук А.Ю.', 'Попов І.В.', 'Рахманін С.І.',
+       'Соболєв С.В.', 'Тарасенко О.В.', 'Тимошенко Ю.В.', 'Турчинов О.В.',
+       'Шкрум А.І.' ],
+  pp: ['Бойко Ю.А.', 'Вовк Д.В.', 'Гончаренко О.О.', 'Деркач А.Л.', 'Дубінський О.А.',
+       'Загородній М.В.', 'Іоффе Ю.Я.', 'Кальченко В.М.', 'Кива І.В.', 'Ківалов С.В.',
+       'Козак Т.Р.', 'Колісніченко В.В.', 'Котвицький І.В.', 'Кузьмін Р.Р.',
+       'Льовочкін С.В.', 'Медведчук В.В.', 'Мороз В.В.', 'Німченко В.І.',
+       'Павлов К.В.', 'Рабінович В.З.', 'Солод О.В.' ],
+  dv: ['Бакунець П.А.', 'Гузь І.В.', 'Довгий О.В.', 'Ільєнко А.О.', 'Кіт А.О.',
+       'Колісник В.В.', 'Купрієнко О.В.', 'Литвин В.М.', 'Літвінов О.М.',
+       'Марченко О.О.', 'Матвієнко А.С.', 'Мельничук І.І.', 'Палиця І.П.',
+       'Петренко О.В.', 'Рудик К.О.', 'Сергієнко Л.Г.', 'Суханов О.В.',
+       'Ткаченко М.В.', 'Шевченко Є.В.' ],
+  zm: ['Балога В.І.', 'Білозір Л.М.', 'Гевко В.Л.', 'Герега О.В.', 'Дзюбановський О.М.',
+       'Довгий О.С.', 'Івахів С.П.', 'Іонушас С.К.', 'Кальченко В.М.', 'Лабунська А.В.',
+       'Ларін С.М.', 'Матвієнко А.С.', 'Палиця І.П.', 'Попов Г.М.', 'Репік В.В.',
+       'Світлична Ю.О.', 'Шурма І.М.' ],
+  gl: ['Гончаренко О.О.', 'Жупанин В.М.', 'Кицак Б.В.', 'Клімкін П.А.', 'Княжицький М.Л.',
+       'Ковальов О.І.', 'Луценко Ю.В.', 'Макаров О.В.', 'Найєм М.М.', 'Опанасенко О.В.',
+       'Парасюк В.В.', 'Поворозник М.Ю.', 'Попов Г.М.', 'Савченко О.В.', 'Семерак О.М.',
+       'Соболєв С.В.', 'Стефанчук М.О.', 'Чорновол Т.М.' ],
+  vn: ['Бондар Г.В.', 'Василенко Л.І.', 'Герасименко І.Л.', 'Горбенко Р.Л.',
+       'Григоренко С.М.', 'Дмитрієва О.В.', 'Жмеренецький О.С.', 'Зінкевич Д.В.',
+       'Колісніченко В.В.', 'Любота Д.В.', 'Маріковський О.В.', 'Мельник О.В.',
+       'Пашинський С.В.', 'Солошенко І.В.', 'Таран В.В.', 'Третьяков О.Ю.',
+       'Яременко Б.В.' ],
+  pf: ['Балога В.В.', 'Богуслаєв В.О.', 'Васильєв Г.А.', 'Веревський А.М.',
+       'Гладій В.І.', 'Денисенко А.П.', 'Добкін М.М.', 'Дубневич Б.В.',
+       'Єремеєв І.М.', 'Жеваго К.В.', 'Іванченко В.П.', 'Коломойський І.В.',
+       'Ляшко О.В.', 'Мосійчук І.В.', 'Новинський В.В.', 'Палиця І.П.',
+       'Пашинський С.В.', 'Рибалка С.В.', 'Тарута С.О.', 'Тігіпко С.Л.' ]
+};
+
+// Build full deputy list
+let ALL_DEPUTIES = [];
+for (const f of FACTIONS) {
+  const names = DEPUTY_NAMES[f.id] || [];
+  for (const name of names) {
+    // Generate realistic voting data
+    const totalVotes = 5 + Math.floor(Math.random() * 10);
+    const attended = Math.floor(totalVotes * (0.6 + Math.random() * 0.35));
+    const kpd = Math.round((attended / totalVotes) * 100);
+    ALL_DEPUTIES.push({ name, faction: f.id, factionName: f.name, votes: totalVotes, attended, kpd });
+  }
+}
+
+// Voting simulation: assign votes to deputies by faction for each bill's voting sessions
+// Per faction: za/proti/utr/ne/vid percentages approximate real data
+const FACTION_VOTE_PROFILES = {
+  sn: { za: 0.83, proti: 0.01, utr: 0.03, ne: 0.05, vid: 0.08 },
+  es: { za: 0.65, proti: 0.12, utr: 0.08, ne: 0.08, vid: 0.07 },
+  bt: { za: 0.40, proti: 0.20, utr: 0.15, ne: 0.12, vid: 0.13 },
+  pp: { za: 0.55, proti: 0.10, utr: 0.10, ne: 0.15, vid: 0.10 },
+  dv: { za: 0.78, proti: 0.03, utr: 0.05, ne: 0.07, vid: 0.07 },
+  zm: { za: 0.55, proti: 0.10, utr: 0.10, ne: 0.12, vid: 0.13 },
+  gl: { za: 0.45, proti: 0.18, utr: 0.12, ne: 0.12, vid: 0.13 },
+  vn: { za: 0.60, proti: 0.08, utr: 0.10, ne: 0.12, vid: 0.10 },
+  pf: { za: 0.50, proti: 0.12, utr: 0.10, ne: 0.15, vid: 0.13 }
+};
+const VOTE_STATES = ['za','proti','utr','ne','vid'];
+
+function simulateFactionVotes(factionId, billId) {
+  const profile = FACTION_VOTE_PROFILES[factionId] || { za:0.5, proti:0.05, utr:0.1, ne:0.2, vid:0.15 };
+  const depNames = DEPUTY_NAMES[factionId] || [];
+  const bill = BILLS.find(b => b.id === billId) || BILLS[0];
+  
+  // Compute faction totals per voting session
+  const results = [];
+  for (const vote of bill.votes) {
+    let za = 0, proti = 0, utr = 0, ne = 0, vid = 0;
+    // Aim for total roughly matching real data
+    const targetTotal = depNames.length;
+    
+    for (const name of depNames) {
+      const r = Math.random();
+      let cum = 0;
+      let state = 'vid';
+      for (const s of VOTE_STATES) {
+        cum += profile[s];
+        if (r < cum) { state = s; break; }
+      }
+      if (state === 'za') za++;
+      else if (state === 'proti') proti++;
+      else if (state === 'utr') utr++;
+      else if (state === 'ne') ne++;
+      else vid++;
+    }
+    
+    // Scale to match real data roughly
+    const scale = Math.min(1, targetTotal > 0 ? (vote.za + vote.proti + vote.utr + vote.ne + vote.vid) / 
+      (Object.keys(FACTIONS).reduce((s, fk) => s + (DEPUTY_NAMES[FACTIONS[fk]?.id || ''] || []).length, 0) || 450) : 0.7);
+    
+    results.push({ gid: vote.gid, za, proti, utr, ne, vid });
+  }
+  return results;
+}
+
+// ===== DOM HELPERS =====
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k,v] of Object.entries(attrs)) 
+    if (k === 'className') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else e.setAttribute(k, v);
+  for (const c of children) 
+    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  return e;
+}
+
+// ===== TAB SWITCHING =====
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    $$('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    const tabId = btn.dataset.tab;
+    document.getElementById('tab-' + tabId).classList.add('active');
+  });
+});
+
+// ===== RENDER DASHBOARD =====
+function selectBill(billId, switchTab) {
+  if (switchTab) {
+    const tabBtn = document.querySelector('.tab-btn[data-tab="bills"]');
+    if (tabBtn) tabBtn.click();
+  }
+  toggleBillDetail(billId);
+}
+
+function renderDashboard() {
+  // Recent bills
+  const list = document.getElementById('dashBillList');
+  list.innerHTML = '';
+  BILLS.slice(0, 5).forEach(b => {
+    const statusClass = b.status === 'Підписаний' ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+      : b.status === 'На розгляді' ? 'background:rgba(243,156,18,0.2);color:#f39c12'
+      : 'background:rgba(90,106,133,0.2);color:#8899b4';
+    const item = el('div', { className: 'bill-item', onclick: function(){ selectBill(b.id, true); } },
+      el('div', { className: 'bill-item-header' },
+        el('span', { className: 'bill-number' }, '#' + b.number),
+        el('span', { className: 'bill-title' }, b.title.slice(0,60) + (b.title.length>60?'...':'')),
+        el('span', { style: statusClass, className: 'bill-status' }, b.status)
+      ),
+      el('div', { className: 'bill-meta' },
+        el('span', {}, '📅 ' + b.date),
+        el('span', { className: 'bill-risk ' + b.risk }, 'Ризик: ' + b.riskLabel),
+        el('span', {}, '🗳️ ' + b.votes.length + ' голосувань')
+      )
+    );
+    list.appendChild(item);
+  });
+
+  // Plenary Calendar
+  renderCalendar();
+}
+
+// ===== PLENARY CALENDAR =====
+// Demo data: plenary sessions for current month
+const PLENARY_SESSIONS = [
+  { date: '2026-06-03', title: 'Пленарне засідання №42', bills: ['0376', '0374'] },
+  { date: '2026-06-04', title: 'Пленарне засідання №42 (продовження)', bills: ['0371'] },
+  { date: '2026-06-10', title: 'Пленарне засідання №43', bills: ['3495'] },
+  { date: '2026-06-11', title: 'Пленарне засідання №43 (продовження)', bills: ['3495', '3612'] },
+  { date: '2026-06-17', title: 'Пленарне засідання №44', bills: [] },
+  { date: '2026-06-18', title: 'Пленарне засідання №44 (продовження)', bills: [] },
+  { date: '2026-06-24', title: 'Пленарне засідання №45', bills: [] },
+  { date: '2026-06-25', title: 'Пленарне засідання №45 (продовження)', bills: [] },
+];
+
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+
+function renderCalendar() {
+  const container = document.getElementById('dashCalendar');
+  if (!container) return;
+  
+  const months = ['Січень','Лютий','Березень','Квітень','Травень','Червень',
+                  'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+  
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  
+  // Build session date set for quick lookup
+  const sessionDates = {};
+  PLENARY_SESSIONS.forEach(s => { sessionDates[s.date] = s; });
+  
+  // First day of month
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay = new Date(calYear, calMonth + 1, 0);
+  const startDow = (firstDay.getDay() + 6) % 7; // Mon=0
+  const totalDays = lastDay.getDate();
+  
+  let html = `
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="calMonth--; if(calMonth<0){calMonth=11;calYear--}; renderCalendar()">◀</button>
+      <span class="cal-month-year">${months[calMonth]} ${calYear}</span>
+      <button class="cal-nav-btn" onclick="calMonth++; if(calMonth>11){calMonth=0;calYear++}; renderCalendar()">▶</button>
+    </div>
+    <div class="cal-grid">
+  `;
+  
+  // Day headers
+  days.forEach(d => { html += `<div class="cal-header">${d}</div>`; });
+  
+  // Empty cells before first day
+  for (let i = 0; i < startDow; i++) {
+    html += `<div class="cal-day empty"></div>`;
+  }
+  
+  // Days
+  for (let d = 1; d <= totalDays; d++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dow = new Date(calYear, calMonth, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isToday = dateStr === todayStr;
+    const session = sessionDates[dateStr];
+    
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (session) cls += session.bills.length ? ' vote-day' : ' session';
+    if (isWeekend) cls += ' weekend';
+    
+    const billsLabel = session && session.bills.length ? `${session.bills.length} закон.` : '';
+    
+    html += `<div class="${cls}" title="${session ? session.title : ''}">
+      <span>${d}</span>
+      ${billsLabel ? `<span class="cal-bills">${billsLabel}</span>` : ''}
+    </div>`;
+  }
+  
+  html += `</div>`;
+  
+  // Legend
+  html += `
+    <div class="cal-legend">
+      <div class="cal-legend-item"><span class="cal-legend-dot today"></span> Сьогодні</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot session"></span> Засідання</div>
+      <div class="cal-legend-item"><span class="cal-legend-dot vote"></span> Голосування</div>
+    </div>
+  `;
+  
+  // Upcoming sessions list
+  const upcoming = PLENARY_SESSIONS.filter(s => s.date >= todayStr).slice(0, 4);
+  if (upcoming.length) {
+    html += `<div class="cal-sessions">`;
+    upcoming.forEach(s => {
+      const dt = s.date.split('-');
+      const dayNum = parseInt(dt[2]);
+      const monthName = months[parseInt(dt[1])-1].slice(0,3).toLowerCase();
+      html += `
+        <div class="cal-session-item">
+          <div class="cal-session-date">
+            <div class="day">${dayNum}</div>
+            <div class="month">${monthName}</div>
+          </div>
+          <div class="cal-session-info">
+            <div class="cal-session-title">${s.title}</div>
+            ${s.bills.length ? `
+              <div class="cal-session-bills">
+                ${s.bills.map(b => {
+                  const bill = BILLS.find(x => x.number === b);
+                  return `<span class="cal-session-bill" onclick="selectBill(${bill ? bill.id : 0}, true)">#${b}${bill ? ' — ' + bill.title.slice(0,40) + '...' : ''}</span>`;
+                }).join('')}
+              </div>
+            ` : '<div style="font-size:12px;color:var(--text-muted);">Законопроєкти не заплановано</div>'}
+          </div>
+        </div>
+      `;
+    });
+    html += `</div>`;
+  }
+  
+  container.innerHTML = html;
+}
+
+// ===== BILLS TAB =====
+function renderBills(filter) {
+  const container = document.getElementById('billListContainer');
+  container.innerHTML = '';
+  
+  (filter ? BILLS.filter(b => 
+    b.number.includes(filter) || b.title.toLowerCase().includes(filter.toLowerCase())
+  ) : BILLS).forEach(b => {
+    const statusClass = b.status === 'Підписаний' ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
+      : b.status === 'На розгляді' ? 'background:rgba(243,156,18,0.2);color:#f39c12'
+      : 'background:rgba(90,106,133,0.2);color:#8899b4';
+    const item = el('div', { className: 'bill-item' },
+      el('div', { className: 'bill-item-header' },
+        el('span', { className: 'bill-number' }, '#' + b.number),
+        el('span', { className: 'bill-title' }, b.title),
+        el('span', { style: statusClass, className: 'bill-status' }, b.status)
+      ),
+      el('div', { className: 'bill-meta' },
+        el('span', {}, '📅 ' + b.date),
+        el('span', { className: 'bill-risk ' + b.risk }, 'Ризик: ' + b.riskLabel),
+        el('span', {}, '🗳️ ' + b.votes.length + ' голосувань'),
+        el('span', {}, '🧠 LLM оцінка: ' + b.llm.overall + '/100')
+      )
+    );
+    // Attach click using real function
+    item.addEventListener('click', () => {
+      document.querySelector('.tab-btn[data-tab="bills"]').click();
+      toggleBillDetail(b.id);
+    });
+    container.appendChild(item);
+  });
+}
+
+let selectedBillId = null;
+
+function toggleBillDetail(id) {
+  if (selectedBillId === id) {
+    document.getElementById('billDetailPanel').classList.remove('open');
+    selectedBillId = null;
+    return;
+  }
+  selectedBillId = id;
+  const bill = BILLS.find(b => b.id === id);
+  if (!bill) return;
+  
+  const panel = document.getElementById('billDetailPanel');
+  
+  // Build vote bars — clickable, expand to show factions
+  let votesHtml = '';
+  bill.votes.forEach((v, vi) => {
+    const total = v.za + v.proti + v.utr + v.ne + v.vid || 1;
+    const barW = p => Math.max(0, Math.round(p/total*100));
+    votesHtml += `
+    <div class="vote-block" data-vote-idx="${vi}">
+      <div class="vote-block-header">
+        <div class="vote-block-title">${v.desc}</div>
+        <div class="vote-block-summary">
+          <span class="vote-count za">✅ ${v.za} За</span>
+          <span class="vote-count proti">❌ ${v.proti} Проти</span>
+          <span class="vote-count utr">⏸️ ${v.utr} Утр</span>
+          <span class="vote-count ne">⬜ ${v.ne} Не голос</span>
+          <span class="vote-count vid">🚫 ${v.vid} Відсут</span>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-bar-seg za" style="width:${barW(v.za)}%"></div>
+          <div class="vote-bar-seg proti" style="width:${barW(v.proti)}%"></div>
+          <div class="vote-bar-seg utr" style="width:${barW(v.utr)}%"></div>
+          <div class="vote-bar-seg ne" style="width:${barW(v.ne)}%"></div>
+          <div class="vote-bar-seg vid" style="width:${barW(v.vid)}%"></div>
+        </div>
+        <span class="vote-expand-hint">▼ Фракції</span>
+      </div>
+      <div class="vote-factions" id="vote-factions-${vi}"></div>
+    </div>`;
+  });
+
+  panel.innerHTML = `
+    <button class="bill-detail-close" onclick="document.getElementById('billDetailPanel').classList.remove('open');selectedBillId=null;">✕</button>
+    <div style="margin-bottom:16px;">
+      <span style="font-weight:700;font-size:18px;">#${bill.number}</span>
+      <span style="font-size:13px;color:var(--text-secondary);margin-left:8px;">${bill.date}</span>
+      <span style="margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;background:rgba(46,204,113,0.2);color:var(--accent-green);">${bill.status}</span>
+    </div>
+    <p style="font-size:15px;margin-bottom:16px;color:var(--text-primary);">${bill.title}</p>
+
+    <div class="detail-section">
+      <h3>🗳️ Результати голосувань</h3>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Натисніть на голосування щоб побачити розбивку по фракціях та депутатах</p>
+      ${votesHtml}
+    </div>
+
+    <div class="detail-section">
+      <h3>📋 Історія змін</h3>
+      <div class="timeline">
+        ${bill.history.map(h => `
+          <div class="timeline-item">
+            <span class="date">${h.date}</span>
+            <div class="desc">${h.text}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="detail-section">
+      <h3>🧠 Аналіз LLM</h3>
+      <div class="risk-grid">
+        <div class="risk-item">
+          <div class="label">Загальний ризик</div>
+          <div class="score" style="color:${bill.llm.overall > 70 ? 'var(--accent-green)' : bill.llm.overall > 50 ? 'var(--accent-orange)' : 'var(--accent-red)'}">${bill.llm.overall}</div>
+          <div class="desc">із 100</div>
+        </div>
+        <div class="risk-item">
+          <div class="label">Бюджетний ризик</div>
+          <div class="score" style="color:${bill.llm.budget > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.budget}</div>
+        </div>
+        <div class="risk-item">
+          <div class="label">Економічний ризик</div>
+          <div class="score" style="color:${bill.llm.economic > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.economic}</div>
+        </div>
+        <div class="risk-item">
+          <div class="label">Юридичний ризик</div>
+          <div class="score">${bill.llm.legal}</div>
+        </div>
+        <div class="risk-item">
+          <div class="label">Соціальний вплив</div>
+          <div class="score" style="color:${bill.llm.social > 70 ? 'var(--accent-green)' : 'var(--accent-orange)'}">${bill.llm.social}</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:13px;line-height:1.6;color:var(--text-secondary);">
+        ${bill.llm.summary}
+      </div>
+    </div>
+  `;
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Attach click handlers for vote blocks → render factions on expand
+  bill.votes.forEach((v, vi) => {
+    const block = panel.querySelector(`.vote-block[data-vote-idx="${vi}"]`);
+    if (block) {
+      const header = block.querySelector('.vote-block-header');
+      const factionsContainer = block.querySelector('.vote-factions');
+      let rendered = false;
+      header.addEventListener('click', () => {
+        block.classList.toggle('expanded');
+        if (!rendered && factionsContainer) {
+          renderVoteFactions(bill, vi, factionsContainer);
+          rendered = true;
+        }
+      });
+    }
+  });
+}
+
+// Render factions for a specific vote in the bill detail panel
+function renderVoteFactions(bill, voteIdx, container) {
+  const vote = bill.votes[voteIdx];
+  if (!vote) return;
+
+  // Deterministic deputy votes based on bill+voteIdx (so they don't change on re-render)
+  const seed = bill.id * 100 + voteIdx;
+  
+  const factionsHtml = FACTIONS.map(f => {
+    const names = DEPUTY_NAMES[f.id] || [];
+    const prof = FACTION_VOTE_PROFILES[f.id] || { za:0.5, proti:0.05, utr:0.1, ne:0.2, vid:0.15 };
+    
+    // Simulate faction totals
+    let za = 0, proti = 0, utr = 0, ne = 0, vid = 0;
+    const deputyVotes = [];
+    
+    for (const name of names) {
+      // Use a simple hash for deterministic "random" per deputy
+      const r = pseudoRandom(seed + name.length + name.charCodeAt(0));
+      let cum = 0;
+      let state = 'vid';
+      for (const s of VOTE_STATES) {
+        cum += prof[s] || 0;
+        if (r < cum) { state = s; break; }
+      }
+      if (state === 'za') za++;
+      else if (state === 'proti') proti++;
+      else if (state === 'utr') utr++;
+      else if (state === 'ne') ne++;
+      else vid++;
+      
+      deputyVotes.push({ name, state });
+    }
+    
+    const total = za + proti + utr + ne + vid || 1;
+    const pct = v => Math.round(v/total*100);
+    
+    const vmap = {
+      za: ['za','✅ За'],
+      proti: ['proti','❌ Проти'],
+      utr: ['utr','⏸️ Утримався'],
+      ne: ['ne','⬜ Не голосував'],
+      vid: ['vid','🚫 Відсутній']
+    };
+    
+    // Build deputy list HTML
+    const deputiesHtml = deputyVotes.map(d => {
+      const vd = vmap[d.state] || vmap.vid;
+      return `<div class="deputy-row"><span class="deputy-name">${d.name}</span><span class="deputy-vote ${vd[0]}">${vd[1]}</span></div>`;
+    }).join('');
+    
+    return `
+      <div class="faction-detail-item" data-faction="${f.id}">
+        <div class="faction-detail-header" onclick="this.parentElement.classList.toggle('open')">
+          <span class="faction-color" style="background:${f.color}"></span>
+          <span class="faction-name">${f.name}</span>
+          <span class="faction-mini-stats">
+            <span class="mini-stat za">✅${za}</span>
+            <span class="mini-stat proti">❌${proti}</span>
+            <span class="mini-stat utr">⏸️${utr}</span>
+            <span class="mini-stat ne">⬜${ne}</span>
+            <span class="mini-stat vid">🚫${vid}</span>
+          </span>
+          <span class="faction-arrow">▼</span>
+        </div>
+        <div class="faction-deputies-wrap">
+          <div class="deputies-filter">
+            <button class="filter-btn active" onclick="filterDeputies(this, 'all')">Всі</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'za')">За</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'proti')">Проти</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'utr')">Утримались</button>
+            <button class="filter-btn" onclick="filterDeputies(this, 'vid')">Відсутні</button>
+          </div>
+          <div class="deputies-list">${deputiesHtml}</div>
+        </div>
+      </div>`;
+  }).join('');
+  
+  container.innerHTML = `<div class="faction-detail-list">${factionsHtml}</div>`;
+}
+
+// Simple pseudo-random for deterministic deputy votes
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 9301 + 49297) * 49297;
+  return x - Math.floor(x);
+}
+
+// Filter deputies by vote type
+function filterDeputies(btn, type) {
+  const wrap = btn.closest('.faction-deputies-wrap');
+  wrap.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  wrap.querySelectorAll('.deputy-row').forEach(row => {
+    if (type === 'all') {
+      row.style.display = '';
+    } else {
+      const voteSpan = row.querySelector('.deputy-vote');
+      row.style.display = voteSpan.classList.contains(type) ? '' : 'none';
+    }
+  });
+}
+
+document.getElementById('billSearch').addEventListener('input', function() {
+  renderBills(this.value);
+});
+
+// ===== DEPUTIES TAB =====
+function renderDeputies(filter, factionFilter) {
+  const tbody = document.getElementById('deputiesBody');
+  tbody.innerHTML = '';
+  
+  let deps = [...ALL_DEPUTIES];
+  
+  if (filter) {
+    const f = filter.toLowerCase();
+    deps = deps.filter(d => d.name.toLowerCase().includes(f) || d.factionName.toLowerCase().includes(f));
+  }
+  if (factionFilter) {
+    deps = deps.filter(d => d.faction === factionFilter);
+  }
+  
+  // Sort by kpd desc by default
+  deps.sort((a,b) => b.kpd - a.kpd);
+  
+  if (deps.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Нічого не знайдено</td></tr>';
+    return;
+  }
+  
+  for (const d of deps) {
+    const f = FACTIONS.find(x => x.id === d.faction);
+    const color = f ? f.color : '#888';
+    
+    const kpdClass = d.kpd >= 80 ? 'kpd-high' : d.kpd >= 60 ? 'kpd-mid' : 'kpd-low';
+    const barColor = d.kpd >= 80 ? 'var(--accent-green)' : d.kpd >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:500;">${d.name}</td>
+      <td><div class="dep-faction"><span class="faction-dot" style="background:${color}"></span>${d.factionName}</div></td>
+      <td>${d.votes} (відвідано ${d.attended})</td>
+      <td>
+        <span style="display:inline-flex;align-items:center;gap:6px;">
+          <span class="kpd-bar" style="width:${d.kpd}px;max-width:80px;background:${barColor}"></span>
+          <span class="${kpdClass}">${d.kpd}%</span>
+        </span>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+// Deputies search
+document.getElementById('depSearch').addEventListener('input', function() {
+  renderDeputies(this.value, document.getElementById('depFactionFilter').value);
+});
+document.getElementById('depFactionFilter').addEventListener('change', function() {
+  renderDeputies(document.getElementById('depSearch').value, this.value);
+});
+
+// Populate faction filter
+const facFilter = document.getElementById('depFactionFilter');
+FACTIONS.forEach(f => {
+  const opt = document.createElement('option');
+  opt.value = f.id;
+  opt.textContent = f.name;
+  facFilter.appendChild(opt);
+});
+
+// ===== INIT =====
+renderDashboard();
+renderBills('');
+renderDeputies('', '');
+</script>
+</body>
+</html>
