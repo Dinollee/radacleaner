@@ -43,9 +43,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          cd ..
-          mv wrangler.jsonc wrangler.worker.jsonc
-          mv wrangler.pages.jsonc wrangler.jsonc
-          ./worker/node_modules/.bin/wrangler pages deploy dashboard --project-name radacleaner-dashboard --branch main --commit-dirty=true
-          mv wrangler.jsonc wrangler.pages.jsonc
-          mv wrangler.worker.jsonc wrangler.jsonc
+          mv ../wrangler.jsonc ../wrangler.worker.jsonc
+          mv ../wrangler.pages.jsonc ../wrangler.jsonc
+          ./node_modules/.bin/wrangler pages deploy ../dashboard --project-name radacleaner-dashboard --branch main --commit-dirty=true --cwd ..
+          mv ../wrangler.jsonc ../wrangler.pages.jsonc
+          mv ../wrangler.worker.jsonc ../wrangler.jsonc
