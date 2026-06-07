@@ -4,3 +4,7 @@ __pycache__/
 worker/node_modules/
 worker/package-lock.json
 .wrangler/
+node_modules/
+package-lock.json
+package.json
+wrangler.pages.jsonc
