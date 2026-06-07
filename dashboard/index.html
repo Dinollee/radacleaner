@@ -1263,7 +1263,7 @@ function renderCalendar() {
             ${s.bills.length ? `
               <div class="cal-session-bills">
                 ${s.bills.map(b => {
-                  const bill = BILLS.find(x => x.number === b);
+                  const bill = (window.CACHED_BILLS || []).find(x => x.bill_number === b);
                   return `<span class="cal-session-bill" onclick="selectBill(${bill ? bill.id : 0}, true)">#${b}${bill ? ' — ' + bill.title.slice(0,40) + '...' : ''}</span>`;
                 }).join('')}
               </div>
