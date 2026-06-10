@@ -211,40 +211,28 @@ body {
 .deputy-vote.ne { background: rgba(90,106,133,0.2); color: var(--text-muted); }
 .deputy-vote.vid { background: rgba(90,106,133,0.15); color: var(--text-muted); }
 
-/* ===== INLINE BILL DETAIL ===== */
-.bill-inline-detail {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1);
-  background: var(--bg-secondary);
-  border: 1px solid transparent;
-  border-top: none;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-  margin: -2px 8px 12px;
+/* ===== BILL DETAIL PANEL (replaces inline) ===== */
+.bill-detail {
+  display: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-top: 16px;
+  border-left: 3px solid var(--accent-blue);
 }
-.bill-inline-detail.open {
-  max-height: 10000px;
-  border-color: var(--border-color);
-}
-.bill-inline-inner {
-  padding: 20px 24px;
-}
-.bill-item.expanded {
-  border-color: var(--accent-blue) !important;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-}
-.bill-inline-close {
+.bill-detail.open { display: block; }
+.bill-detail-close {
   float: right;
   background: none;
   border: none;
   color: var(--text-secondary);
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
-  line-height: 1;
 }
-.bill-inline-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.bill-detail-close:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* Detail sections */
 .detail-section { margin-bottom: 20px; }
@@ -939,6 +927,7 @@ body {
   </div>
   <div id="billCount" class="bill-count-label"></div>
   <div id="billListContainer"></div>
+  <div id="billDetailPanel" class="bill-detail"></div>
   <div id="billPagination" class="bill-pagination"></div>
 </section>
 
@@ -1146,8 +1135,8 @@ function selectBill(billId, switchTab) {
     const tabBtn = document.querySelector('.tab-btn[data-tab="bills"]');
     if (tabBtn) tabBtn.click();
   }
-  // Wait for tab switch then expand
-  setTimeout(() => expandBillInline(billId), 50);
+  // Wait for tab switch then show detail
+  setTimeout(() => toggleBillDetail(billId), 50);
 }
 
 async function renderDashboard() {
@@ -1333,7 +1322,7 @@ async function renderBills() {
         b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
       )
     );
-    item.addEventListener('click', () => toggleBillInline(b.id, item));
+    item.addEventListener('click', () => toggleBillDetail(b.id));
     container.appendChild(item);
   });
 }
@@ -1395,82 +1384,62 @@ function goToPage(page) {
           b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
         )
       );
-      item.addEventListener('click', () => toggleBillInline(b.id, item));
+      item.addEventListener('click', () => toggleBillDetail(b.id));
       container.appendChild(item);
     });
     document.getElementById('billListContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
-// ===== INLINE BILL EXPANSION =====
-let expandedBillId = null;
-let expandedDetailEl = null;
-let expandedItemEl = null;
+// ===== BILL DETAIL EXPANSION =====
+let selectedBillId = null;
 
-function collapseInlineBill() {
-  if (expandedDetailEl) {
-    expandedDetailEl.classList.remove('open');
-    setTimeout(() => { if (expandedDetailEl) expandedDetailEl.remove(); }, 450);
-    expandedDetailEl = null;
+function closeBillDetail() {
+  const panel = document.getElementById('billDetailPanel');
+  if (panel) {
+    panel.classList.remove('open');
+    panel.innerHTML = '';
   }
-  if (expandedItemEl) {
-    expandedItemEl.classList.remove('expanded');
-    expandedItemEl = null;
-  }
-  expandedBillId = null;
+  selectedBillId = null;
 }
 
-async function toggleBillInline(billId, itemEl) {
-  // If clicking the same bill → collapse
-  if (expandedBillId === billId) {
-    collapseInlineBill();
+async function toggleBillDetail(billId) {
+  // If clicking the same bill → close
+  if (selectedBillId === billId) {
+    closeBillDetail();
     return;
   }
 
-  // Collapse previous
-  collapseInlineBill();
+  // Close previous
+  closeBillDetail();
 
-  // Mark new
-  expandedBillId = billId;
-  expandedItemEl = itemEl;
-  itemEl.classList.add('expanded');
+  // Mark new and fetch
+  selectedBillId = billId;
+  const panel = document.getElementById('billDetailPanel');
+  panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">⏳ Завантаження...</div>';
+  panel.classList.add('open');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  // Create inline detail container
-  const detailEl = el('div', { className: 'bill-inline-detail' },
-    el('div', { className: 'bill-inline-inner', style: 'padding:20px;text-align:center;color:var(--text-muted);' }, '⏳ Завантаження...')
-  );
-  expandedDetailEl = detailEl;
-
-  // Insert after the bill item
-  itemEl.parentNode.insertBefore(detailEl, itemEl.nextSibling);
-
-  // Trigger animation
-  requestAnimationFrame(() => { detailEl.classList.add('open'); });
-
-  // Fetch data
   const data = await loadBillDetail(billId);
   if (!data || !data.bill) {
-    detailEl.querySelector('.bill-inline-inner').innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-red);">❌ Помилка завантаження</div>';
+    panel.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-red);">❌ Помилка завантаження</div>';
     return;
   }
 
-  // If user already collapsed while loading, bail
-  if (expandedBillId !== billId) return;
-
-  renderInlineDetail(data, detailEl);
+  renderBillDetail(data, panel);
 }
 
-function renderInlineDetail(data, detailEl) {
+function renderBillDetail(data, panel) {
   const bill = data.bill;
   const risks = data.risks;
   const versions = data.versions || [];
   const changes = data.changes || [];
   const votes = data.votes || [];
 
-  const inner = el('div', { className: 'bill-inline-inner' });
+  const inner = el('div', { style: 'position:relative;' });
 
   // Close button
-  inner.appendChild(el('button', { className: 'bill-inline-close', onclick: (e) => { e.stopPropagation(); collapseInlineBill(); } }, '✕'));
+  inner.appendChild(el('button', { className: 'bill-detail-close', onclick: () => closeBillDetail() }, '✕'));
 
   // Title
   inner.appendChild(el('div', { style: 'margin-bottom:16px;' },
@@ -1567,8 +1536,8 @@ function renderInlineDetail(data, detailEl) {
     inner.appendChild(section);
   }
 
-  detailEl.innerHTML = '';
-  detailEl.appendChild(inner);
+  panel.innerHTML = '';
+  panel.appendChild(inner);
 }
 
 // ===== STAGE TIMELINE =====
@@ -1909,6 +1878,6 @@ FACTIONS.forEach(f => {
   renderDeputies('', '');
 })();
 </script>
-<!-- v6-inline-expand -->
+<!-- v7-bill-detail-panel -->
 </body>
 </html>
