@@ -1,11 +1,31 @@
-# 🏛️ Страж Демократії — Моніторинг законопроектів ВРУ
+<p align="center">
+  <h1 align="center">🏛️ Страж Демократії</h1>
+  <p align="center"><em>Автоматизований моніторинг законопроектів Верховної Ради України IX скликання</em></p>
+</p>
 
-Автоматизований моніторинг законопроектів Верховної Ради України з LLM-аналізом ризиків.
-Збирає, аналізує та візуалізує всі законопроєкти ВРУ IX скликання.
+<p align="center">
+  <a href="https://radacleaner-dashboard.pages.dev">🌐 Дашборд</a> •
+  <a href="https://github.com/Dinollee/radacleaner">GitHub</a>
+</p>
 
-## Live Demo
+---
 
-**🌐 Дашборд:** https://radacleaner-dashboard.pages.dev
+## Що це робить
+
+**Страж Демократії** — це система, яка автоматично збирає всі законопроєкти ВРУ, аналізує їх на ризики за допомогою ШІ та сповіщає громадян через Telegram.
+
+### Можливості
+
+| Компонент | Опис |
+|-----------|------|
+| 🔄 **Синхронізація** | Автоматичний збір 15,000+ законопроектів з RADA API |
+| 🧠 **LLM-аналіз** | Аналіз кожного закону на ризики (корупція, бюджет, права громадян) |
+| 📱 **Telegram** | Сповіщення про нові закони та зміни статусів |
+| 📊 **Дашборд** | Веб-інтерфейс з фільтрами, пошуком, диффом версій |
+| 👥 **Депутати** | КПД, паттерни голосувань, статистика участі |
+| 📅 **Графік** | Пленарні засідання, закони на голосування |
+
+---
 
 ## Архітектура
 
@@ -13,37 +33,38 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                     ВАЖКИЙ СЕРВЕР (Python)                  │
 │                                                             │
-│  sync_bills.py ──→ RADA API ──→ законопроєкти              │
-│  rag_monitor.py ──→ PDF → PyMuPDF → Groq LLM → ризики     │
+│  sync_bills.py ────→ RADA API ────→ законопроєкти           │
+│  rag_monitor.py ───→ PDF → LLM → ризики → Telegram         │
+│  sync_votes.py ────→ RADA HTML → депутати + голосування    │
 │                          │                                  │
 │                    POST /api/sync                           │
-│                          │                                  │
 └──────────────────────────┼──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  CLOUDFLARE FREE TIER                       │
 │                                                             │
-│  🌐 Pages (radacleaner-dashboard.pages.dev) — фронтенд     │
-│  ⚡ Worker (rada-monitor-api.distih.workers.dev) — REST API │
-│  🗄 D1 (radacleaner-db) — SQLite база                       │
+│  🌐 Pages    — фронтенд-дашборд                            │
+│  ⚡ Worker   — REST API (~2ms CPU)                         │
+│  🗄 D1       — SQLite база (15K+ законів, 160K+ записів)   │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## Стек
+---
 
-- **Бекенд:** Python 3 (RADA API, PyMuPDF, Groq LLM)
-- **Фронтенд:** Vanilla HTML/CSS/JS дашборд на Cloudflare Pages
-- **API:** Cloudflare Worker (REST, JSON, ~2ms CPU)
-- **База:** Cloudflare D1 (SQLite, 15086+ законопроєктів)
-- **LLM:** Groq API (`openai/gpt-oss-120b`)
+## Стек технологій
 
-## Дані
+| Шар | Технологія |
+|-----|-----------|
+| **Бекенд** | Python 3 + PyMuPDF + Groq API |
+| **API** | Cloudflare Worker (JavaScript) |
+| **База** | Cloudflare D1 (SQLite) |
+| **Фронтенд** | Vanilla HTML/CSS/JS (Cloudflare Pages) |
+| **Сповіщення** | Telegram Bot API |
+| **LLM** | Groq (`openai/gpt-oss-120b`) |
 
-- **15,086+** законопроєктів ВРУ IX скликання мігровано до D1
-- **40** LLM-оцінок ризиків (Groq)
-- Джерело: data.rada.gov.official API
+---
 
 ## Структура проекту
 
@@ -51,75 +72,108 @@
 radacleaner/
 ├── src/                        # Python пакет
 │   ├── config.py               # Конфігурація (.env)
-│   ├── db.py                   # Підключення до БД
-│   ├── bill_sync.py            # Синхронізація з RADA API + push
-│   ├── cf_push.py              # Push даних у Cloudflare Worker
-│   ├── groq_client.py          # LLM клієнт (Groq)
-│   ├── pdf_utils.py            # PDF → текст
-│   ├── rag_engine.py           # LLM-аналіз ризиків + push
-│   ├── risk_storage.py         # Збереження оцінок
-│   └── telegram_notifier.py    # Telegram сповіщення
+│   ├── bill_sync.py            # Синхронізація з RADA API → D1
+│   ├── rag_engine.py           # LLM-аналіз ризиків + Telegram
+│   ├── risk_storage.py         # Збереження оцінок ризиків
+│   ├── pdf_utils.py            # PDF → текст (PyMuPDF)
+│   ├── groq_client.py          # Groq API клієнт
+│   ├── d1_client.py            # HTTP-клієнт до Worker (D1)
+│   └── telegram_notifier.py    # Telegram бот
 ├── worker/
-│   └── src/index.js            # Cloudflare Worker (REST API + D1)
+│   └── src/index.js            # Cloudflare Worker (REST API)
 ├── dashboard/
-│   └── index.html              # Веб-дашборд (Pages)
+│   └── index.html              # Веб-дашборд (5 секцій)
 ├── scripts/
-│   ├── migrate_to_d1_fast.py   # Швидка міграція PG → D1
-│   └── parse_votes.py          # Парсер голосувань
-├── sync_bills.py               # Точка входу синхронізації
-├── rag_monitor.py              # Точка входу моніторингу
-├── batch_rag_50.py             # Batch-обробка
-├── wrangler.jsonc              # Конфігурація Worker
-└── wrangler.pages.jsonc        # Конфігурація Pages
+│   └── migrate_to_d1_fast.py   # Міграція PG → D1
+├── sync_bills.py               # Точка входу: синхронізація законів
+├── sync_votes.py               # Парсер голосувань (один закон)
+├── sync_votes_bulk.py          # Масова синхронізація голосувань
+├── rag_monitor.py              # Точка входу: LLM-моніторинг
+└── wrangler.jsonc              # Конфігурація Cloudflare
 ```
 
-## Worker API Endpoints
+---
 
-| Method | Endpoint | Опис |
-|--------|----------|------|
-| GET | `/api/stats` | Статистика (total, byStage, highRisk) |
-| GET | `/api/statuses` | Унікальні статуси законів (для фільтру) |
-| GET | `/api/bills` | Список законів (limit, offset, stage, status, search, sort) |
-| GET | `/api/bills/:id` | Деталі закону + risks + versions + changes |
-| GET | `/api/bills/:id/risks` | Оцінка ризиків |
+## API Endpoints
+
+| Метод | Ендпоінт | Опис |
+|-------|----------|------|
+| GET | `/api/stats` | Загальна статистика |
+| GET | `/api/bills` | Список законів (фільтри, пошук, пагінація) |
+| GET | `/api/bills/:id` | Деталі: ризики, версії, зміни, голосування |
+| GET | `/api/bills/:id/versions` | Версії закону (для диффу) |
+| GET | `/api/bills/:id/risks` | Оцінка ризиків LLM |
 | GET | `/api/bills/:id/votes` | Голосування по закону |
+| GET | `/api/deputies` | Список депутатів (КПД, фракція) |
+| GET | `/api/deputies/:id` | Профіль депутата + історія голосувань |
 | GET | `/api/votes` | Список голосувань |
-| GET | `/api/deputies/:id` | Профіль депутата |
-| POST | `/api/sync` | Прийом даних від важкого сервера |
+| GET | `/api/factions` | Список фракцій |
+| GET | `/api/plenary-sessions` | Календар засідань |
+| POST | `/api/sync` | Прийом даних від Python-сервера |
 
-## Dashboard Features
+---
 
-- 📊 **Дашборд** — статика, останні закони, календар пленарних засідань
-- 📜 **Законопроєкти** — список з фільтрами (статус, етап 1-5), пошук, пагінація
-- 👥 **Депутати** — по фракціях з пошуком
-- 🔗 Картка закону → деталі: ризики LLM, версії, історія змін
+## Автоматизація (systemd)
+
+```bash
+# Перевірка статусу
+systemctl list-timers | grep radacleaner
+systemctl status radacleaner-votesync
+
+# Логи
+journalctl -u radacleaner-monitor -f       # LLM + Telegram
+journalctl -u radacleaner-sync -f           # Синхронізація
+journalctl -u radacleaner-votesync -f       # Голосування
+
+# Ручний запуск
+sudo systemctl start radacleaner-sync
+sudo systemctl start radacleaner-monitor
+sudo systemctl start radacleaner-votesync
+```
+
+| Сервіс | Інтервал | Що робить |
+|--------|----------|-----------|
+| `radacleaner-sync.timer` | кожні 4 год | Синхронізація законів з RADA API |
+| `radacleaner-monitor.timer` | кожні 30 хв | LLM-аналіз + Telegram сповіщення |
+| `radacleaner-votesync.service` | continuous | Масова синхронізація голосувань |
+
+---
 
 ## Встановлення
 
 ```bash
 git clone https://github.com/Dinollee/radacleaner.git
 cd radacleaner
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env   # заповніть свої дані
 ```
 
-## Cloudflare Deps
+### Cloudflare
 
 ```bash
 npm install -g wrangler
-wrangler login               # авторизація Cloudflare
-wrangler deploy              # деплой Worker
-wrangler pages deploy dashboard --project-name radacleaner-dashboard  # деплой Pages
+wrangler login
+wrangler deploy                           # Worker
+wrangler pages deploy dashboard --project-name radacleaner-dashboard  # Pages
 ```
 
-## Запуск (важкий сервер)
+---
+
+## Деплой після змін
 
 ```bash
-# Синхронізація з RADA API + push у Worker
-python sync_bills.py
+# Зміни в Worker (index.js)
+cd worker && npx wrangler deploy
 
-# LLM-аналіз нових законів + push
-python rag_monitor.py
+# Зміни в дашборді
+npx wrangler pages deploy dashboard --project-name radacleaner-dashboard
+
+# Зміни в Python — просто git push (авто-синхронізація через systemd)
 ```
+
+---
 
 ## Ліцензія
 
