@@ -1,5 +1,4 @@
 # radacleaner залежності
-psycopg2-binary>=2.9.9
 python-telegram-bot>=20.7
 requests>=2.31.0
 PyMuPDF>=1.23.0

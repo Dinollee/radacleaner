@@ -1,7 +1,7 @@
 """radacleaner — Моніторинг законопроектів ВРУ з LLM-аналізом ризиків.
 
-Встановлення:
-    pip install -r requirements.txt
+Всі дані зберігаються в Cloudflare D1 (через Worker API).
+Локальна БД не потрібна.
 
 Запуск:
     python sync_bills.py list          # Швидка синхронізація (ETag)
@@ -13,9 +13,5 @@
 Або через модулі:
     python -m src.bill_sync list
     python -m src.rag_engine
-    python -m src.bill_sync full
-
-Конфігурація:
-    Скопіюйте .env.example → .env та заповніть змінні.
 """
-__version__ = "0.2.0"
+__version__ = "0.3.0"

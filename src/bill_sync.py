@@ -1,4 +1,4 @@
-"""Синхронізація бази законопроектів ВРУ з data.rada.gov.ua."""
+"""Синхронізація бази законопроектів ВРУ з data.rada.gov.ua → D1 (через Worker API)."""
 import json
 import logging
 import re
@@ -7,9 +7,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime
 
-from .cf_push import push_bill, push_change_log
-from .config import log, DB_PARAMS
-from .risk_storage import db_conn
+from .config import log
+from .d1_client import d1_query, d1_exec
 
 FILES = {
     "billinfo_list": {
@@ -51,52 +50,43 @@ STAGE_CASES = [
 
 
 def ensure_sync_table() -> None:
-    """Створює sync_state таблицю, якщо її немає."""
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sync_state (
-                filename TEXT PRIMARY KEY, etag TEXT,
-                last_checked TIMESTAMP, last_downloaded TIMESTAMP
-            )
-            """
-        )
-        conn.commit()
+    """Створює sync_state таблицю, якщо її немає (D1 через raw_sql)."""
+    d1_exec("raw_sql", {
+        "sql": """CREATE TABLE IF NOT EXISTS sync_state (
+            filename TEXT PRIMARY KEY,
+            etag TEXT,
+            last_checked TEXT,
+            last_downloaded TEXT
+        )""",
+        "params": [],
+    })
 
 
 def get_etag(filename: str) -> str | None:
-    """Отримує збережений ETag з БД."""
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "SELECT etag FROM sync_state WHERE filename=%s", (filename,)
-        )
-        row = cur.fetchone()
-        return row[0] if row else None
+    """Отримує збережений ETag з D1."""
+    rows = d1_query(
+        "SELECT etag FROM sync_state WHERE filename = ?", [filename]
+    )
+    return rows[0]["etag"] if rows else None
 
 
 def save_etag(filename: str, etag: str) -> None:
-    """Зберігає ETag в БД."""
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO sync_state (filename, etag, last_checked, last_downloaded)
-            VALUES (%s, %s, now(), now())
-            ON CONFLICT (filename) DO UPDATE SET
-                etag=%s, last_checked=now(), last_downloaded=now()
-            """,
-            (filename, etag, etag),
-        )
-        conn.commit()
+    """Зберігає ETag в D1."""
+    d1_exec("raw_sql", {
+        "sql": """INSERT INTO sync_state (filename, etag, last_checked, last_downloaded)
+                  VALUES (?, ?, datetime('now'), datetime('now'))
+                  ON CONFLICT(filename) DO UPDATE SET
+                    etag=?, last_checked=datetime('now'), last_downloaded=datetime('now')""",
+        "params": [filename, etag, etag],
+    })
 
 
 def update_last_checked(filename: str) -> None:
     """Оновлює мітку часу перевірки."""
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE sync_state SET last_checked=now() WHERE filename=%s",
-            (filename,),
-        )
-        conn.commit()
+    d1_exec("raw_sql", {
+        "sql": "UPDATE sync_state SET last_checked=datetime('now') WHERE filename=?",
+        "params": [filename],
+    })
 
 
 def check_and_download(url: str, local_path: str, filename: str):
@@ -135,174 +125,146 @@ def check_and_download(url: str, local_path: str, filename: str):
             return False, None
 
 
-def log_change(cur, bill_id: int, change_type: str, old_value=None, new_value=None) -> None:
-    """Записує зміну в change_log."""
-    cur.execute(
-        "INSERT INTO change_log (bill_id, change_type, old_value, new_value) "
-        "VALUES (%s, %s, %s, %s)",
-        (bill_id, change_type, old_value, new_value),
-    )
+def log_change(bill_id: int, change_type: str, old_value=None, new_value=None) -> None:
+    """Записує зміну в change_log (D1)."""
+    d1_exec("change_log", {
+        "bill_id": bill_id,
+        "change_type": change_type,
+        "old_value": old_value,
+        "new_value": new_value,
+    })
 
 
 def sync_billinfo_list(data: bytes) -> int:
-    """Синхронізує список законопроектів (billinfo_list)."""
+    """Синхронізує список законопроектів (billinfo_list) → D1."""
     bills = json.loads(data)
 
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT bill_number FROM bills")
-        existing = {row[0] for row in cur.fetchall()}
-        added = 0
+    # Отримуємо існуючі bill_number з D1
+    existing_rows = d1_query("SELECT bill_number FROM bills")
+    existing = {row["bill_number"] for row in existing_rows}
+    added = 0
 
-        for b in bills:
-            bn = str(b.get("registrationNumber", "")).strip()
-            if not bn or bn in existing:
-                continue
+    for b in bills:
+        bn = str(b.get("registrationNumber", "")).strip()
+        if not bn or bn in existing:
+            continue
 
-            title = b.get("name", "")
-            reg_date = b.get("registrationDate", "")[:10] if b.get("registrationDate") else None
-            subject = b.get("subject", "")
-            api_id = str(b.get("id", ""))
-            url = (
-                f"https://itd.rada.gov.ua/billInfo/Bills/Card/{api_id}"
-                if api_id
-                else ""
-            )
+        title = b.get("name", "")
+        reg_date = b.get("registrationDate", "")[:10] if b.get("registrationDate") else None
+        subject = b.get("subject", "")
+        api_id = str(b.get("id", ""))
+        url = (
+            f"https://itd.rada.gov.ua/billInfo/Bills/Card/{api_id}"
+            if api_id
+            else ""
+        )
 
-            cur.execute(
-                """
-                INSERT INTO bills (bill_number, title, registration_date, current_status, committee, url, agenda_category, stage)
-                VALUES (%s, %s, %s, 'new', %s, %s, 'other', 1)
-                ON CONFLICT (bill_number) DO NOTHING
-                RETURNING id
-                """,
-                (bn, title, reg_date, subject, url),
-            )
-            row = cur.fetchone()
-            if row:
-                log_change(cur, row[0], "new", None, "new")
-                added += 1
-                # Push to Cloudflare Worker
-                push_bill(
-                    bill_number=bn,
-                    title=title,
-                    registration_date=reg_date,
-                    committee=subject,
-                    url=url,
-                )
+        d1_exec("bill", {
+            "bill_number": bn,
+            "title": title,
+            "current_status": "new",
+            "registration_date": reg_date,
+            "committee": subject,
+            "agenda_category": "other",
+            "url": url,
+            "stage": 1,
+        })
 
-        conn.commit()
+        # Знаходимо D1 id для change_log
+        rows = d1_query("SELECT id FROM bills WHERE bill_number = ?", [bn])
+        if rows:
+            log_change(rows[0]["id"], "new", None, "new")
+
+        added += 1
+
     return added
 
 
 def process_full_data(data: bytes) -> int:
-    """Обробляє повні дані про законопроекти (billinfo_full)."""
+    """Обробляє повні дані про законопроекти (billinfo_full) → D1."""
     if isinstance(data, bytes):
         data = data.decode("utf-8", errors="replace")
     data = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", data)
     bills = json.loads(data, strict=False)
 
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT id, bill_number, current_status FROM bills")
-        db_bills = {row[1]: (row[0], row[2]) for row in cur.fetchall()}
+    # Отримуємо всі закони з D1
+    db_rows = d1_query("SELECT id, bill_number, current_status FROM bills")
+    db_bills = {row["bill_number"]: (row["id"], row["current_status"]) for row in db_rows}
 
-        updated = 0
-        doc_count = 0
+    updated = 0
+    doc_count = 0
 
-        for b in bills:
-            bn = str(b.get("registrationNumber", "")).strip()
-            if bn not in db_bills:
-                continue
+    for b in bills:
+        bn = str(b.get("registrationNumber", "")).strip()
+        if bn not in db_bills:
+            continue
 
-            new_status = b.get("currentPhase_title", "").strip()
-            new_rubric = b.get("rubric", "").strip()
-            new_subject = b.get("subject", "").strip()
-            new_url = b.get("url", "").strip()
-            new_act_number = b.get("actNumber", "").strip() or None
-            new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
-            db_id, old_status = db_bills[bn]
+        new_status = b.get("currentPhase_title", "").strip()
+        new_rubric = b.get("rubric", "").strip()
+        new_subject = b.get("subject", "").strip()
+        new_url = b.get("url", "").strip()
+        new_act_number = (b.get("actNumber") or "").strip() or None
+        new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
+        db_id, old_status = db_bills[bn]
 
-            if new_status and new_status != old_status:
-                cur.execute(
-                    "UPDATE bills SET current_status=%s, updated_at=now() WHERE id=%s",
-                    (new_status, db_id),
-                )
-                log_change(cur, db_id, "status_change", old_status, new_status)
-                updated += 1
-                # Push статусу закону в Worker
-                push_bill(
-                    bill_number=bn,
-                    current_status=new_status,
-                    act_number=new_act_number,
-                    act_date=new_act_date,
-                )
-                push_change_log(
-                    bill_number=bn,
-                    change_type="status_change",
-                    old_value=old_status,
-                    new_value=new_status,
-                )
+        if new_status and new_status != old_status:
+            d1_exec("bill", {
+                "bill_number": bn,
+                "current_status": new_status,
+                "act_number": new_act_number,
+                "act_date": new_act_date,
+            })
+            log_change(db_id, "status_change", old_status, new_status)
+            updated += 1
 
-            if new_rubric:
-                cur.execute(
-                    "UPDATE bills SET agenda_category=%s WHERE id=%s AND agenda_category='other'",
-                    (new_rubric, db_id),
-                )
-            if new_subject:
-                cur.execute(
-                    "UPDATE bills SET committee=%s WHERE id=%s", (new_subject, db_id)
-                )
+        if new_rubric:
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET agenda_category=? WHERE bill_number=? AND agenda_category='other'",
+                "params": [new_rubric, bn],
+            })
+        if new_subject:
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET committee=? WHERE bill_number=?",
+                "params": [new_subject, bn],
+            })
 
-            # Записуємо номер акту та дату прийняття (якщо є)
-            if new_act_number:
-                cur.execute(
-                    "UPDATE bills SET act_number=%s, act_date=%s WHERE id=%s",
-                    (new_act_number, new_act_date, db_id),
-                )
-                # Push act_number в Worker (навіть якщо статус не змінився)
-                push_bill(
-                    bill_number=bn,
-                    act_number=new_act_number,
-                    act_date=new_act_date,
-                )
+        if new_act_number:
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET act_number=?, act_date=? WHERE bill_number=?",
+                "params": [new_act_number, new_act_date, bn],
+            })
 
-            # Document references
-            docs = b.get("documents", {})
-            if docs:
-                for kind in ["source", "workflow"]:
-                    for d in docs.get(kind, []) or []:
-                        dtype = d.get("kind", "?")
-                        for f in d.get("docFiles", []) or []:
-                            file_id = f["id"]
-                            fname = f.get("name", "")
-                            cur.execute(
-                                """
-                                INSERT INTO bill_documents (bill_id, file_id, doc_kind, doc_type, doc_name)
-                                VALUES (%s, %s, %s, %s, %s)
-                                ON CONFLICT (bill_id, file_id) DO NOTHING
-                                """,
-                                (db_id, str(file_id), kind, dtype, fname),
-                            )
-                            if cur.rowcount > 0:
-                                doc_count += 1
+        # Document references
+        docs = b.get("documents", {})
+        if docs:
+            for kind in ["source", "workflow"]:
+                for d in docs.get(kind, []) or []:
+                    dtype = d.get("kind", "?")
+                    for f in d.get("docFiles", []) or []:
+                        file_id = f["id"]
+                        fname = f.get("name", "")
+                        d1_exec("raw_sql", {
+                            "sql": """INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type)
+                                      VALUES (?, ?, ?)""",
+                            "params": [db_id, str(file_id), dtype],
+                        })
+                        doc_count += 1
 
-        conn.commit()
     log.info("Documents indexed: %d", doc_count)
     return updated
 
 
 def recalc_stages() -> None:
     """Перераховує stage для всіх законів на основі current_status."""
-    with db_conn() as conn, conn.cursor() as cur:
-        for status, stage in STAGE_CASES:
-            cur.execute(
-                "UPDATE bills SET stage=%s WHERE current_status=%s",
-                (stage, status),
-            )
-        conn.commit()
+    for status, stage in STAGE_CASES:
+        d1_exec("raw_sql", {
+            "sql": "UPDATE bills SET stage=? WHERE current_status=?",
+            "params": [stage, status],
+        })
 
 
 def main() -> None:
-    """Головна функція: синхронізація законопроектів з RADA API."""
+    """Головна функція: синхронізація законопроектів з RADA API → D1."""
     mode = sys.argv[1] if len(sys.argv) > 1 else "list"
     ensure_sync_table()
 
@@ -325,13 +287,11 @@ def main() -> None:
             recalc_stages()
 
     # Підсумок
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute("SELECT COUNT(*) FROM bills")
-        total = cur.fetchone()[0]
-        cur.execute(
-            "SELECT stage, COUNT(*) FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage"
-        )
-        stages = cur.fetchall()
+    total_rows = d1_query("SELECT COUNT(*) as cnt FROM bills")
+    total = total_rows[0]["cnt"] if total_rows else 0
+    stage_rows = d1_query(
+        "SELECT stage, COUNT(*) as cnt FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage"
+    )
 
     log.info("=== Summary: %d bills total ===", total)
     stage_names = {
@@ -342,8 +302,8 @@ def main() -> None:
         4: "Підписано",
         5: "Відхилено",
     }
-    for stage, count in stages:
-        log.info("  Stage %d - %s: %d", stage, stage_names.get(stage, "?"), count)
+    for row in stage_rows:
+        log.info("  Stage %d - %s: %d", row["stage"], stage_names.get(row["stage"], "?"), row["cnt"])
 
 
 if __name__ == "__main__":

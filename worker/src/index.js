@@ -204,6 +204,135 @@ export default {
 				return json({ deputy, votes });
 			}
 
+			// --- DEPUTIES LIST ---
+			if (method === 'GET' && pathname === '/api/deputies') {
+				const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);
+				const offset = Number(url.searchParams.get('offset')) || 0;
+				const search = url.searchParams.get('search');
+				const faction = url.searchParams.get('faction');
+				const sort = url.searchParams.get('sort') || 'name';
+				const order = (url.searchParams.get('order') || 'ASC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+				let query = 'SELECT * FROM mps WHERE 1=1';
+				const params = [];
+
+				if (search) { query += ' AND name LIKE ?'; params.push(`%${search}%`); }
+				if (faction) { query += ' AND faction = ?'; params.push(faction); }
+
+				const safeSort = ['name','faction'].includes(sort) ? sort : 'name';
+				query += ` ORDER BY ${safeSort} ${order} LIMIT ? OFFSET ?`;
+				params.push(limit, offset);
+
+				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
+
+				// Get attendance stats per deputy
+				const deputiesWithStats = await Promise.all(results.map(async (d) => {
+					const { results: voteStats } = await env.radacleaner_db.prepare(`
+						SELECT COUNT(*) as total,
+							SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended
+						FROM mp_votes mv
+						JOIN vote_statuses vs ON mv.status_id = vs.id
+						WHERE mv.mp_name = ?
+					`).bind(d.name).all();
+					const total = voteStats[0]?.total || 0;
+					const attended = voteStats[0]?.attended || 0;
+					const kpd = total > 0 ? Math.round((attended / total) * 100) : 0;
+					return { ...d, total, attended, kpd };
+				}));
+
+				return json({ deputies: deputiesWithStats });
+			}
+
+			// --- FACTIONS LIST ---
+			if (method === 'GET' && pathname === '/api/factions') {
+				const { results } = await env.radacleaner_db.prepare(
+					'SELECT DISTINCT faction FROM mps WHERE faction IS NOT NULL AND faction != "" ORDER BY faction'
+				).all();
+				return json({ factions: results.map(r => r.faction) });
+			}
+
+			// --- PLENARY SESSIONS (calendar) ---
+			if (method === 'GET' && pathname === '/api/plenary-sessions') {
+				const { results } = await env.radacleaner_db.prepare(`
+					SELECT DISTINCT DATE(v.vote_date) as session_date
+					FROM votes v
+					WHERE v.bill_id IS NOT NULL
+					ORDER BY v.vote_date DESC
+					LIMIT 100
+				`).raw().all();
+
+				// For each date, get bills voted on
+				const sessions = await Promise.all((results || []).map(async (r) => {
+					const { results: bills } = await env.radacleaner_db.prepare(`
+						SELECT b.bill_number, b.title
+						FROM votes v
+						JOIN bills b ON v.bill_id = b.id
+						WHERE DATE(v.vote_date) = DATE(?)
+						LIMIT 20
+					`).bind(r.session_date).all();
+					return { date: r.session_date, bills };
+				}));
+
+				return json({ sessions });
+			}
+
+			// --- GET /api/query (для Python-скриптів) ---
+			if (method === 'GET' && pathname === '/api/query') {
+				const auth = request.headers.get('Authorization') || '';
+				const token = auth.replace('Bearer ', '');
+				if (!token || token !== env.SYNC_TOKEN) return error('Unauthorized', 401);
+
+				const sql = url.searchParams.get('sql');
+				if (!sql) return error('Missing sql parameter', 400);
+
+				// Безпекова перевірка: тільки SELECT
+				const trimmed = sql.trim().toUpperCase();
+				if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('PRAGMA')) {
+					return error('Only SELECT queries allowed', 403);
+				}
+
+				const params = [];
+				let idx = 0;
+				while (true) {
+					const p = url.searchParams.get(`p${idx}`);
+					if (p === null) break;
+					params.push(p);
+					idx++;
+				}
+
+				let result;
+				if (params.length > 0) {
+					result = await env.radacleaner_db.prepare(sql).bind(...params).all();
+				} else {
+					result = await env.radacleaner_db.prepare(sql).all();
+				}
+				return json({ results: result.results });
+			}
+
+			// --- POST /api/query (для складних запитів з JSON body) ---
+			if (method === 'POST' && pathname === '/api/query') {
+				const auth = request.headers.get('Authorization') || '';
+				const token = auth.replace('Bearer ', '');
+				if (!token || token !== env.SYNC_TOKEN) return error('Unauthorized', 401);
+
+				const body = await request.json();
+				const { sql, params } = body;
+				if (!sql) return error('Missing sql', 400);
+
+				const trimmed = sql.trim().toUpperCase();
+				if (!trimmed.startsWith('SELECT') && !trimmed.startsWith('PRAGMA')) {
+					return error('Only SELECT queries allowed', 403);
+				}
+
+				let result;
+				if (params && params.length > 0) {
+					result = await env.radacleaner_db.prepare(sql).bind(...params).all();
+				} else {
+					result = await env.radacleaner_db.prepare(sql).all();
+				}
+				return json({ results: result.results });
+			}
+
 			// --- POST /api/sync ---
 			if (method === 'POST' && pathname === '/api/sync') {
 				const auth = request.headers.get('Authorization') || '';
@@ -220,6 +349,14 @@ export default {
 						'SELECT id FROM bills WHERE bill_number = ?'
 					).bind(String(billNumber)).first();
 					return bill ? bill.id : null;
+				}
+
+				// Універсальний raw SQL (INSERT/UPDATE/DELETE)
+				if (type === 'raw_sql') {
+					if (!data.sql) return error('raw_sql requires sql', 400);
+					const result = await env.radacleaner_db.prepare(data.sql)
+						.bind(...(data.params || [])).run();
+					return json({ success: true, meta: result.meta });
 				}
 
 				switch (type) {
@@ -241,10 +378,11 @@ export default {
 						`).bind(
 							data.bill_number, data.title, data.current_status||'new',
 							data.registration_date||null, data.committee||'', data.agenda_category||'other',
-							data.url||'', data.stage||1,
+							data.url||'', data.stage||1, data.act_number||null, data.act_date||null,
 							data.current_status||null, data.title||null,
 							data.registration_date||null, data.committee||null,
 							data.agenda_category||null, data.url||null, data.stage||null,
+						data.act_number||null, data.act_date||null,
 						).run();
 						return json({ success: true });
 

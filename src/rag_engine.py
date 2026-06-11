@@ -8,6 +8,7 @@
   python -m src.rag_engine --batch --limit 10
 """
 import hashlib
+import json
 import logging
 import os
 import sys
@@ -29,7 +30,6 @@ from .pdf_utils import (
     md5_hash,
 )
 from .risk_storage import (
-    db_conn,
     get_stored_hash,
     save_risk,
     mark_notified,
@@ -39,7 +39,7 @@ from .risk_storage import (
     insert_new_document,
     insert_chunks,
 )
-from .cf_push import push_risk, push_law_version
+from .d1_client import d1_exec, d1_query
 from .telegram_notifier import send_message
 
 log = logging.getLogger(__name__)
@@ -85,7 +85,6 @@ def format_risk_message(info: dict, data: dict) -> str:
     else:
         lines.append(f"📜 <b>#{bill_number}</b> — {title[:80]}")
 
-    # Legislative progress bar
     step, step_name = STATUS_MAP.get(status, (1, status or "Невідомо"))
     bar = "█" * step + "░" * (5 - step)
     reg_date = info.get("reg_date", "")
@@ -95,13 +94,12 @@ def format_risk_message(info: dict, data: dict) -> str:
     summary = data.get("summary", "—")
     lines.append(f"💡 Суть: {summary[:150]}")
 
-    # Ризики з нового формату risks[]
     risks = data.get("risks", [])
     if risks:
         risks_sorted = sorted(
             risks, key=lambda r: SEVERITY_ORDER.get(r.get("severity", ""), 9)
         )
-        for risk in risks_sorted[:5]:  # максимум 5 ризиків
+        for risk in risks_sorted[:5]:
             cat = risk.get("category", "Other")
             sev = risk.get("severity", "Low")
             emoji = CATEGORY_EMOJI.get(cat, "📌")
@@ -160,7 +158,7 @@ def format_status_message(info: dict) -> str:
 # === Основний пайплайн ===
 
 def process_bill(info: dict, test_mode: bool = False):
-    """Повна обробка одного законопроекту: PDF → текст → LLM → збереження.
+    """Повна обробка одного законопроекту: PDF → текст → LLM → збереження в D1.
 
     Args:
         info: Словник з даними законопроекту.
@@ -255,33 +253,25 @@ def process_bill(info: dict, test_mode: bool = False):
         log.info("  Cache hit (hash=%s) — skipping LLM", all_pdf_hash[:8])
         return None, None
 
-    # Зберігаємо чанки
+    # Зберігаємо чанки в D1
     delete_existing_chunks(bill_id)
     doc_db_id = insert_new_document(bill_id, bill_number, all_pdf_hash)
     insert_chunks(doc_db_id, bill_id, all_chunks)
     log.info("  Stored: doc_id=%d chunks=%d pdf_hash=%s", doc_db_id, len(all_chunks), all_pdf_hash[:8])
 
-    # Зберігаємо версію для історії (law_versions)
+    # Зберігаємо версію в law_versions (D1)
     plain_text = "\n\n".join(c["text"] for c in all_chunks)
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            INSERT INTO law_versions (law_id, status_at_moment, text_hash, plain_text)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (law_id, text_hash) DO NOTHING
-            RETURNING id
-            """,
-            (bill_id, status, all_pdf_hash, plain_text[:50000]),
-        )
-        conn.commit()
+    d1_exec("raw_sql", {
+        "sql": """INSERT OR IGNORE INTO law_versions (law_id, status_at_moment, text_hash, plain_text)
+                  VALUES (?, ?, ?, ?)""",
+        "params": [bill_id, status, all_pdf_hash, plain_text[:50000]],
+    })
 
-    # Оновлюємо bills.text_hash та bills.plain_text
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            "UPDATE bills SET text_hash=%s, plain_text=%s WHERE id=%s",
-            (all_pdf_hash, plain_text[:50000], bill_id),
-        )
-        conn.commit()
+    # Оновлюємо bills.text_hash та bills.plain_text (D1)
+    d1_exec("raw_sql", {
+        "sql": "UPDATE bills SET text_hash=?, plain_text=? WHERE id=?",
+        "params": [all_pdf_hash, plain_text[:50000], bill_id],
+    })
 
     # Готуємо контекст для LLM
     substantive = [
@@ -305,54 +295,48 @@ def process_bill(info: dict, test_mode: bool = False):
     prompt = RISK_ANALYSIS_PROMPT.format(text=ctx)
 
     try:
-        data = groq_completion(prompt)
+        llm_data = groq_completion(prompt)
     except Exception as e:
         log.error("  LLM_FAIL: %s: %s", type(e).__name__, str(e)[:200])
         return None, None
 
-    # Додаємо insufficient_text, якщо текст обмежений
     if insufficient:
-        data["insufficient_text"] = True
+        llm_data["insufficient_text"] = True
 
     try:
-        save_risk(doc_db_id, data, GROQ_MODEL)
+        save_risk(doc_db_id, llm_data, GROQ_MODEL)
     except Exception as e:
         log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])
         return None, None
 
-    # Оновлюємо law_versions з результатами
-    import json
-    analysis_summary = data.get("summary", "")[:2000]
-    risks_json_str = json.dumps(data, ensure_ascii=False)
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            UPDATE law_versions SET analysis_summary=%s, risks_json=%s
-            WHERE law_id=%s AND text_hash=%s
-            """,
-            (analysis_summary, risks_json_str, bill_id, all_pdf_hash),
-        )
-        conn.commit()
+    # Оновлюємо law_versions з результатами (D1)
+    analysis_summary = llm_data.get("summary", "")[:2000]
+    risks_json_str = json.dumps(llm_data, ensure_ascii=False)
+    d1_exec("raw_sql", {
+        "sql": """UPDATE law_versions SET analysis_summary=?, risks_json=?
+                  WHERE law_id=? AND text_hash=?""",
+        "params": [analysis_summary, risks_json_str, bill_id, all_pdf_hash],
+    })
 
-    # === Push у Cloudflare Worker ===
-    push_risk(
-        bill_number=bill_number,
-        overall_score=data.get("overall_score", 0),
-        model_used=GROQ_MODEL,
-        json_data=json.dumps(data, ensure_ascii=False),
-        raw_analysis=analysis_summary,
-        insufficient_text=bool(data.get("insufficient_text", False)),
-    )
-    push_law_version(
-        bill_number=bill_number,
-        status_at_moment=status,
-        text_hash=all_pdf_hash,
-        plain_text=plain_text[:50000],
-        analysis_summary=analysis_summary,
-        risks_json=risks_json_str,
-    )
+    # Push risk + law_version через стандартний sync API
+    d1_exec("risk", {
+        "bill_number": bill_number,
+        "overall_score": llm_data.get("overall_score", 0),
+        "model_used": GROQ_MODEL,
+        "json_data": json.dumps(llm_data, ensure_ascii=False),
+        "raw_analysis": analysis_summary,
+        "insufficient_text": bool(llm_data.get("insufficient_text", False)),
+    })
+    d1_exec("law_version", {
+        "bill_number": bill_number,
+        "status_at_moment": status,
+        "text_hash": all_pdf_hash,
+        "plain_text": plain_text[:50000],
+        "analysis_summary": analysis_summary,
+        "risks_json": risks_json_str,
+    })
 
-    return info, data
+    return info, llm_data
 
 
 def main() -> None:
@@ -386,7 +370,7 @@ def main() -> None:
         log.info("Nothing to do.")
         return
 
-    processed = []      # (info, data) — повний аналіз ризиків
+    processed = []       # (info, data) — повний аналіз ризиків
     status_updates = []  # info — тільки зміна статусу
 
     for bill_info in bills_raw:
@@ -443,38 +427,37 @@ def _run_batch(test_mode: bool = False) -> None:
 
     log.info("Batch mode: limit=%d groq_key=%s", limit, bool(GROQ_API_KEY))
 
-    import json
-    from .risk_storage import db_conn
-
-    with db_conn() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT d.id, d.bill_id, d.file_id, d.title
-            FROM rag_documents d
-            WHERE NOT EXISTS (
-                SELECT 1 FROM risk_assessments r
-                WHERE r.document_id = d.id
-            )
-            LIMIT %s
-            """,
-            (limit,),
+    rows = d1_query(
+        """
+        SELECT d.id, d.bill_id, d.file_id, d.title
+        FROM rag_documents d
+        WHERE NOT EXISTS (
+            SELECT 1 FROM risk_assessments r
+            WHERE r.document_id = d.id
         )
-        rows = cur.fetchall()
+        LIMIT ?
+        """,
+        [limit],
+    )
 
     log.info("Batch size: %d", len(rows))
     done = 0
     skip = 0
 
-    for idx, (id_, bill_id, file_id, title) in enumerate(rows, start=1):
+    for idx, row in enumerate(rows, start=1):
+        id_ = row["id"]
+        bill_id = row["bill_id"]
+        file_id = row["file_id"]
+        title = row["title"]
+
         log.info("[%d/%d] doc_id=%d bill_id=%d", idx, len(rows), id_, bill_id)
 
         # Отримуємо текст з rag_chunks
-        with db_conn() as conn, conn.cursor() as cur:
-            cur.execute(
-                "SELECT chunk_text FROM rag_chunks WHERE document_id = %s ORDER BY chunk_index",
-                (id_,),
-            )
-            texts = [r[0] for r in cur.fetchall() if r[0]]
+        texts_rows = d1_query(
+            "SELECT chunk_text FROM rag_chunks WHERE document_id = ? ORDER BY chunk_index",
+            [id_],
+        )
+        texts = [r["chunk_text"] for r in texts_rows if r.get("chunk_text")]
 
         if not texts:
             log.info("  SKIP: empty text")
@@ -503,7 +486,7 @@ def _run_batch(test_mode: bool = False) -> None:
         prompt = RISK_ANALYSIS_PROMPT.format(text=ctx)
 
         try:
-            data = groq_completion(prompt)
+            llm_data = groq_completion(prompt)
         except Exception as e:
             log.error("  LLM_FAIL: %s: %s", type(e).__name__, str(e)[:200])
             if idx < len(rows):
@@ -511,10 +494,10 @@ def _run_batch(test_mode: bool = False) -> None:
             continue
 
         if insufficient:
-            data["insufficient_text"] = True
+            llm_data["insufficient_text"] = True
 
         try:
-            save_risk(id_, data, GROQ_MODEL)
+            save_risk(id_, llm_data, GROQ_MODEL)
             done += 1
         except Exception as e:
             log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])

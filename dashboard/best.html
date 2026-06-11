@@ -410,6 +410,11 @@ body {
   white-space: nowrap;
 }
 .bill-title { flex: 1; font-size: 14px; line-height: 1.4; }
+/* Bill status colors */
+.bill-status.signed { background: rgba(46,204,113,0.2); color: var(--accent-green); }
+.bill-status.pending { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
+.bill-status.new, .bill-status.default { background: rgba(90,106,133,0.2); color: var(--text-secondary); }
+
 .bill-status {
   font-size: 11px;
   padding: 3px 10px;
@@ -427,6 +432,12 @@ body {
 .bill-risk.high { background: rgba(231,76,60,0.2); color: var(--accent-red); }
 .bill-risk.medium { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
 .bill-risk.low { background: rgba(46,204,113,0.2); color: var(--accent-green); }
+
+/* Loading states */
+.loading { opacity: 0.6; pointer-events: none; }
+.loader { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border-color); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.error-msg { color: var(--accent-red); padding: 12px; text-align: center; }
 
 /* Bill detail panel */
 .bill-detail {
@@ -855,22 +866,21 @@ body {
 
 <!-- ============== JAVASCRIPT ============== -->
 <script>
-// ===== DATA =====
-const FACTIONS = [
-  { id: 'sn', name: 'СЛУГА НАРОДУ', color: '#19950b', count: 225 },
-  { id: 'es', name: 'Європейська Солідарність', color: '#ffff00', count: 21 },
-  { id: 'bt', name: 'Батьківщина', color: '#0057b8', count: 23 },
-  { id: 'pp', name: 'Платформа за життя та мир', color: '#ff6600', count: 21 },
-  { id: 'dv', name: 'ДОВІРА', color: '#00bcd4', count: 19 },
-  { id: 'zm', name: 'Партія "За майбутнє"', color: '#ff9800', count: 17 },
-  { id: 'gl', name: 'ГОЛОС', color: '#9c27b0', count: 18 },
-  { id: 'vn', name: 'Відновлення України', color: '#4caf50', count: 17 },
-  { id: 'pf', name: 'Позафракційні', color: '#888888', count: 20 }
-];
+(() => {
+// ===== API CLIENT =====
+const API_BASE = window.location.origin + '/api';
 
-const BILLS = [
-  {
-    id: 1, number: '0376', title: 'Про ратифікацію Угоди про Позику між Україною та ЄС (Макрофінансова допомога +35 млрд євро)',
+async function api(path) {
+  const res = await fetch(API_BASE + path);
+  if (!res.ok) throw new Error(res.statusText);
+  return res.json();
+}
+
+// ===== STATE =====
+let allFactions = [];
+let calMonth = new Date().getMonth();
+let calYear = new Date().getFullYear();
+let selectedBillId = null;
     date: '28.05.2026', status: 'Підписаний', risk: 'medium', riskLabel: 'Середній',
     votes: [
       { gid: 34782, desc: 'Розгляд за скороченою процедурою', za: 231, proti: 4, utr: 31, ne: 45, vid: 27 },
@@ -1574,72 +1584,92 @@ document.getElementById('billSearch').addEventListener('input', function() {
 });
 
 // ===== DEPUTIES TAB =====
-function renderDeputies(filter, factionFilter) {
+async function renderDeputies(filter, factionFilter) {
   const tbody = document.getElementById('deputiesBody');
-  tbody.innerHTML = '';
-  
-  let deps = [...ALL_DEPUTIES];
-  
-  if (filter) {
-    const f = filter.toLowerCase();
-    deps = deps.filter(d => d.name.toLowerCase().includes(f) || d.factionName.toLowerCase().includes(f));
-  }
-  if (factionFilter) {
-    deps = deps.filter(d => d.faction === factionFilter);
-  }
-  
-  // Sort by kpd desc by default
-  deps.sort((a,b) => b.kpd - a.kpd);
-  
-  if (deps.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Нічого не знайдено</td></tr>';
-    return;
-  }
-  
-  for (const d of deps) {
-    const f = FACTIONS.find(x => x.id === d.faction);
-    const color = f ? f.color : '#888';
-    
-    const kpdClass = d.kpd >= 80 ? 'kpd-high' : d.kpd >= 60 ? 'kpd-mid' : 'kpd-low';
-    const barColor = d.kpd >= 80 ? 'var(--accent-green)' : d.kpd >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
-    
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight:500;">${d.name}</td>
-      <td><div class="dep-faction"><span class="faction-dot" style="background:${color}"></span>${d.factionName}</div></td>
-      <td>${d.votes} (відвідано ${d.attended})</td>
-      <td>
-        <span style="display:inline-flex;align-items:center;gap:6px;">
-          <span class="kpd-bar" style="width:${d.kpd}px;max-width:80px;background:${barColor}"></span>
-          <span class="${kpdClass}">${d.kpd}%</span>
-        </span>
-      </td>
-    `;
-    tbody.appendChild(tr);
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);"><span class="loader"></span> Завантаження...</td></tr>';
+
+  try {
+    const params = new URLSearchParams();
+    if (filter) params.set('search', filter);
+    if (factionFilter) params.set('faction', factionFilter);
+    const data = await api('/deputies?' + params);
+
+    if (!data.deputies || data.deputies.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Нічого не знайдено</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+    for (const d of data.deputies) {
+      const kpdClass = d.kpd >= 80 ? 'kpd-high' : d.kpd >= 60 ? 'kpd-mid' : 'kpd-low';
+      const barColor = d.kpd >= 80 ? 'var(--accent-green)' : d.kpd >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight:500;">${d.name}</td>
+        <td><div class="dep-faction"><span class="faction-dot" style="background:${d.faction_color || '#888'}"></span>${d.faction}</div></td>
+        <td>${d.total || 0} (відвідано ${d.attended || 0})</td>
+        <td>
+          <span style="display:inline-flex;align-items:center;gap:6px;">
+            <span class="kpd-bar" style="width:${d.kpd}px;max-width:80px;background:${barColor}"></span>
+            <span class="${kpdClass}">${d.kpd}%</span>
+          </span>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="4" class="error-msg">Помилка завантаження даних: ' + (e.message || 'Unknown error') + '</td></tr>';
   }
 }
 
-// Deputies search
-document.getElementById('depSearch').addEventListener('input', function() {
-  renderDeputies(this.value, document.getElementById('depFactionFilter').value);
-});
-document.getElementById('depFactionFilter').addEventListener('change', function() {
-  renderDeputies(document.getElementById('depSearch').value, this.value);
-});
-
-// Populate faction filter
-const facFilter = document.getElementById('depFactionFilter');
-FACTIONS.forEach(f => {
-  const opt = document.createElement('option');
-  opt.value = f.id;
-  opt.textContent = f.name;
-  facFilter.appendChild(opt);
-});
-
 // ===== INIT =====
-renderDashboard();
-renderBills('');
-renderDeputies('', '');
+async function init() {
+  try {
+    // Load stats first
+    const stats = await api('/stats');
+    if (stats.totalBills !== undefined) {
+      document.getElementById('headerBills').textContent = stats.totalBills;
+      document.getElementById('statBillsTotal').textContent = stats.totalBills;
+    }
+    if (stats.totalVotes !== undefined) {
+      document.getElementById('headerVotes').textContent = stats.totalVotes;
+      document.getElementById('statVotesTotal').textContent = stats.totalVotes;
+    }
+    if (stats.totalMps !== undefined) {
+      document.getElementById('headerDeputies').textContent = stats.totalMps;
+      document.getElementById('statFactionsCount').textContent = stats.totalMps;
+    }
+
+    // Load factions for filter
+    const facData = await api('/factions');
+    allFactions = facData.factions || [];
+    const facFilter = document.getElementById('depFactionFilter');
+    allFactions.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = f;
+      facFilter.appendChild(opt);
+    });
+
+    // Load dashboard content
+    await renderDashboard();
+    await renderBills('');
+  } catch (e) {
+    console.error('Init error:', e);
+  }
+
+  // Deputies search handlers
+  document.getElementById('depSearch').addEventListener('input', (e) => {
+    renderDeputies(e.target.value, document.getElementById('depFactionFilter').value);
+  });
+  document.getElementById('depFactionFilter').addEventListener('change', () => {
+    renderDeputies(document.getElementById('depSearch').value, document.getElementById('depFactionFilter').value);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+})();
 </script>
 </body>
 </html>

@@ -18,20 +18,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("radacleaner")
 
-# === Database ===
-DB_HOST = os.environ.get("DB_HOST", "192.168.1.229")
-DB_PORT = int(os.environ.get("DB_PORT", "5432"))
-DB_NAME = os.environ.get("DB_NAME", "my_bills")
-DB_USER = os.environ.get("DB_USER", "hermes")
-DB_PASSWORD = os.environ.get("DB_PASSWORD", "hermes")
-
-DB_PARAMS = {
-    "host": DB_HOST,
-    "port": DB_PORT,
-    "dbname": DB_NAME,
-    "user": DB_USER,
-    "password": DB_PASSWORD,
-}
+# === D1 API (Cloudflare Worker) ===
+WORKER_URL = os.environ.get("WORKER_URL", "https://rada-monitor-api.distih.workers.dev")
+SYNC_TOKEN = os.environ.get("CF_SYNC_TOKEN", "")
+D1_API_URL = f"{WORKER_URL}/api/sync"
+D1_QUERY_URL = f"{WORKER_URL}/api/query"
 
 # === Groq (LLM) ===
 GROQ_API_URL = "https://api.groq.com/openai/v1"
@@ -39,12 +30,12 @@ GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 def get_groq_key() -> str:
-    """Отримує Groq API ключ: спочатку з оточення, потім з .env, потім з Hermes config."""
+    """Отримує Groq API ключ: спочатку з оточення, потім з .env."""
     key = os.environ.get("GROQ_API_KEY", "") or os.environ.get("GROQ_TOKEN", "")
     if key:
         return key.strip()
 
-    # Спробувати .env ще раз напряму (якщо змінна є в файлі, але не в os.environ)
+    # Спробувати .env ще раз напряму
     try:
         with open(dotenv_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -54,20 +45,6 @@ def get_groq_key() -> str:
                     if val:
                         os.environ["GROQ_API_KEY"] = val
                         return val
-    except Exception:
-        pass
-
-    # /root/.hermes/config.yaml (Hermes бот)
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["bash", "-c", "grep GROQ_API_KEY /root/.hermes/config.yaml | sed 's/.*: //'"],
-            capture_output=True, text=True, timeout=5,
-        )
-        key = result.stdout.strip()
-        if key and (key.startswith("gsk_") or len(key) > 20):
-            os.environ["GROQ_API_KEY"] = key
-            return key
     except Exception:
         pass
 
