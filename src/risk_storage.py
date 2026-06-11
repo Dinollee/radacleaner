@@ -36,42 +36,35 @@ def save_hash(bill_id: int, content_hash: str) -> None:
         "SELECT id FROM rag_documents WHERE bill_id = ? LIMIT 1", [bill_id]
     )
     if existing:
-        # UPDATE — використовуємо rag_documents з фіксованим bill_id
-        d1_exec("raw_update", {
+        d1_exec("raw_sql", {
             "sql": "UPDATE rag_documents SET content_hash = ? WHERE bill_id = ?",
             "params": [content_hash, bill_id],
         })
     else:
-        d1_exec("rag_document", {
-            "bill_id": bill_id,
-            "doc_type": "cached",
-            "title": "cached",
-            "content_hash": content_hash,
+        d1_exec("raw_sql", {
+            "sql": "INSERT INTO rag_documents (bill_id, doc_type, title, content_hash) VALUES (?, ?, ?, ?)",
+            "params": [bill_id, "cached", "cached", content_hash],
         })
 
 
 def delete_existing_chunks(bill_id: int) -> None:
     """Видаляє старі чанки та документи для bill_id."""
-    # Видаляємо чанки
-    chunks = d1_query("SELECT id FROM rag_chunks WHERE bill_id = ?", [bill_id])
-    for c in chunks:
-        d1_exec("raw_delete_rag_chunk", {"id": c["id"]})
-
-    # Видаляємо документи
-    docs = d1_query("SELECT id FROM rag_documents WHERE bill_id = ?", [bill_id])
-    for d in docs:
-        d1_exec("raw_delete_rag_document", {"id": d["id"]})
+    d1_exec("raw_sql", {
+        "sql": "DELETE FROM rag_chunks WHERE bill_id = ?",
+        "params": [bill_id],
+    })
+    d1_exec("raw_sql", {
+        "sql": "DELETE FROM rag_documents WHERE bill_id = ?",
+        "params": [bill_id],
+    })
 
 
 def insert_new_document(bill_id: int, bill_number: str, content_hash: str) -> int:
     """Вставляє новий запис rag_documents, повертає його id."""
-    d1_exec("rag_document", {
-        "bill_id": bill_id,
-        "doc_type": "combined",
-        "title": f"Закон #{bill_number}",
-        "content_hash": content_hash,
+    d1_exec("raw_sql", {
+        "sql": "INSERT INTO rag_documents (bill_id, doc_type, title, content_hash) VALUES (?, ?, ?, ?)",
+        "params": [bill_id, "combined", f"Закон #{bill_number}", content_hash],
     })
-    # Отримуємо вставлений id
     rows = d1_query(
         "SELECT id FROM rag_documents WHERE bill_id = ? AND content_hash = ? ORDER BY id DESC LIMIT 1",
         [bill_id, content_hash],
@@ -82,17 +75,15 @@ def insert_new_document(bill_id: int, bill_number: str, content_hash: str) -> in
 def insert_chunks(doc_id: int, bill_id: int, chunks: list[dict]) -> None:
     """Вставляє чанки тексту в rag_chunks."""
     for chunk in chunks:
-        d1_exec("rag_chunk", {
-            "document_id": doc_id,
-            "bill_id": chunk["bill_id"],
-            "chunk_index": chunk["chunk_index"],
-            "chunk_text": chunk["text"][:2000],
-            "section": chunk["section"],
+        d1_exec("raw_sql", {
+            "sql": "INSERT INTO rag_chunks (document_id, bill_id, chunk_index, chunk_text, section) VALUES (?, ?, ?, ?, ?)",
+            "params": [doc_id, chunk["bill_id"], chunk["chunk_index"], chunk["text"][:2000], chunk["section"]],
         })
 
 
 def find_bills_needing_rag(limit: int = 20) -> list[dict]:
-    """Знаходить законопроекти, що потребують аналізу (нові або зі зміною статусу)."""
+    """Знаходить законопроекти, що потребують аналізу (нові, зі зміною статусу, або без LLM-аналізу)."""
+    # Спочатку шукаємо в change_log (непозначені зміни)
     rows = d1_query(
         """
         SELECT DISTINCT b.id, b.bill_number, b.title, b.current_status,
@@ -107,7 +98,8 @@ def find_bills_needing_rag(limit: int = 20) -> list[dict]:
         """,
         [limit],
     )
-    return [
+
+    result = [
         {
             "id": r["id"],
             "bill_number": r["bill_number"],
@@ -123,6 +115,45 @@ def find_bills_needing_rag(limit: int = 20) -> list[dict]:
         }
         for r in rows
     ]
+
+    if len(result) >= limit:
+        return result
+
+    # Якщо change_log порожній — шукаємо закони без LLM-аналізу
+    remaining = limit - len(result)
+    existing_ids = {r["id"] for r in result}
+
+    unanalyzed = d1_query(
+        """
+        SELECT b.id, b.bill_number, b.title, b.current_status,
+               b.registration_date, b.committee, b.agenda_category, b.url
+        FROM bills b
+        WHERE NOT EXISTS (
+            SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id
+        )
+        ORDER BY b.registration_date DESC
+        LIMIT ?
+        """,
+        [remaining],
+    )
+
+    for r in unanalyzed:
+        if r["id"] not in existing_ids:
+            result.append({
+                "id": r["id"],
+                "bill_number": r["bill_number"],
+                "title": r["title"],
+                "status": r["current_status"],
+                "reg_date": r["registration_date"],
+                "committee": r["committee"],
+                "category": r["agenda_category"],
+                "change_type": "new",
+                "old_value": None,
+                "new_value": None,
+                "url": r["url"],
+            })
+
+    return result
 
 
 def save_risk(document_id: int, data: dict, model: str) -> None:
@@ -198,7 +229,10 @@ def mark_notified(bill_ids: list[int]) -> None:
     if not bill_ids:
         return
     for bid in bill_ids:
-        d1_exec("raw_mark_notified", {"bill_id": bid})
+        d1_exec("raw_sql", {
+            "sql": "UPDATE change_log SET notified = 1 WHERE bill_id = ?",
+            "params": [bid],
+        })
     log.debug("Marked %d bills as notified", len(bill_ids))
 
 

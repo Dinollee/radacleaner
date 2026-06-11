@@ -6,1878 +6,659 @@
 <title>Страж Демократії — Моніторинг ВРУ</title>
 <style>
 :root {
-  --bg-primary: #0f0f1a;
-  --bg-secondary: #1a1a2e;
-  --bg-card: #16213e;
-  --bg-hover: #1e2a45;
-  --text-primary: #e0e6f0;
-  --text-secondary: #8899b4;
-  --text-muted: #5a6a85;
-  --accent-blue: #4a9eff;
-  --accent-green: #2ecc71;
-  --accent-red: #e74c3c;
-  --accent-orange: #f39c12;
-  --accent-yellow: #f1c40f;
-  --accent-purple: #9b59b6;
-  --border-color: #2a2a4a;
-  --shadow: 0 4px 20px rgba(0,0,0,0.3);
-  --radius: 12px;
-  --radius-sm: 8px;
-  --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  --bg: #0a0a12;
+  --bg2: #12121f;
+  --bg3: #1a1a2e;
+  --card: #16162a;
+  --hover: #1e1e3a;
+  --text: #e0e6f0;
+  --text2: #8899b4;
+  --muted: #5a6a85;
+  --blue: #4a9eff;
+  --green: #2ecc71;
+  --red: #e74c3c;
+  --orange: #f39c12;
+  --yellow: #f1c40f;
+  --purple: #9b59b6;
+  --border: #252545;
+  --radius: 10px;
   --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
-
-  /* Faction colors */
-  --color-sluga: #19950b;
-  --color-es: #ffff00;
-  --color-batkiv: #0057b8;
-  --color-platforma: #ff6600;
-  --color-dovira: #00bcd4;
-  --color-maybutne: #ff9800;
-  --color-golos: #9c27b0;
-  --color-vidnovlennya: #4caf50;
-  --color-pozafrak: #888888;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: var(--font);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
-  line-height: 1.6;
-}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Header */
+.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
+.logo { font-size: 18px; font-weight: 700; color: var(--blue); margin-right: 32px; white-space: nowrap; }
+.logo span { color: var(--text2); font-weight: 400; font-size: 14px; margin-left: 8px; }
+nav { display: flex; gap: 4px; }
+nav button { background: none; border: none; color: var(--text2); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
+nav button:hover { background: var(--hover); color: var(--text); }
+nav button.active { background: var(--blue); color: #fff; }
 
 /* Layout */
-.app-header {
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  padding: 16px 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0; z-index: 100;
-}
-.header-left { text-align: center; }
-.app-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.app-header .subtitle {
-  font-size: 12px;
-  color: var(--text-secondary);
-  -webkit-text-fill-color: var(--text-secondary);
-}
-.header-stats { display: flex; gap: 20px; align-items: center; }
-.header-stat { text-align: center; }
-.header-stat .num { font-size: 20px; font-weight: 700; color: var(--accent-blue); }
-.header-stat .label { font-size: 11px; color: var(--text-secondary); }
-.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-
-/* Tabs */
-.tab-nav {
-  display: flex;
-  justify-content: center;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-color);
-  padding: 0 24px;
-  gap: 4px;
-}
-.tab-btn {
-  padding: 14px 24px;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: var(--transition);
-  font-family: var(--font);
-}
-.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
-.tab-btn.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
-.tab-content { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; }
-.tab-content.active { display: block; }
+.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.section { display: none; }
+.section.active { display: block; }
 
 /* Cards */
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 20px;
-  margin-bottom: 16px;
-  transition: var(--transition);
-}
-.card:hover { border-color: rgba(74,158,255,0.3); }
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-title { font-size: 16px; font-weight: 600; }
 
-/* Grids */
-.grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media(max-width:1024px){ .grid-4 { grid-template-columns: repeat(2,1fr); } .grid-3 { grid-template-columns: 1fr; } }
-@media(max-width:768px){ .grid-4, .grid-2 { grid-template-columns: 1fr; } }
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
+.stat-value { font-size: 28px; font-weight: 700; margin: 8px 0 4px; }
+.stat-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
 
-/* Dashboard stat cards */
-.stat-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 20px;
-  text-align: center;
-  transition: var(--transition);
-}
-.stat-card:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
-.stat-card .icon { font-size: 28px; margin-bottom: 8px; }
-.stat-card .value { font-size: 32px; font-weight: 700; }
-.stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; padding: 10px 12px; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:hover td { background: var(--hover); }
+tr.clickable { cursor: pointer; }
 
-/* Faction accordion */
-.faction-list { display: flex; flex-direction: column; gap: 6px; }
-.faction-item {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  transition: var(--transition);
-}
-.faction-header {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  cursor: pointer;
-  gap: 12px;
-  transition: var(--transition);
-}
-.faction-header:hover { background: var(--bg-hover); }
-.faction-color {
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.faction-name { flex: 1; font-weight: 500; font-size: 14px; }
-.faction-stats { display: flex; gap: 16px; font-size: 13px; }
-.faction-stat { text-align: center; min-width: 40px; }
-.faction-stat .n { font-weight: 700; display: block; }
-.faction-stat .l { font-size: 10px; color: var(--text-muted); }
-.stat-za .n { color: var(--accent-green); }
-.stat-proti .n { color: var(--accent-red); }
-.stat-utr .n { color: var(--accent-orange); }
-.stat-vid .n { color: var(--text-muted); }
-.faction-arrow { transition: transform 0.3s; color: var(--text-muted); font-size: 12px; }
-.faction-item.open .faction-arrow { transform: rotate(180deg); }
+/* Badges */
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.badge-high { background: rgba(231,76,60,0.15); color: var(--red); }
+.badge-medium { background: rgba(243,156,18,0.15); color: var(--orange); }
+.badge-low { background: rgba(46,204,113,0.15); color: var(--green); }
+.badge-stage1 { background: rgba(136,153,180,0.15); color: var(--text2); }
+.badge-stage2 { background: rgba(74,158,255,0.15); color: var(--blue); }
+.badge-stage3 { background: rgba(155,89,182,0.15); color: var(--purple); }
+.badge-stage4 { background: rgba(46,204,113,0.15); color: var(--green); }
+.badge-stage5 { background: rgba(231,76,60,0.15); color: var(--red); }
 
-.faction-deputies {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.4s ease, padding 0.3s;
-  padding: 0 16px;
-}
-.faction-item.open .faction-deputies {
-  max-height: 2000px;
-  padding: 0 16px 12px;
-}
-.deputy-row {
-  display: flex;
-  align-items: center;
-  padding: 6px 8px;
-  gap: 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  transition: var(--transition);
-}
-.deputy-row:hover { background: var(--bg-hover); }
-.deputy-name { flex: 1; }
-.deputy-vote {
-  padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.deputy-vote.za { background: rgba(46,204,113,0.2); color: var(--accent-green); }
-.deputy-vote.proti { background: rgba(231,76,60,0.2); color: var(--accent-red); }
-.deputy-vote.utr { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
-.deputy-vote.ne { background: rgba(90,106,133,0.2); color: var(--text-muted); }
-.deputy-vote.vid { background: rgba(90,106,133,0.15); color: var(--text-muted); }
+/* Progress bar */
+.progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
 
-/* ===== BILL DETAIL PANEL (replaces inline) ===== */
-.bill-detail {
-  display: none;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius);
-  padding: 24px;
-  margin-top: 16px;
-  border-left: 3px solid var(--accent-blue);
-}
-.bill-detail.open { display: block; }
-.bill-detail-close {
-  float: right;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-.bill-detail-close:hover { background: var(--bg-hover); color: var(--text-primary); }
+/* Stage bar */
+.stage-bar { display: flex; gap: 2px; margin: 8px 0; }
+.stage-bar span { height: 8px; flex: 1; border-radius: 2px; background: var(--border); }
+.stage-bar span.filled { background: var(--blue); }
 
-/* Detail sections */
-.detail-section { margin-bottom: 20px; }
-.detail-section:last-child { margin-bottom: 0; }
-.detail-section h3 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--accent-blue);
-  margin-bottom: 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-color);
-}
-.detail-row {
-  display: flex;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--text-secondary);
-}
-.detail-row .label { color: var(--text-muted); min-width: 140px; flex-shrink: 0; }
-.detail-row .value { color: var(--text-primary); }
-.detail-row a { color: var(--accent-blue); text-decoration: none; }
-.detail-row a:hover { text-decoration: underline; }
+/* Filters */
+.filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.filters input, .filters select { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+.filters input { flex: 1; min-width: 200px; }
+.filters select { min-width: 140px; }
 
-/* ===== STAGE TIMELINE ===== */
-.stage-timeline {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-  padding: 12px 8px 4px;
-  margin-bottom: 8px;
-}
-.stage-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  position: relative;
-}
-.stage-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--border-color);
-  background: var(--bg-primary);
-  position: relative;
-  z-index: 1;
-  transition: var(--transition);
-}
-.stage-dot.done {
-  background: var(--accent-green);
-  border-color: var(--accent-green);
-}
-.stage-dot.current {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
-  box-shadow: 0 0 0 4px rgba(74,158,255,0.25);
-}
-.stage-dot.future {
-  background: var(--bg-secondary);
-  border-color: var(--text-muted);
-}
-.stage-line {
-  position: absolute;
-  top: 7px;
-  left: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--border-color);
-  z-index: 0;
-}
-.stage-line.done { background: var(--accent-green); }
-.stage-label {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 6px;
-  text-align: center;
-  line-height: 1.3;
-  max-width: 80px;
-}
-.stage-date {
-  font-size: 10px;
-  color: var(--accent-blue);
-  margin-top: 2px;
-  text-align: center;
-}
+/* Diff */
+.diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.diff-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; max-height: 500px; overflow-y: auto; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.diff-panel .added { background: rgba(46,204,113,0.15); color: var(--green); }
+.diff-panel .removed { background: rgba(231,76,60,0.15); color: var(--red); text-decoration: line-through; }
+.diff-header { font-weight: 600; color: var(--text2); margin-bottom: 8px; font-size: 12px; text-transform: uppercase; }
 
-/* ===== VOTE BLOCKS ===== */
-.vote-block {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  margin-bottom: 10px;
-  overflow: hidden;
-  transition: var(--transition);
-}
-.vote-block:hover { border-color: rgba(74,158,255,0.3); }
-.vote-block.expanded { border-color: var(--accent-blue); }
+/* KPD */
+.kpd-bar { display: flex; align-items: center; gap: 8px; }
+.kpd-value { font-weight: 600; min-width: 40px; }
+.kpd-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.kpd-fill { height: 100%; border-radius: 4px; }
 
-.vote-block-header {
-  padding: 14px 16px;
-  cursor: pointer;
-  transition: var(--transition);
-}
-.vote-block-header:hover { background: var(--bg-hover); }
+/* Vote bar */
+.vote-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; gap: 1px; }
+.vote-bar .yes { background: var(--green); }
+.vote-bar .no { background: var(--red); }
+.vote-bar .abstain { background: var(--orange); }
+.vote-bar .not-present { background: var(--muted); }
 
-.vote-block-title {
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
+/* Detail panel */
+.detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.detail-row { display: flex; gap: 12px; margin-bottom: 8px; }
+.detail-label { color: var(--text2); min-width: 120px; font-size: 13px; }
+.detail-value { font-size: 14px; }
 
-.vote-block-summary {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.vote-count { white-space: nowrap; }
-.vote-count.za { color: var(--accent-green); }
-.vote-count.proti { color: var(--accent-red); }
-.vote-count.utr { color: var(--accent-orange); }
-.vote-count.ne { color: var(--text-muted); }
-.vote-count.vid { color: var(--text-muted); opacity: 0.7; }
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.tabs button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tabs button:hover { color: var(--text); }
+.tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
 
-.vote-bar {
-  display: flex;
-  height: 10px;
-  border-radius: 5px;
-  overflow: hidden;
-  background: var(--bg-secondary);
-  margin-bottom: 6px;
-}
-.vote-bar-seg { height: 100%; transition: width 0.3s; }
-.vote-bar-seg.za { background: var(--accent-green); }
-.vote-bar-seg.proti { background: var(--accent-red); }
-.vote-bar-seg.utr { background: var(--accent-orange); }
-.vote-bar-seg.ne { background: var(--text-muted); }
-.vote-bar-seg.vid { background: #3a3a5a; }
+/* Schedule */
+.schedule-item { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.schedule-date { min-width: 100px; font-weight: 600; color: var(--blue); font-size: 14px; }
+.schedule-info { flex: 1; }
+.schedule-title { font-size: 14px; margin-bottom: 4px; }
+.schedule-meta { font-size: 12px; color: var(--text2); }
 
-.vote-expand-hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  transition: var(--transition);
-}
-.vote-block.expanded .vote-expand-hint {
-  color: var(--accent-blue);
-}
+/* Back button */
+.back-btn { background: none; border: 1px solid var(--border); color: var(--text2); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 16px; }
+.back-btn:hover { background: var(--hover); color: var(--text); }
 
-.vote-factions {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.4s ease;
-  border-top: 1px solid transparent;
-}
-.vote-block.expanded .vote-factions {
-  max-height: 5000px;
-  border-top-color: var(--border-color);
-}
+/* Risk categories */
+.risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.risk-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+.risk-cat { font-size: 12px; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
+.risk-quote { font-size: 13px; font-style: italic; color: var(--text2); margin: 6px 0; border-left: 2px solid var(--border); padding-left: 8px; }
+.risk-explanation { font-size: 13px; }
 
-/* Faction detail items inside vote block */
-.faction-detail-list {
-  padding: 8px 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.faction-detail-item {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  transition: var(--transition);
-}
-.faction-detail-item:hover { border-color: rgba(74,158,255,0.2); }
-.faction-detail-item.open { border-color: var(--accent-blue); }
-
-.faction-detail-header {
-  display: flex;
-  align-items: center;
-  padding: 10px 14px;
-  cursor: pointer;
-  gap: 10px;
-  transition: var(--transition);
-}
-.faction-detail-header:hover { background: var(--bg-hover); }
-
-.faction-mini-stats {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  margin-left: auto;
-}
-.mini-stat.za { color: var(--accent-green); }
-.mini-stat.proti { color: var(--accent-red); }
-.mini-stat.utr { color: var(--accent-orange); }
-.mini-stat.ne { color: var(--text-muted); }
-.mini-stat.vid { color: var(--text-muted); opacity: 0.7; }
-
-.faction-deputies-wrap {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.4s ease;
-}
-.faction-detail-item.open .faction-deputies-wrap {
-  max-height: 3000px;
-}
-
-.deputies-filter {
-  display: flex;
-  gap: 6px;
-  padding: 8px 14px;
-  border-top: 1px solid var(--border-color);
-  flex-wrap: wrap;
-}
-.filter-btn {
-  padding: 4px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  cursor: pointer;
-  transition: var(--transition);
-  font-family: var(--font);
-}
-.filter-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
-.filter-btn.active {
-  background: rgba(74,158,255,0.15);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-
-.deputies-list {
-  padding: 4px 14px 10px;
-  max-height: 400px;
-  overflow-y: auto;
-}
-.deputies-list .deputy-row {
-  padding: 5px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-.deputies-list .deputy-name { font-size: 12px; }
-.deputies-list .deputy-vote { font-size: 10px; padding: 1px 8px; }
-
-.no-votes-msg {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 13px;
-  background: var(--bg-card);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-sm);
-}
-
-/* Bill list */
-.bill-search {
-  width: 100%;
-  padding: 12px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 14px;
-  margin-bottom: 16px;
-  font-family: var(--font);
-}
-.bill-search:focus { outline: none; border-color: var(--accent-blue); }
-.bill-item {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  transition: var(--transition);
-}
-.bill-item:hover { border-color: var(--accent-blue); background: var(--bg-hover); }
-.bill-item-header { display: flex; align-items: flex-start; gap: 12px; }
-.bill-number {
-  font-weight: 700;
-  color: var(--accent-blue);
-  font-size: 14px;
-  white-space: nowrap;
-}
-.bill-title { flex: 1; font-size: 14px; line-height: 1.4; }
-.bill-status {
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  white-space: nowrap;
-}
-.bill-meta { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
-.bill-risk {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-}
-.bill-risk.high { background: rgba(231,76,60,0.2); color: var(--accent-red); }
-.bill-risk.medium { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
-.bill-risk.low { background: rgba(46,204,113,0.2); color: var(--accent-green); }
-
-/* Timeline */
-.timeline { position: relative; padding-left: 24px; }
-.timeline::before {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 4px;
-  bottom: 4px;
-  width: 2px;
-  background: var(--border-color);
-}
-.timeline-item {
-  position: relative;
-  padding: 8px 0 8px 16px;
-  font-size: 13px;
-}
-.timeline-item::before {
-  content: '';
-  position: absolute;
-  left: -20px;
-  top: 12px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--accent-blue);
-  border: 2px solid var(--bg-primary);
-}
-.timeline-item .date { font-size: 11px; color: var(--text-muted); }
-.timeline-item .desc { color: var(--text-primary); }
-
-/* ===== PLENARY CALENDAR ===== */
-.cal-grid {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-bottom: 12px;
-}
-.cal-header {
-  text-align: center;
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 4px 0;
-  font-weight: 600;
-}
-.cal-day {
-  aspect-ratio: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: default;
-  transition: var(--transition);
-  position: relative;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-}
-.cal-day:hover { background: var(--bg-hover); }
-.cal-day.empty { background: transparent; }
-.cal-day.today {
-  border: 2px solid var(--accent-blue);
-  color: var(--text-primary);
-  font-weight: 700;
-}
-.cal-day.session {
-  background: rgba(74,158,255,0.15);
-  color: var(--accent-blue);
-  font-weight: 600;
-}
-.cal-day.session::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent-blue);
-}
-.cal-day.vote-day {
-  background: rgba(46,204,113,0.15);
-  color: var(--accent-green);
-  font-weight: 600;
-}
-.cal-day.vote-day::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--accent-green);
-}
-.cal-day.weekend { color: var(--text-muted); opacity: 0.5; }
-.cal-day .cal-bills { font-size: 9px; color: var(--text-muted); margin-top: 2px; }
-.cal-legend {
-  display: flex;
-  gap: 16px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-.cal-legend-item { display: flex; align-items: center; gap: 6px; }
-.cal-legend-dot { width: 10px; height: 10px; border-radius: 3px; }
-.cal-legend-dot.session { background: rgba(74,158,255,0.4); }
-.cal-legend-dot.vote { background: rgba(46,204,113,0.4); }
-.cal-legend-dot.today { border: 2px solid var(--accent-blue); background: transparent; }
-
-.cal-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.cal-nav-btn {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  padding: 4px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: var(--transition);
-  font-family: var(--font);
-}
-.cal-nav-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
-.cal-month-year { font-weight: 600; font-size: 15px; color: var(--text-primary); }
-
-.cal-sessions {
-  margin-top: 12px;
-  border-top: 1px solid var(--border-color);
-  padding-top: 12px;
-}
-.cal-session-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 13px;
-}
-.cal-session-item:last-child { border-bottom: none; }
-.cal-session-date { min-width: 70px; text-align: center; }
-.cal-session-date .day { font-size: 20px; font-weight: 700; color: var(--accent-blue); line-height: 1; }
-.cal-session-date .month { font-size: 11px; color: var(--text-muted); }
-.cal-session-info { flex: 1; }
-.cal-session-title { font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
-.cal-session-bills { display: flex; gap: 6px; flex-wrap: wrap; }
-.cal-session-bill {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  background: rgba(74,158,255,0.1);
-  color: var(--accent-blue);
-  cursor: pointer;
-  transition: var(--transition);
-}
-.cal-session-bill:hover { background: rgba(74,158,255,0.25); }
-
-/* LLM Analysis */
-.risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 10px; }
-.risk-item {
-  background: var(--bg-secondary);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  text-align: center;
-}
-.risk-item .label { font-size: 12px; color: var(--text-secondary); }
-.risk-item .score { font-size: 24px; font-weight: 700; margin: 4px 0; }
-.risk-item .desc { font-size: 12px; color: var(--text-muted); }
-
-/* Deputies table */
-.deputies-toolbar {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-.deputies-toolbar input, .deputies-toolbar select {
-  padding: 10px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-family: var(--font);
-}
-.deputies-toolbar input { flex: 1; min-width: 200px; }
-.deputies-toolbar select { min-width: 160px; }
-.deputies-toolbar input:focus, .deputies-toolbar select:focus { outline: none; border-color: var(--accent-blue); }
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.data-table th {
-  text-align: left;
-  padding: 12px 10px;
-  border-bottom: 2px solid var(--border-color);
-  color: var(--text-secondary);
-  font-weight: 600;
-  cursor: pointer;
-  user-select: none;
-  white-space: nowrap;
-}
-.data-table th:hover { color: var(--accent-blue); }
-.data-table th .sort-icon { margin-left: 4px; font-size: 10px; }
-.data-table td {
-  padding: 10px;
-  border-bottom: 1px solid var(--border-color);
-  vertical-align: middle;
-}
-.data-table tr:hover td { background: var(--bg-hover); }
-.data-table .dep-faction { display: flex; align-items: center; gap: 8px; }
-.data-table .faction-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.kpd-bar {
-  display: inline-block;
-  height: 6px;
-  border-radius: 3px;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.kpd-high { color: var(--accent-green); }
-.kpd-mid { color: var(--accent-orange); }
-.kpd-low { color: var(--accent-red); }
+/* Loading */
+.loading { text-align: center; padding: 40px; color: var(--text2); }
+.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Responsive */
-@media(max-width:768px){
-  .app-header { flex-direction: column; gap: 8px; text-align: center; }
-  .header-stats { flex-wrap: wrap; justify-content: center; }
-  .tab-btn { padding: 10px 12px; font-size: 12px; }
-  .tab-content { padding: 12px; }
-  .bill-item-header { flex-wrap: wrap; }
-}
-
-/* Animations */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeIn 0.3s ease; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
-
-/* Deputies count badge */
-.dep-count {
-  font-size: 11px;
-  color: var(--text-muted);
-  background: var(--bg-secondary);
-  padding: 1px 8px;
-  border-radius: 10px;
-}
-
-/* Bill filters */
-.bill-filters {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.bill-search { flex: 1; min-width: 200px; margin-bottom: 0 !important; }
-.bill-select {
-  padding: 10px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-family: var(--font);
-  cursor: pointer;
-  min-width: 160px;
-}
-.bill-select:focus { outline: none; border-color: var(--accent-blue); }
-.bill-count-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; }
-.bill-pagination {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
-  margin-top: 16px;
-  flex-wrap: wrap;
-}
-.page-btn {
-  padding: 8px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 13px;
-  cursor: pointer;
-  transition: var(--transition);
-  font-family: var(--font);
-}
-.page-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
-.page-btn.active {
-  background: rgba(74,158,255,0.15);
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-}
-.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-@media(max-width:768px) {
-  .bill-filters { flex-direction: column; }
-  .bill-select { width: 100%; }
+@media (max-width: 768px) {
+  .diff-container { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .header { padding: 0 12px; }
+  .container { padding: 12px; }
 }
 </style>
 </head>
-<body><!-- v6 -->
+<body>
 
-<!-- Header -->
-<header class="app-header">
-  <div style="flex:1"></div>
-  <div class="header-left">
-    <h1>🏛️ Страж Демократії</h1>
-    <div class="subtitle">Моніторинг Верховної Ради України · IX скликання</div>
-  </div>
-  <div class="header-stats" style="flex:1;justify-content:flex-end;">
-    <div class="header-stat">
-      <div class="num" id="headerBills">5</div>
-      <div class="label">Законів</div>
-    </div>
-    <div class="header-stat">
-      <div class="num" id="headerVotes">14</div>
-      <div class="label">Голосувань</div>
-    </div>
-    <div class="header-stat">
-      <div class="num" id="headerDeputies">394</div>
-      <div class="label">Депутатів</div>
-    </div>
-    <div class="header-stat">
-      <div class="num" id="headerFactions">9</div>
-      <div class="label">Фракцій</div>
-    </div>
-  </div>
-</header>
+<div class="header">
+  <div class="logo">Страж Демократії <span>ВРУ IX</span></div>
+  <nav>
+    <button class="active" onclick="showSection('dashboard')">Дашборд</button>
+    <button onclick="showSection('bills')">Законопроєкти</button>
+    <button onclick="showSection('deputies')">Депутати</button>
+    <button onclick="showSection('schedule')">Графік</button>
+  </nav>
+</div>
 
-<!-- Tab Navigation -->
-<nav class="tab-nav">
-  <button class="tab-btn active" data-tab="dashboard">📊 Дашборд</button>
-  <button class="tab-btn" data-tab="bills">📜 Законопроєкти</button>
-  <button class="tab-btn" data-tab="deputies">👥 Депутати</button>
-</nav>
+<div class="container">
 
-<!-- ============== DASHBOARD ============== -->
-<section id="tab-dashboard" class="tab-content active">
-  <div class="grid-2 fade-in">
+  <!-- DASHBOARD -->
+  <div id="sec-dashboard" class="section active">
+    <div class="stats-grid" id="stats-grid"></div>
     <div class="card">
-      <div class="card-title">📌 Останні закони</div>
-      <div id="dashBillList"></div>
+      <div class="card-header"><div class="card-title">Розподіл по етапах</div></div>
+      <div id="stage-chart"></div>
     </div>
     <div class="card">
-      <div class="card-title">📅 Календарь пленарних засідань</div>
-      <div id="dashCalendar"></div>
+      <div class="card-header"><div class="card-title">Останні зміни</div></div>
+      <div class="table-wrap"><table id="recent-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th></tr></thead><tbody></tbody></table></div>
     </div>
   </div>
-</section>
 
-<!-- ============== BILLS ============== -->
-<section id="tab-bills" class="tab-content">
-  <div class="bill-filters">
-    <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером, актом або назвою...">
-    <select id="billStatusFilter" class="bill-select">
-      <option value="">Всі статуси</option>
-    </select>
-    <select id="billStageFilter" class="bill-select">
-      <option value="">Всі етапи</option>
-      <option value="5">✅ Прийняті (stage 5)</option>
-      <option value="4">📋 Постанову підписано</option>
-      <option value="3">🔄 На розгляді</option>
-      <option value="2">📝 Зареєстровані</option>
-      <option value="1">🆕 Нові</option>
-    </select>
-    <select id="billSort" class="bill-select">
-      <option value="updated_at:DESC">За датою зміни ▼</option>
-      <option value="updated_at:ASC">За датою зміни ▲</option>
-      <option value="created_at:DESC">За датою реєстрації ▼</option>
-      <option value="created_at:ASC">За датою реєстрації ▲</option>
-      <option value="stage:DESC">За етапом ▼</option>
-      <option value="stage:ASC">За етапом ▲</option>
-      <option value="bill_number:ASC">За номером ▲</option>
-      <option value="bill_number:DESC">За номером ▼</option>
-    </select>
+  <!-- BILLS -->
+  <div id="sec-bills" class="section">
+    <div class="filters">
+      <input type="text" id="bill-search" placeholder="Пошук за номером або назвою..." oninput="loadBills()">
+      <select id="bill-stage" onchange="loadBills()">
+        <option value="">Всі етапи</option>
+        <option value="1">1 — Зареєстровано</option>
+        <option value="2">2 — Перше читання</option>
+        <option value="3">3 — Друге читання</option>
+        <option value="4">4 — Підписано</option>
+        <option value="5">5 — Відхилено</option>
+      </select>
+      <select id="bill-status" onchange="loadBills()"></select>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>Дата</th></tr></thead><tbody></tbody></table></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+        <span id="bills-count" style="font-size:13px;color:var(--text2)"></span>
+        <div style="display:flex;gap:8px">
+          <button class="back-btn" onclick="billsPage(-1)">← Назад</button>
+          <button class="back-btn" onclick="billsPage(1)">Далі →</button>
+        </div>
+      </div>
+    </div>
   </div>
-  <div id="billCount" class="bill-count-label"></div>
-  <div id="billListContainer"></div>
-  <div id="billDetailPanel" class="bill-detail"></div>
-  <div id="billPagination" class="bill-pagination"></div>
-</section>
 
-<!-- ============== DEPUTIES ============== -->
-<section id="tab-deputies" class="tab-content">
-  <div class="deputies-toolbar">
-    <input type="text" id="depSearch" placeholder="🔍 Пошук за ПІБ або фракцією...">
-    <select id="depFactionFilter"><option value="">Усі фракції</option></select>
+  <!-- BILL DETAIL -->
+  <div id="sec-bill-detail" class="section">
+    <button class="back-btn" onclick="showSection('bills')">← Назад до списку</button>
+    <div id="bill-detail-content"></div>
   </div>
-  <div class="card" style="overflow-x:auto;padding:0;">
-    <table class="data-table" id="deputiesTable">
-      <thead>
-        <tr>
-          <th data-sort="name">ПІБ <span class="sort-icon">↕</span></th>
-          <th data-sort="faction">Фракція <span class="sort-icon">↕</span></th>
-          <th data-sort="votes">Голосувань <span class="sort-icon">↕</span></th>
-          <th data-sort="kpd">КПД, % <span class="sort-icon">↕</span></th>
-        </tr>
-      </thead>
-      <tbody id="deputiesBody"></tbody>
-    </table>
-  </div>
-</section>
 
-<!-- ============== JAVASCRIPT ============== -->
+  <!-- DEPUTIES -->
+  <div id="sec-deputies" class="section">
+    <div class="filters">
+      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="loadDeputies()">
+      <select id="dep-faction" onchange="loadDeputies()"></select>
+      <select id="dep-sort" onchange="loadDeputies()">
+        <option value="name">За ім'ям</option>
+        <option value="kpd">За КПД ↓</option>
+        <option value="total">За участю ↓</option>
+      </select>
+    </div>
+    <div class="card">
+      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Участь</th><th>КПД</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+        <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
+        <div style="display:flex;gap:8px">
+          <button class="back-btn" onclick="depsPage(-1)">← Назад</button>
+          <button class="back-btn" onclick="depsPage(1)">Далі →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEPUTY DETAIL -->
+  <div id="sec-deputy-detail" class="section">
+    <button class="back-btn" onclick="showSection('deputies')">← Назад до списку</button>
+    <div id="deputy-detail-content"></div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div id="sec-schedule" class="section">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Пленарні засідання ВРУ</div></div>
+      <div id="schedule-list"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Закони на голосування</div></div>
+      <div id="upcoming-bills"></div>
+    </div>
+  </div>
+
+</div>
+
 <script>
-// ===== CONFIG =====
-const API_BASE = 'https://rada-monitor-api.distih.workers.dev/api';
+const API = 'https://rada-monitor-api.distih.workers.dev';
+let billsOffset = 0, depsOffset = 0, billsTotal = 0, depsTotal = 0;
+const PAGE = 50;
 
-// ===== DATA =====
-const FACTIONS = [
-  { id: 'sn', name: 'СЛУГА НАРОДУ', color: '#19950b', count: 225 },
-  { id: 'es', name: 'Європейська Солідарність', color: '#ffff00', count: 21 },
-  { id: 'bt', name: 'Батьківщина', color: '#0057b8', count: 23 },
-  { id: 'pp', name: 'Платформа за життя та мир', color: '#ff6600', count: 21 },
-  { id: 'dv', name: 'ДОВІРА', color: '#00bcd4', count: 19 },
-  { id: 'zm', name: 'Партія "За майбутнє"', color: '#ff9800', count: 17 },
-  { id: 'gl', name: 'ГОЛОС', color: '#9c27b0', count: 18 },
-  { id: 'vn', name: 'Відновлення України', color: '#4caf50', count: 17 },
-  { id: 'pf', name: 'Позафракційні', color: '#888888', count: 20 }
-];
-
-// Deputy names by faction
-const DEPUTY_NAMES = {
-  sn: ['Арахамія Д.Г.', 'Бабак С.В.', 'Бакумов О.С.', 'Безгін В.Ю.', 'Беленюк Ж.В.',
-       'Березін М.Ю.', 'Березовський В.В.', 'Боблях А.Р.', 'Богданець А.В.', 'Богуцька Є.П.',
-       'Бойко Ю.А.', 'Бондаренко О.В.', 'Борзова І.Н.', 'Бородін В.В.', 'Борт В.П.',
-       'Брагар Є.В.', 'Бужанський М.А.', 'Буймістер Л.А.', 'Булах Л.В.', 'Бунін С.В.'],
-  es: ["Ар'єв В.І.", 'Герасимов А.В.', 'Гончаренко О.О.', 'Зінкевич Д.В.', 'Іванова К.О.',
-       'Княжицький М.Л.', 'Лещенко С.А.', 'Луценко Ю.В.', 'Марусяк О.Р.', 'Мушак О.Й.',
-       'Німченко В.І.', 'Парасюк В.В.', 'Порошенко П.О.', 'Пташник В.Й.', 'Савченко Н.В.',
-       'Синютка О.М.', 'Сотник О.С.', 'Супруненко О.І.', 'Теліженко О.М.', 'Фріз І.В.',
-       'Чорновол Т.М.'],
-  bt: ['Батенко Т.І.', 'Бондарєв К.А.', 'Власенко С.В.', 'Дубіль В.О.', 'Євтушок С.М.',
-       'Івченко В.Є.', 'Кириленко І.Г.', "Кожем'якін А.А.", 'Королевська Н.Ю.',
-       'Крупський О.П.', 'Купрієнко О.В.', 'Лабунська А.В.', 'Луценко І.В.',
-       'Мороко О.В.', 'Наливайченко В.О.', 'Пінчук А.Ю.', 'Попов І.В.', 'Рахманін С.І.',
-       'Соболєв С.В.', 'Тарасенко О.В.', 'Тимошенко Ю.В.', 'Турчинов О.В.', 'Шкрум А.І.'],
-  pp: ['Бойко Ю.А.', 'Вовк Д.В.', 'Гончаренко О.О.', 'Деркач А.Л.', 'Дубінський О.А.',
-       'Загородній М.В.', 'Іоффе Ю.Я.', 'Кальченко В.М.', 'Кива І.В.', 'Ківалов С.В.',
-       'Козак Т.Р.', 'Колісніченко В.В.', 'Котвицький І.В.', 'Кузьмін Р.Р.',
-       'Льовочкін С.В.', 'Медведчук В.В.', 'Мороз В.В.', 'Німченко В.І.',
-       'Павлов К.В.', 'Рабінович В.З.', 'Солод О.В.'],
-  dv: ['Бакунець П.А.', 'Гузь І.В.', 'Довгий О.В.', 'Ільєнко А.О.', 'Кіт А.О.',
-       'Колісник В.В.', 'Купрієнко О.В.', 'Литвин В.М.', 'Літвінов О.М.',
-       'Марченко О.О.', 'Матвієнко А.С.', 'Мельничук І.І.', 'Палиця І.П.',
-       'Петренко О.В.', 'Рудик К.О.', 'Сергієнко Л.Г.', 'Суханов О.В.',
-       'Ткаченко М.В.', 'Шевченко Є.В.'],
-  zm: ['Балога В.І.', 'Білозір Л.М.', 'Гевко В.Л.', 'Герега О.В.', 'Дзюбановський О.М.',
-       'Довгий О.С.', 'Івахів С.П.', 'Іонушас С.К.', 'Кальченко В.М.', 'Лабунська А.В.',
-       'Ларін С.М.', 'Матвієнко А.С.', 'Палиця І.П.', 'Попов Г.М.', 'Репік В.В.',
-       'Світлична Ю.О.', 'Шурма І.М.'],
-  gl: ['Гончаренко О.О.', 'Жупанин В.М.', 'Кицак Б.В.', 'Клімкін П.А.', 'Княжицький М.Л.',
-       'Ковальов О.І.', 'Луценко Ю.В.', 'Макаров О.В.', 'Найєм М.М.', 'Опанасенко О.В.',
-       'Парасюк В.В.', 'Поворозник М.Ю.', 'Попов Г.М.', 'Савченко О.В.', 'Семерак О.М.',
-       'Соболєв С.В.', 'Стефанчук М.О.', 'Чорновол Т.М.'],
-  vn: ['Бондар Г.В.', 'Василенко Л.І.', 'Герасименко І.Л.', 'Горбенко Р.Л.',
-       'Григоренко С.М.', 'Дмитрієва О.В.', 'Жмеренецький О.С.', 'Зінкевич Д.В.',
-       'Колісніченко В.В.', 'Любота Д.В.', 'Маріковський О.В.', 'Мельник О.В.',
-       'Пашинський С.В.', 'Солошенко І.В.', 'Таран В.В.', 'Третьяков О.Ю.',
-       'Яременко Б.В.'],
-  pf: ['Балога В.В.', 'Богуслаєв В.О.', 'Васильєв Г.А.', 'Веревський А.М.',
-       'Гладій В.І.', 'Денисенко А.П.', 'Добкін М.М.', 'Дубневич Б.В.',
-       'Єремеєв І.М.', 'Жеваго К.В.', 'Іванченко В.П.', 'Коломойський І.В.',
-       'Ляшко О.В.', 'Мосійчук І.В.', 'Новинський В.В.', 'Палиця І.П.',
-       'Пашинський С.В.', 'Рибалка С.В.', 'Тарута С.О.', 'Тігіпко С.Л.' ]
-};
-
-// Build ALL_DEPUTIES flat array
-const ALL_DEPUTIES = [];
-FACTIONS.forEach(f => {
-  const names = DEPUTY_NAMES[f.id] || [];
-  names.forEach(name => {
-    ALL_DEPUTIES.push({
-      name: name,
-      faction: f.id,
-      factionName: f.name,
-      votes: Math.floor(Math.random() * 10 + 5),
-      attended: Math.floor(Math.random() * 8 + 2),
-      kpd: Math.floor(Math.random() * 40 + 50)
-    });
-  });
-});
-
-// ===== DATE FORMATTER =====
-function formatDate(dateStr) {
-  if (!dateStr) return '—';
-  const m = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
-  return dateStr;
+// === Navigation ===
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('sec-' + name).classList.add('active');
+  document.querySelector(`nav button[onclick="showSection('${name}')"]`).classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'bills') loadBills();
+  if (name === 'deputies') loadDeputies();
+  if (name === 'schedule') loadSchedule();
 }
 
-// ===== API HELPERS =====
-async function apiFetch(path) {
+// === API helpers ===
+async function api(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+function stageBadge(stage) {
+  const cls = `badge-stage${stage || 1}`;
+  const names = {1:'Зареєстровано',2:'Перше читання',3:'Друге читання',4:'Підписано',5:'Відхилено'};
+  return `<span class="badge ${cls}">${names[stage] || '?'}</span>`;
+}
+
+function riskBadge(score) {
+  if (!score || score === 0) return '<span class="badge badge-low">—</span>';
+  if (score >= 2) return `<span class="badge badge-high">${score.toFixed(1)}</span>`;
+  if (score >= 1) return `<span class="badge badge-medium">${score.toFixed(1)}</span>`;
+  return `<span class="badge badge-low">${score.toFixed(1)}</span>`;
+}
+
+function kpdColor(kpd) {
+  if (kpd >= 80) return 'var(--green)';
+  if (kpd >= 50) return 'var(--orange)';
+  return 'var(--red)';
+}
+
+function stageBar(current) {
+  let html = '<div class="stage-bar">';
+  for (let i = 1; i <= 5; i++) html += `<span class="${i <= current ? 'filled' : ''}"></span>`;
+  return html + '</div>';
+}
+
+// === DASHBOARD ===
+async function loadDashboard() {
   try {
-    const resp = await fetch(API_BASE + path);
-    if (!resp.ok) return null;
-    return await resp.json();
-  } catch (e) {
-    console.warn('API fetch error:', path, e);
-    return null;
-  }
+    const data = await api('/api/stats');
+    const grid = document.getElementById('stats-grid');
+    grid.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${data.totalBills?.toLocaleString() || 0}</div></div>
+      <div class="stat-card"><div class="stat-label">Підписано</div><div class="stat-value" style="color:var(--green)">${(data.byStage||[]).find(s=>s.stage===4)?.count||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Відхилено</div><div class="stat-value" style="color:var(--red)">${(data.byStage||[]).find(s=>s.stage===5)?.count||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--orange)">${data.highRiskBills||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Голосувань</div><div class="stat-value">${data.totalVotes||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Депутатів</div><div class="stat-value">${data.totalMps||0}</div></div>
+    `;
+
+    // Stage chart
+    const chart = document.getElementById('stage-chart');
+    const stages = data.byStage || [];
+    const total = stages.reduce((a,s) => a + s.count, 0) || 1;
+    chart.innerHTML = stages.map(s => {
+      const pct = (s.count / total * 100).toFixed(1);
+      const colors = {1:'var(--muted)',2:'var(--blue)',3:'var(--purple)',4:'var(--green)',5:'var(--red)'};
+      const names = {1:'Зареєстровано',2:'Перше читання',3:'Друге читання',4:'Підписано',5:'Відхилено'};
+      return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="min-width:140px;font-size:13px">${names[s.stage]||'?'} (${s.count})</span>
+        <div style="flex:1;height:20px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${colors[s.stage]||'var(--blue)'};border-radius:4px"></div>
+        </div>
+        <span style="min-width:50px;text-align:right;font-size:13px;color:var(--text2)">${pct}%</span>
+      </div>`;
+    }).join('');
+
+    // Recent changes
+    const tbody = document.querySelector('#recent-table tbody');
+    const bills = await api('/api/bills?limit=10&sort=updated_at&order=DESC');
+    tbody.innerHTML = (bills.bills||[]).map(b => `<tr class="clickable" onclick="showBill(${b.id})">
+      <td><strong>${b.bill_number}</strong></td>
+      <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
+      <td>${b.current_status||'new'}</td>
+      <td>${stageBadge(b.stage)}</td>
+      <td>${riskBadge(b.risk_score)}</td>
+    </tr>`).join('');
+  } catch(e) { console.error('Dashboard error:', e); }
 }
 
-let CACHED_BILLS = [];
-let CACHED_BILL_MAP = {};
-
-async function loadStats() {
-  const data = await apiFetch('/stats');
-  if (!data) return;
-  setText('headerBills', data.totalBills);
-  setText('headerVotes', data.totalVotes);
-  setText('headerDeputies', data.totalMps || '—');
-  setText('headerFactions', FACTIONS.length);
+// === BILLS ===
+async function loadBills() {
+  const search = document.getElementById('bill-search').value;
+  const stage = document.getElementById('bill-stage').value;
+  const status = document.getElementById('bill-status').value;
+  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (stage) url += `&stage=${stage}`;
+  if (status) url += `&status=${encodeURIComponent(status)}`;
+  try {
+    const data = await api(url);
+    billsTotal = data.total || 0;
+    document.getElementById('bills-count').textContent = `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}`;
+    const tbody = document.querySelector('#bills-table tbody');
+    tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" onclick="showBill(${b.id})">
+      <td><strong>${b.bill_number}</strong></td>
+      <td>${(b.title||'').substring(0,70)}${b.title?.length>70?'...':''}</td>
+      <td>${b.current_status||'new'}</td>
+      <td>${stageBadge(b.stage)}</td>
+      <td style="font-size:12px;color:var(--text2)">${(b.committee||'').substring(0,40)}</td>
+      <td>${riskBadge(b.risk_score)}</td>
+      <td style="font-size:12px;color:var(--text2)">${b.registration_date||''}</td>
+    </tr>`).join('');
+  } catch(e) { console.error('Bills error:', e); }
 }
-function setText(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
+function billsPage(d) { billsOffset = Math.max(0, billsOffset + d * PAGE); loadBills(); }
 
-let CURRENT_PAGE = 0;
-const PAGE_SIZE = 50;
-let TOTAL_BILLS = 0;
+// === BILL DETAIL ===
+async function showBill(id) {
+  showSection('bill-detail');
+  const el = document.getElementById('bill-detail-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const data = await api(`/api/bills/${id}`);
+    const b = data.bill;
+    const risks = data.risks;
+    const versions = data.versions || [];
+    const votes = data.votes || [];
 
-async function loadBillsList(search, status, stage, sort, page) {
-  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (page || 0) * PAGE_SIZE });
-  if (search) params.set('search', search);
-  if (status) params.set('status', status);
-  if (stage) params.set('stage', stage);
-  if (sort) {
-    const [s, o] = sort.split(':');
-    params.set('sort', s);
-    params.set('order', o);
-  }
-  const data = await apiFetch('/bills?' + params.toString());
-  if (data && data.bills) {
-    CACHED_BILLS = data.bills;
-    TOTAL_BILLS = data.total || 0;
-  } else {
-    CACHED_BILLS = [];
-    TOTAL_BILLS = 0;
-  }
-  CURRENT_PAGE = page || 0;
-  return CACHED_BILLS;
-}
-
-async function loadBillDetail(id) {
-  const data = await apiFetch(`/bills/${id}`);
-  if (data) {
-    CACHED_BILL_MAP[id] = data;
-  }
-  return data || CACHED_BILL_MAP[id];
-}
-
-// ===== DOM HELPERS =====
-function $(sel) { return document.querySelector(sel); }
-function $$(sel) { return document.querySelectorAll(sel); }
-function el(tag, attrs, ...children) {
-  const e = document.createElement(tag);
-  if (attrs) for (const [k,v] of Object.entries(attrs))
-    if (k === 'className') e.className = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
-    else e.setAttribute(k, v);
-  for (const c of children)
-    if (typeof c === 'string') e.appendChild(document.createTextNode(c));
-    else if (c) e.appendChild(c);
-  return e;
-}
-
-// ===== TAB SWITCHING =====
-$$('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('.tab-btn').forEach(b => b.classList.remove('active'));
-    $$('.tab-content').forEach(c => c.classList.remove('active'));
-    btn.classList.add('active');
-    const tabId = btn.dataset.tab;
-    document.getElementById('tab-' + tabId).classList.add('active');
-  });
-});
-
-// ===== RENDER DASHBOARD =====
-function selectBill(billId, switchTab) {
-  if (switchTab) {
-    const tabBtn = document.querySelector('.tab-btn[data-tab="bills"]');
-    if (tabBtn) tabBtn.click();
-  }
-  // Wait for tab switch then show detail
-  setTimeout(() => toggleBillDetail(billId), 50);
-}
-
-async function renderDashboard() {
-  const list = document.getElementById('dashBillList');
-  list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
-
-  const data = await apiFetch('/bills?limit=5');
-  const bills = data?.bills || [];
-
-  list.innerHTML = '';
-  if (!bills.length) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Немає даних</div>';
-    return;
-  }
-
-  bills.forEach(b => {
-    const riskScore = b.stage || 1;
-    const riskClass = riskScore >= 4 ? 'low' : riskScore >= 2 ? 'medium' : 'high';
-    const riskLabel = riskScore >= 4 ? 'Низький' : riskScore >= 2 ? 'Помірний' : 'Новий';
-    const statusColor = b.current_status === 'Закон підписано' || b.current_status === 'Закон прийнято'
-      ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
-      : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
-      : 'background:rgba(243,156,18,0.2);color:#f39c12';
-
-    list.appendChild(el('div', { className: 'bill-item', onclick: function(){ selectBill(b.id, true); } },
-      el('div', { className: 'bill-item-header' },
-        el('span', { className: 'bill-number' }, '#' + b.bill_number),
-        el('span', { className: 'bill-title' }, (b.title || '').slice(0,60) + ((b.title||'').length > 60 ? '...' : '')),
-        el('span', { style: statusColor, className: 'bill-status' }, b.current_status || 'new')
-      ),
-      el('div', { className: 'bill-meta' },
-        el('span', {}, '📅 ' + formatDate(b.registration_date)),
-        el('span', { className: 'bill-risk ' + riskClass }, 'Стан: ' + riskLabel),
-        el('span', {}, '📋 ' + (b.committee || '').slice(0,30))
-      )
-    ));
-  });
-
-  renderCalendar();
-}
-
-// ===== PLENARY CALENDAR =====
-const PLENARY_SESSIONS = [
-  { date: '2026-06-03', title: 'Пленарне засідання №42', bills: ['0376', '0374'] },
-  { date: '2026-06-04', title: 'Пленарне засідання №42 (продовження)', bills: ['0371'] },
-  { date: '2026-06-10', title: 'Пленарне засідання №43', bills: ['3495'] },
-  { date: '2026-06-11', title: 'Пленарне засідання №43 (продовження)', bills: ['3495', '3612'] },
-  { date: '2026-06-17', title: 'Пленарне засідання №44', bills: [] },
-  { date: '2026-06-18', title: 'Пленарне засідання №44 (продовження)', bills: [] },
-  { date: '2026-06-24', title: 'Пленарне засідання №45', bills: [] },
-  { date: '2026-06-25', title: 'Пленарне засідання №45 (продовження)', bills: [] },
-];
-
-let calMonth = new Date().getMonth();
-let calYear = new Date().getFullYear();
-
-function renderCalendar() {
-  const container = document.getElementById('dashCalendar');
-  if (!container) return;
-
-  const months = ['Січень','Лютий','Березень','Квітень','Травень','Червень',
-                  'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
-  const days = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
-
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
-  const sessionDates = {};
-  PLENARY_SESSIONS.forEach(s => { sessionDates[s.date] = s; });
-
-  const firstDay = new Date(calYear, calMonth, 1);
-  const lastDay = new Date(calYear, calMonth + 1, 0);
-  const startDow = (firstDay.getDay() + 6) % 7;
-  const totalDays = lastDay.getDate();
-
-  let html = `
-    <div class="cal-nav">
-      <button class="cal-nav-btn" onclick="calMonth--; if(calMonth<0){calMonth=11;calYear--}; renderCalendar()">◀</button>
-      <span class="cal-month-year">${months[calMonth]} ${calYear}</span>
-      <button class="cal-nav-btn" onclick="calMonth++; if(calMonth>11){calMonth=0;calYear++}; renderCalendar()">▶</button>
-    </div>
-    <div class="cal-grid">
-  `;
-
-  days.forEach(d => { html += `<div class="cal-header">${d}</div>`; });
-  for (let i = 0; i < startDow; i++) { html += `<div class="cal-day empty"></div>`; }
-
-  for (let d = 1; d <= totalDays; d++) {
-    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dow = new Date(calYear, calMonth, d).getDay();
-    const isWeekend = dow === 0 || dow === 6;
-    const isToday = dateStr === todayStr;
-    const session = sessionDates[dateStr];
-
-    let cls = 'cal-day';
-    if (isToday) cls += ' today';
-    if (session) cls += session.bills.length ? ' vote-day' : ' session';
-    if (isWeekend) cls += ' weekend';
-
-    const billsLabel = session && session.bills.length ? `${session.bills.length} закон.` : '';
-    html += `<div class="${cls}" title="${session ? session.title : ''}">
-      <span>${d}</span>
-      ${billsLabel ? `<span class="cal-bills">${billsLabel}</span>` : ''}
-    </div>`;
-  }
-
-  html += `</div>`;
-  html += `<div class="cal-legend">
-    <div class="cal-legend-item"><span class="cal-legend-dot today"></span> Сьогодні</div>
-    <div class="cal-legend-item"><span class="cal-legend-dot session"></span> Засідання</div>
-    <div class="cal-legend-item"><span class="cal-legend-dot vote"></span> Голосування</div>
-  </div>`;
-
-  const upcoming = PLENARY_SESSIONS.filter(s => s.date >= todayStr).slice(0, 4);
-  if (upcoming.length) {
-    html += `<div class="cal-sessions">`;
-    upcoming.forEach(s => {
-      const dt = s.date.split('-');
-      const dayNum = parseInt(dt[2]);
-      const monthName = months[parseInt(dt[1])-1].slice(0,3).toLowerCase();
-      html += `<div class="cal-session-item">
-        <div class="cal-session-date"><div class="day">${dayNum}</div><div class="month">${monthName}</div></div>
-        <div class="cal-session-info">
-          <div class="cal-session-title">${s.title}</div>
-          ${s.bills.length ? `<div class="cal-session-bills">${s.bills.map(b => {
-            const bill = (window.CACHED_BILLS || []).find(x => x.bill_number === b);
-            return `<span class="cal-session-bill" onclick="selectBill(${bill ? bill.id : 0}, true)">#${b}${bill ? ' — ' + bill.title.slice(0,40) + '...' : ''}</span>`;
-          }).join('')}</div>` : '<div style="font-size:12px;color:var(--text-muted);">Законопроєкти не заплановано</div>'}
+    let html = `
+      <div class="detail-panel">
+        <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px">
+          <div>
+            <h2 style="font-size:20px;margin-bottom:8px">#${b.bill_number} — ${(b.title||'').substring(0,100)}</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${stageBar(b.stage)}
+              ${stageBadge(b.stage)}
+              ${riskBadge(risks?.overall_score)}
+            </div>
+          </div>
+          ${b.url ? `<a href="${b.url}" target="_blank" class="back-btn">На сайті ВРУ →</a>` : ''}
+        </div>
+        <div style="margin-top:12px">
+          <div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value">${b.current_status||'new'}</div></div>
+          <div class="detail-row"><div class="detail-label">Комітет</div><div class="detail-value">${b.committee||'—'}</div></div>
+          <div class="detail-row"><div class="detail-label">Дата реєстрації</div><div class="detail-value">${b.registration_date||'—'}</div></div>
+          ${b.act_number ? `<div class="detail-row"><div class="detail-label">Номер акту</div><div class="detail-value">${b.act_number} від ${b.act_date||'?'}</div></div>` : ''}
         </div>
       </div>`;
-    });
-    html += `</div>`;
-  }
 
-  container.innerHTML = html;
-}
+    // Tabs
+    html += `<div class="tabs">
+      <button class="active" onclick="showBillTab(this,'risks')">Ризики</button>
+      <button onclick="showBillTab(this,'versions')">Версії (${versions.length})</button>
+      <button onclick="showBillTab(this,'votes')">Голосування (${votes.length})</button>
+    </div>`;
 
-// ===== BILLS TAB =====
-async function renderBills() {
-  const container = document.getElementById('billListContainer');
-  container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">Завантаження...</div>';
-
-  const search = document.getElementById('billSearch').value;
-  const status = document.getElementById('billStatusFilter').value;
-  const stage = document.getElementById('billStageFilter').value;
-  const sort = document.getElementById('billSort').value;
-
-  const bills = await loadBillsList(search, status || null, stage || null, sort, 0);
-  container.innerHTML = '';
-  renderPagination();
-
-  if (!bills.length) {
-    container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нічого не знайдено</div>';
-    document.getElementById('billCount').textContent = '';
-    return;
-  }
-
-  document.getElementById('billCount').textContent = `Знайдено: ${TOTAL_BILLS.toLocaleString()} законів`;
-
-  bills.forEach(b => {
-    const statusLower = (b.current_status || '').toLowerCase();
-    const isAdopted = statusLower.includes('закон підписано') || statusLower.includes('закон прийнято') || statusLower.includes('постанову підписано');
-    const isRejected = statusLower.includes('відхилен') || statusLower.includes('знято');
-    const statusColor = isAdopted
-      ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
-      : isRejected ? 'background:rgba(231,76,60,0.2);color:#e74c3c'
-      : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
-      : 'background:rgba(243,156,18,0.2);color:#f39c12';
-    const stageLabel = b.stage >= 5 ? '✅ Прийнято' : b.stage >= 4 ? '📋 Підписано' : b.stage >= 3 ? '🔄 На розгляді' : b.stage >= 2 ? '📝 Зареєстровано' : '🆕 Новий';
-    const stageClass = b.stage >= 4 ? 'low' : b.stage >= 2 ? 'medium' : 'high';
-
-    const item = el('div', { className: 'bill-item', 'data-bill-id': b.id },
-      el('div', { className: 'bill-item-header' },
-        el('span', { className: 'bill-number' }, '#' + b.bill_number),
-        el('span', { className: 'bill-title' }, b.title || ''),
-        el('span', { style: statusColor, className: 'bill-status' }, b.current_status || '')
-      ),
-      el('div', { className: 'bill-meta' },
-        el('span', {}, '📅 ' + formatDate(b.registration_date)),
-        el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
-        el('span', { className: 'bill-risk ' + stageClass }, stageLabel),
-        el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at)),
-        b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
-      )
-    );
-    item.addEventListener('click', () => toggleBillDetail(b.id));
-    container.appendChild(item);
-  });
-}
-
-function renderPagination() {
-  const pagEl = document.getElementById('billPagination');
-  const totalPages = Math.ceil(TOTAL_BILLS / PAGE_SIZE);
-  if (totalPages <= 1) { pagEl.innerHTML = ''; return; }
-
-  let html = '';
-  html += `<button class="page-btn" ${CURRENT_PAGE===0?'disabled':''} onclick="goToPage(${CURRENT_PAGE-1})">◀ Назад</button>`;
-  const start = Math.max(0, CURRENT_PAGE - 3);
-  const end = Math.min(totalPages, CURRENT_PAGE + 4);
-  for (let i = start; i < end; i++) {
-    html += `<button class="page-btn ${i===CURRENT_PAGE?'active':''}" onclick="goToPage(${i})">${i+1}</button>`;
-  }
-  html += `<button class="page-btn" ${CURRENT_PAGE>=totalPages-1?'disabled':''} onclick="goToPage(${CURRENT_PAGE+1})">Вперед ▶</button>`;
-  pagEl.innerHTML = html;
-}
-
-function goToPage(page) {
-  const search = document.getElementById('billSearch').value;
-  const status = document.getElementById('billStatusFilter').value;
-  const stage = document.getElementById('billStageFilter').value;
-  const sort = document.getElementById('billSort').value;
-  loadBillsList(search, status || null, stage || null, sort, page).then(bills => {
-    const container = document.getElementById('billListContainer');
-    container.innerHTML = '';
-    document.getElementById('billCount').textContent = `Знайдено: ${TOTAL_BILLS.toLocaleString()} законів`;
-    renderPagination();
-
-    if (!bills.length) {
-      container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">Нічого не знайдено</div>';
-      return;
-    }
-
-    bills.forEach(b => {
-      const statusLower = (b.current_status || '').toLowerCase();
-      const isAdopted = statusLower.includes('закон підписано') || statusLower.includes('закон прийнято') || statusLower.includes('постанову підписано');
-      const isRejected = statusLower.includes('відхилен') || statusLower.includes('знято');
-      const statusColor = isAdopted
-        ? 'background:rgba(46,204,113,0.2);color:#2ecc71'
-        : isRejected ? 'background:rgba(231,76,60,0.2);color:#e74c3c'
-        : b.current_status === 'new' ? 'background:rgba(90,106,133,0.2);color:#8899b4'
-        : 'background:rgba(243,156,18,0.2);color:#f39c12';
-      const stageLabel = b.stage >= 5 ? '✅ Прийнято' : b.stage >= 4 ? '📋 Підписано' : b.stage >= 3 ? '🔄 На розгляді' : b.stage >= 2 ? '📝 Зареєстровано' : '🆕 Новий';
-      const stageClass = b.stage >= 4 ? 'low' : b.stage >= 2 ? 'medium' : 'high';
-      const item = el('div', { className: 'bill-item', 'data-bill-id': b.id },
-        el('div', { className: 'bill-item-header' },
-          el('span', { className: 'bill-number' }, '#' + b.bill_number),
-          el('span', { className: 'bill-title' }, b.title || ''),
-          el('span', { style: statusColor, className: 'bill-status' }, b.current_status || '')
-        ),
-        el('div', { className: 'bill-meta' },
-          el('span', {}, '📅 ' + formatDate(b.registration_date)),
-          el('span', {}, '🏛 ' + (b.committee || '').slice(0,40)),
-          el('span', { className: 'bill-risk ' + stageClass }, stageLabel),
-          el('span', { style: 'color:var(--text-muted);' }, '🕐 ' + formatDate(b.updated_at)),
-          b.act_number ? el('span', { style: 'color:var(--accent-green);font-weight:600;' }, '📜 Акт ' + b.act_number) : null
-        )
-      );
-      item.addEventListener('click', () => toggleBillDetail(b.id));
-      container.appendChild(item);
-    });
-    document.getElementById('billListContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
-}
-
-// ===== BILL DETAIL EXPANSION =====
-let selectedBillId = null;
-
-function closeBillDetail() {
-  const panel = document.getElementById('billDetailPanel');
-  if (panel) {
-    panel.classList.remove('open');
-    panel.innerHTML = '';
-  }
-  selectedBillId = null;
-}
-
-async function toggleBillDetail(billId) {
-  // If clicking the same bill → close
-  if (selectedBillId === billId) {
-    closeBillDetail();
-    return;
-  }
-
-  // Close previous
-  closeBillDetail();
-
-  // Mark new and fetch
-  selectedBillId = billId;
-  const panel = document.getElementById('billDetailPanel');
-  panel.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">⏳ Завантаження...</div>';
-  panel.classList.add('open');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  const data = await loadBillDetail(billId);
-  if (!data || !data.bill) {
-    panel.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-red);">❌ Помилка завантаження</div>';
-    return;
-  }
-
-  renderBillDetail(data, panel);
-}
-
-function renderBillDetail(data, panel) {
-  const bill = data.bill;
-  const risks = data.risks;
-  const versions = data.versions || [];
-  const changes = data.changes || [];
-  const votes = data.votes || [];
-
-  const inner = el('div', { style: 'position:relative;' });
-
-  // Close button
-  inner.appendChild(el('button', { className: 'bill-detail-close', onclick: () => closeBillDetail() }, '✕'));
-
-  // Title
-  inner.appendChild(el('div', { style: 'margin-bottom:16px;' },
-    el('span', { style: 'font-weight:700;font-size:18px;' }, '#' + bill.bill_number),
-    el('span', { style: 'font-size:13px;color:var(--text-secondary);margin-left:8px;' }, formatDate(bill.registration_date)),
-    el('span', { style: 'margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;background:rgba(46,204,113,0.2);color:var(--accent-green);' }, bill.current_status || '')
-  ));
-  inner.appendChild(el('p', { style: 'font-size:15px;margin-bottom:16px;color:var(--text-primary);' }, bill.title || ''));
-
-  // ── 1. Basic info ──
-  const infoRows = [];
-  if (bill.committee) infoRows.push({ label: '🏛 Комітет', value: bill.committee });
-  if (bill.agenda_category) infoRows.push({ label: '📂 Категорія', value: bill.agenda_category });
-  if (bill.stage != null) infoRows.push({ label: '📊 Етап', value: bill.stage + '/5' });
-  if (bill.act_number) infoRows.push({ label: '📜 Номер акту', value: bill.act_number });
-  if (bill.act_date) infoRows.push({ label: '📅 Дата прийняття', value: formatDate(bill.act_date) });
-  if (bill.url) infoRows.push({ label: '🔗 Посилання', value: bill.url, isLink: true });
-
-  if (infoRows.length) {
-    const section = el('div', { className: 'detail-section' });
-    section.appendChild(el('h3', {}, '📋 Основна інформація'));
-    infoRows.forEach(r => {
-      const row = el('div', { className: 'detail-row' });
-      row.appendChild(el('span', { className: 'label' }, r.label));
-      if (r.isLink) {
-        const a = el('a', { href: r.value, target: '_blank', className: 'value' }, r.value.slice(0, 60) + (r.value.length > 60 ? '...' : ''));
-        row.appendChild(a);
+    // Risks tab
+    if (risks && risks.json_data) {
+      const risksList = JSON.parse(risks.json_data || '[]');
+      if (risksList.length) {
+        html += `<div id="tab-risks" class="bill-tab"><div class="risk-grid">${risksList.map(r => `
+          <div class="risk-item">
+            <div class="risk-cat">${r.category||'Other'} <span class="badge badge-${(r.severity||'low').toLowerCase()}">${r.severity||'Low'}</span></div>
+            <div class="risk-quote">${r.quote||''}</div>
+            <div class="risk-explanation">${r.explanation||''}</div>
+          </div>`).join('')}</div></div>`;
       } else {
-        row.appendChild(el('span', { className: 'value' }, r.value));
+        html += `<div id="tab-risks" class="bill-tab"><p style="color:var(--text2)">Ризиків не виявлено</p></div>`;
       }
-      section.appendChild(row);
-    });
-    inner.appendChild(section);
-  }
-
-  // ── 2. Stage timeline ──
-  renderStageTimeline(inner, bill, changes, votes);
-
-  // ── 3. Voting blocks ──
-  renderVotingSection(inner, votes);
-
-  // ── 4. LLM analysis ──
-  if (risks) {
-    const score = risks.overall_score || 0;
-    const scoreColor = score >= 70 ? 'var(--accent-green)' : score >= 40 ? 'var(--accent-orange)' : 'var(--accent-red)';
-    const section = el('div', { className: 'detail-section' });
-    section.appendChild(el('h3', {}, '🧠 Аналіз LLM'));
-    section.appendChild(el('div', { className: 'risk-grid' },
-      el('div', { className: 'risk-item' },
-        el('div', { className: 'label' }, 'Загальний ризик'),
-        el('div', { className: 'score', style: `color:${scoreColor}` }, Math.round(score)),
-        el('div', { className: 'desc' }, 'із 100')
-      ),
-      el('div', { className: 'risk-item' },
-        el('div', { className: 'label' }, 'Модель'),
-        el('div', { className: 'score', style: 'font-size:16px;' }, risks.model_used || '—'),
-        el('div', { className: 'desc' }, risks.confidence_level ? 'Довіра: ' + risks.confidence_level + '/5' : '')
-      )
-    ));
-    if (risks.raw_analysis) {
-      section.appendChild(el('div', { style: 'margin-top:12px;padding:12px;background:var(--bg-secondary);border-radius:var(--radius-sm);font-size:13px;line-height:1.6;color:var(--text-secondary);' }, risks.raw_analysis));
-    }
-    inner.appendChild(section);
-  }
-
-  // ── 5. Change log timeline ──
-  if (changes.length) {
-    const section = el('div', { className: 'detail-section' });
-    section.appendChild(el('h3', {}, '📋 Історія змін'));
-    const tl = el('div', { className: 'timeline' });
-    changes.forEach(c => {
-      const icons = { new: '🆕', status_change: '🔄' };
-      tl.appendChild(el('div', { className: 'timeline-item' },
-        el('span', { className: 'date' }, formatDate(c.created_at)),
-        el('div', { className: 'desc' }, (icons[c.change_type] || '📝') + ' ' + (c.change_type === 'new' ? 'Закон зареєстровано' : `Зміна статусу: ${c.old_value || '—'} → ${c.new_value || '—'}`))
-      ));
-    });
-    section.appendChild(tl);
-    inner.appendChild(section);
-  }
-
-  // ── 6. Law versions ──
-  if (versions.length) {
-    const section = el('div', { className: 'detail-section' });
-    section.appendChild(el('h3', {}, '📋 Версії закону'));
-    const tl = el('div', { className: 'timeline' });
-    versions.forEach(v => {
-      tl.appendChild(el('div', { className: 'timeline-item' },
-        el('span', { className: 'date' }, formatDate(v.version_date)),
-        el('div', { className: 'desc' }, v.status_at_moment || '—')
-      ));
-    });
-    section.appendChild(tl);
-    inner.appendChild(section);
-  }
-
-  panel.innerHTML = '';
-  panel.appendChild(inner);
-}
-
-// ===== STAGE TIMELINE =====
-function renderStageTimeline(container, bill, changes, votes) {
-  const section = el('div', { className: 'detail-section' });
-  section.appendChild(el('h3', {}, '📊 Етап проходження'));
-
-  // Derive stage dates from available data
-  const stageLabels = ['Реєстрація', 'Комітет', '1-е читання', '2-е читання', 'Прийнято'];
-  const stageDates = [null, null, null, null, null];
-
-  // Stage 0 (index 0): registration
-  stageDates[0] = bill.registration_date || null;
-
-  // Find dates from changes
-  const statusDates = {};
-  (changes || []).forEach(c => {
-    if (c.change_type === 'status_change' && c.new_value) {
-      statusDates[c.new_value] = c.created_at;
-    }
-  });
-
-  // Stage 1 (index 1): committee — look for committee-related status changes
-  if (statusDates['На розгляді']) stageDates[1] = statusDates['На розгляді'];
-  else if (statusDates['В комітеті']) stageDates[1] = statusDates['В комітеті'];
-
-  // Stage 2 (index 2): first reading — first vote date
-  if (votes && votes.length > 0) {
-    stageDates[2] = votes[0].vote_date;
-  }
-
-  // Stage 3 (index 3): second reading — last vote date
-  if (votes && votes.length > 1) {
-    stageDates[3] = votes[votes.length - 1].vote_date;
-  } else if (votes && votes.length === 1) {
-    // If only one vote, use it for both
-  }
-
-  // Stage 4 (index 4): adopted
-  stageDates[4] = bill.act_date || statusDates['Закон прийнято'] || statusDates['Закон підписано'] || null;
-
-  const currentStage = bill.stage || 1;
-
-  // Build timeline HTML
-  const tl = el('div', { className: 'stage-timeline' });
-  for (let i = 0; i < 5; i++) {
-    const step = el('div', { className: 'stage-step' });
-
-    // Line (except for first step)
-    if (i > 0) {
-      const line = el('div', { className: 'stage-line' + (i <= currentStage ? ' done' : '') });
-      step.appendChild(line);
-    }
-
-    // Dot
-    let dotClass = 'future';
-    if (i < currentStage) dotClass = 'done';
-    else if (i === currentStage - 1) dotClass = 'current';
-    step.appendChild(el('div', { className: 'stage-dot ' + dotClass }));
-
-    // Label
-    step.appendChild(el('div', { className: 'stage-label' }, stageLabels[i]));
-
-    // Date
-    if (stageDates[i]) {
-      step.appendChild(el('div', { className: 'stage-date' }, formatDate(stageDates[i])));
-    }
-
-    tl.appendChild(step);
-  }
-  section.appendChild(tl);
-  container.appendChild(section);
-}
-
-// ===== VOTING SECTION =====
-function renderVotingSection(container, votes) {
-  const section = el('div', { className: 'detail-section' });
-  section.appendChild(el('h3', {}, '🗳 Голосування'));
-
-  if (!votes || !votes.length) {
-    section.appendChild(el('div', { className: 'no-votes-msg' }, '🗳 Голосування ще не проводились'));
-    container.appendChild(section);
-    return;
-  }
-
-  votes.forEach((vote, vIdx) => {
-    const total = (vote.yes_count || 0) + (vote.no_count || 0) + (vote.abstain_count || 0) + (vote.not_present_count || 0) + (vote.absent_count || 0);
-    const pct = v => total > 0 ? Math.round(v / total * 100) : 0;
-
-    const block = el('div', { className: 'vote-block', 'data-vote-idx': vIdx });
-
-    // Header (clickable)
-    const header = el('div', { className: 'vote-block-header' });
-    header.appendChild(el('div', { className: 'vote-block-title' },
-      (vote.title || 'Голосування #' + (vIdx + 1)) + (vote.vote_date ? ' — ' + formatDate(vote.vote_date) : '')
-    ));
-    header.appendChild(el('div', { className: 'vote-block-summary' },
-      el('span', { className: 'vote-count za' }, '✅ За: ' + (vote.yes_count || 0)),
-      el('span', { className: 'vote-count proti' }, '❌ Проти: ' + (vote.no_count || 0)),
-      el('span', { className: 'vote-count utr' }, '⏸️ Утр: ' + (vote.abstain_count || 0)),
-      el('span', { className: 'vote-count ne' }, '⬜ Не голос: ' + (vote.not_present_count || 0)),
-      el('span', { className: 'vote-count vid' }, '🚫 Відс: ' + (vote.absent_count || 0))
-    ));
-
-    // Progress bar
-    const bar = el('div', { className: 'vote-bar' });
-    if (total > 0) {
-      [
-        { key: 'za', val: vote.yes_count || 0 },
-        { key: 'proti', val: vote.no_count || 0 },
-        { key: 'utr', val: vote.abstain_count || 0 },
-        { key: 'ne', val: vote.not_present_count || 0 },
-        { key: 'vid', val: vote.absent_count || 0 }
-      ].forEach(s => {
-        if (s.val > 0) {
-          bar.appendChild(el('div', { className: 'vote-bar-seg ' + s.key, style: `width:${pct(s.val)}%` }));
-        }
-      });
-    }
-    header.appendChild(bar);
-    header.appendChild(el('div', { className: 'vote-expand-hint' }, '▼ Розгорнути по фракціях'));
-    block.appendChild(header);
-
-    // Factions container (hidden by default)
-    const factionsContainer = el('div', { className: 'vote-factions' });
-    block.appendChild(factionsContainer);
-
-    // Toggle
-    header.addEventListener('click', () => {
-      const isOpen = block.classList.contains('expanded');
-      block.classList.toggle('expanded');
-      if (!isOpen && !factionsContainer.hasChildNodes()) {
-        renderVoteFactions(vote, factionsContainer);
+      if (risks.raw_analysis) {
+        html += `<div id="tab-risks" class="bill-tab" style="margin-top:12px"><div class="card"><div class="card-title" style="margin-bottom:8px">Аналіз LLM</div><p style="font-size:14px;line-height:1.6">${risks.raw_analysis}</p></div></div>`;
       }
-    });
-
-    section.appendChild(block);
-  });
-
-  container.appendChild(section);
-}
-
-// Render faction breakdown for a vote
-function renderVoteFactions(vote, container) {
-  const deputies = vote.deputies || [];
-
-  // Group deputies by faction
-  const factionGroups = {};
-  deputies.forEach(d => {
-    const f = d.mp_faction || 'unknown';
-    if (!factionGroups[f]) factionGroups[f] = [];
-    factionGroups[f].push(d);
-  });
-
-  const list = el('div', { className: 'faction-detail-list' });
-
-  // Sort factions: known first, then unknown
-  const factionKeys = Object.keys(factionGroups).sort((a, b) => {
-    const aKnown = FACTIONS.find(f => f.id === a);
-    const bKnown = FACTIONS.find(f => f.id === b);
-    if (aKnown && !bKnown) return -1;
-    if (!aKnown && bKnown) return 1;
-    return 0;
-  });
-
-  factionKeys.forEach(fKey => {
-    const deps = factionGroups[fKey];
-    const faction = FACTIONS.find(f => f.id === fKey);
-    const fName = faction ? f.name : (fKey || 'Без фракції');
-    const fColor = faction ? faction.color : '#888';
-
-    // Count votes
-    let za = 0, proti = 0, utr = 0, ne = 0, vid = 0;
-    deps.forEach(d => {
-      if (d.vote_code === 'yes') za++;
-      else if (d.vote_code === 'no') proti++;
-      else if (d.vote_code === 'abstain') utr++;
-      else if (d.vote_code === 'not_present') ne++;
-      else vid++;
-    });
-
-    const item = el('div', { className: 'faction-detail-item' });
-
-    // Faction header
-    const fHeader = el('div', { className: 'faction-detail-header' });
-    fHeader.appendChild(el('span', { className: 'faction-color', style: `background:${fColor}` }));
-    fHeader.appendChild(el('span', { className: 'faction-name' }, fName + ' (' + deps.length + ')'));
-    fHeader.appendChild(el('div', { className: 'faction-mini-stats' },
-      el('span', { className: 'mini-stat za' }, '✅' + za),
-      el('span', { className: 'mini-stat proti' }, '❌' + proti),
-      el('span', { className: 'mini-stat utr' }, '⏸️' + utr),
-      el('span', { className: 'mini-stat ne' }, '⬜' + ne),
-      el('span', { className: 'mini-stat vid' }, '🚫' + vid)
-    ));
-    fHeader.appendChild(el('span', { className: 'faction-arrow' }, '▼'));
-    item.appendChild(fHeader);
-
-    // Deputies wrap
-    const depsWrap = el('div', { className: 'faction-deputies-wrap' });
-
-    // Filter buttons
-    const filterBar = el('div', { className: 'deputies-filter' });
-    ['all', 'za', 'proti', 'utr', 'ne', 'vid'].forEach(ft => {
-      const labels = { all: 'Всі', za: '✅ За', proti: '❌ Проти', utr: '⏸️ Утримались', ne: '⬜ Не голос', vid: '🚫 Відсутні' };
-      const btn = el('button', { className: 'filter-btn' + (ft === 'all' ? ' active' : ''), onclick: (e) => { e.stopPropagation(); filterDeputiesInline(e.target, ft); } }, labels[ft]);
-      filterBar.appendChild(btn);
-    });
-    depsWrap.appendChild(filterBar);
-
-    // Deputies list
-    const depsList = el('div', { className: 'deputies-list' });
-    deps.forEach(d => {
-      const voteCode = d.vote_code || 'absent';
-      const voteLabels = { yes: '✅ За', no: '❌ Проти', abstain: '⏸️ Утримався', not_present: '⬜ Не голосував', absent: '🚫 Відсутній' };
-      const row = el('div', { className: 'deputy-row', 'data-vote-type': voteCode === 'yes' ? 'za' : voteCode === 'no' ? 'proti' : voteCode === 'abstain' ? 'utr' : voteCode === 'not_present' ? 'ne' : 'vid' });
-      row.appendChild(el('span', { className: 'deputy-name' }, d.mp_name));
-      row.appendChild(el('span', { className: 'deputy-vote ' + (voteCode === 'yes' ? 'za' : voteCode === 'no' ? 'proti' : voteCode === 'abstain' ? 'utr' : voteCode === 'not_present' ? 'ne' : 'vid') }, voteLabels[voteCode] || voteCode));
-      depsList.appendChild(row);
-    });
-    depsWrap.appendChild(depsList);
-
-    // Toggle faction open
-    fHeader.addEventListener('click', () => {
-      item.classList.toggle('open');
-    });
-
-    item.appendChild(depsWrap);
-    list.appendChild(item);
-  });
-
-  container.appendChild(list);
-}
-
-// Filter deputies in inline vote faction
-function filterDeputiesInline(btn, type) {
-  const wrap = btn.closest('.faction-deputies-wrap');
-  wrap.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  wrap.querySelectorAll('.deputy-row').forEach(row => {
-    if (type === 'all') {
-      row.style.display = '';
     } else {
-      row.style.display = row.dataset.voteType === type ? '' : 'none';
+      html += `<div id="tab-risks" class="bill-tab"><p style="color:var(--text2)">Аналіз не проведено</p></div>`;
     }
-  });
+
+    // Versions tab
+    html += `<div id="tab-versions" class="bill-tab" style="display:none">`;
+    if (versions.length >= 2) {
+      html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+        <label style="font-size:13px;color:var(--text2)">Порівняти:</label>
+        <select id="ver-old" onchange="showDiff()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
+          ${versions.slice(1).map((v,i) => `<option value="${i+1}">${v.status_at_moment||'v'+(i+1)} (${v.text_hash?.substring(0,8)||'?'})</option>`).join('')}
+        </select>
+        <span style="color:var(--text2)">←</span>
+        <select id="ver-new" onchange="showDiff()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
+          ${versions.slice(0,-1).map((v,i) => `<option value="${i}" ${i===0?'selected':''}>${v.status_at_moment||'v'+(versions.length-i)} (${v.text_hash?.substring(0,8)||'?'})</option>`).join('')}
+        </select>
+      </div>`;
+      html += `<div class="diff-container"><div><div class="diff-header">Стара версія</div><div class="diff-panel" id="diff-old"></div></div><div><div class="diff-header">Нова версія</div><div class="diff-panel" id="diff-new"></div></div></div>`;
+      window._billVersions = versions;
+    } else if (versions.length === 1) {
+      html += `<div class="card"><p style="color:var(--text2)">Є лише одна версія — порівняння неможливе</p><div class="diff-panel" style="margin-top:12px;max-height:400px;overflow-y:auto">${escHtml(versions[0].plain_text||'')}</div></div>`;
+    } else {
+      html += `<p style="color:var(--text2)">Версії відсутні</p>`;
+    }
+    html += `</div>`;
+
+    // Votes tab
+    html += `<div id="tab-votes" class="bill-tab" style="display:none">`;
+    if (votes.length) {
+      html += votes.map(v => {
+        const total = (v.yes_count||0)+(v.no_count||0)+(v.abstain_count||0)+(v.not_present_count||0)+(v.absent_count||0);
+        const yesPct = total ? (v.yes_count/total*100) : 0;
+        const noPct = total ? (v.no_count/total*100) : 0;
+        const absPct = total ? (v.abstain_count/total*100) : 0;
+        const npPct = total ? ((v.not_present_count+v.absent_count)/total*100) : 0;
+        return `<div class="card" style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-weight:600">${v.title||'Голосування'}</span>
+            <span style="font-size:12px;color:var(--text2)">${v.vote_date||''}</span>
+          </div>
+          <div class="vote-bar">
+            <div class="yes" style="width:${yesPct}%" title="За: ${v.yes_count}"></div>
+            <div class="no" style="width:${noPct}%" title="Проти: ${v.no_count}"></div>
+            <div class="abstain" style="width:${absPct}%" title="Утрималися: ${v.abstain_count}"></div>
+            <div class="not-present" style="width:${npPct}%" title="Не голосували: ${v.not_present_count+v.absent_count}"></div>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;color:var(--text2)">
+            <span style="color:var(--green)">За: ${v.yes_count}</span>
+            <span style="color:var(--red)">Проти: ${v.no_count}</span>
+            <span style="color:var(--orange)">Утрим: ${v.abstain_count}</span>
+            <span>Не голос: ${(v.not_present_count||0)+(v.absent_count||0)}</span>
+          </div>
+          ${v.deputies && v.deputies.length ? `<div style="margin-top:8px;font-size:12px;color:var(--text2)">Депутатів: ${v.deputies.length}</div>` : ''}
+        </div>`;
+      }).join('');
+    } else {
+      html += `<p style="color:var(--text2)">Голосувань не знайдено</p>`;
+    }
+    html += `</div>`;
+
+    el.innerHTML = html;
+    if (versions.length >= 2) setTimeout(showDiff, 100);
+  } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${e.message}</p>`; }
 }
 
-function applyFilters() { renderBills(); }
-document.getElementById('billSearch').addEventListener('input', function() {
-  clearTimeout(this._debounce);
-  this._debounce = setTimeout(applyFilters, 300);
-});
-document.getElementById('billStatusFilter').addEventListener('change', applyFilters);
-document.getElementById('billStageFilter').addEventListener('change', applyFilters);
-document.getElementById('billSort').addEventListener('change', applyFilters);
+function showBillTab(btn, tab) {
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.bill-tab').forEach(t => t.style.display = 'none');
+  document.getElementById('tab-' + tab).style.display = 'block';
+}
 
-// Load statuses for filter dropdown
-async function loadStatuses() {
-  const data = await apiFetch('/statuses');
-  if (!data || !data.statuses) return;
-  const sel = document.getElementById('billStatusFilter');
-  data.statuses.forEach(s => {
-    if (!s.current_status) return;
+function showDiff() {
+  const versions = window._billVersions;
+  if (!versions || versions.length < 2) return;
+  const oldIdx = parseInt(document.getElementById('ver-old').value);
+  const newIdx = parseInt(document.getElementById('ver-new').value);
+  const oldText = versions[oldIdx]?.plain_text || '';
+  const newText = versions[newIdx]?.plain_text || '';
+  document.getElementById('diff-old').innerHTML = simpleDiff(oldText, newText, true);
+  document.getElementById('diff-new').innerHTML = simpleDiff(newText, oldText, false);
+}
+
+function simpleDiff(text, other, isOld) {
+  const lines = text.split('\n');
+  const otherLines = new Set(other.split('\n').map(l => l.trim()));
+  return lines.map(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return escHtml(line);
+    if (!otherLines.has(trimmed)) {
+      return `<span class="${isOld ? 'removed' : 'added'}">${escHtml(line)}</span>`;
+    }
+    return escHtml(line);
+  }).join('\n');
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// === DEPUTIES ===
+async function loadDeputies() {
+  const search = document.getElementById('dep-search').value;
+  const faction = document.getElementById('dep-faction').value;
+  const sort = document.getElementById('dep-sort').value;
+  let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (faction) url += `&faction=${encodeURIComponent(faction)}`;
+  if (sort === 'kpd') url += `&sort=name`;
+  try {
+    const data = await api(url);
+    depsTotal = data.deputies?.length || 0;
+    document.getElementById('deputies-count').textContent = `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}`;
+    let deps = data.deputies || [];
+    if (sort === 'kpd') deps.sort((a,b) => (b.kpd||0) - (a.kpd||0));
+    if (sort === 'total') deps.sort((a,b) => (b.total||0) - (a.total||0));
+    const tbody = document.querySelector('#deputies-table tbody');
+    tbody.innerHTML = deps.map(d => `<tr class="clickable" onclick="showDeputy('${escAttr(d.name)}')">
+      <td><strong>${d.name}</strong></td>
+      <td style="font-size:13px">${d.faction||'—'}</td>
+      <td>
+        <div class="kpd-bar">
+          <div class="kpd-track"><div class="kpd-fill" style="width:${d.kpd||0}%;background:${kpdColor(d.kpd||0)}"></div></div>
+          <span class="kpd-value" style="color:${kpdColor(d.kpd||0)}">${d.kpd||0}%</span>
+        </div>
+      </td>
+      <td>${d.kpd||0}%</td>
+      <td>${d.total||0}</td>
+    </tr>`).join('');
+  } catch(e) { console.error('Deputies error:', e); }
+}
+function depsPage(d) { depsOffset = Math.max(0, depsOffset + d * PAGE); loadDeputies(); }
+function escAttr(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+// === DEPUTY DETAIL ===
+async function showDeputy(name) {
+  showSection('deputy-detail');
+  const el = document.getElementById('deputy-detail-content');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+  try {
+    const data = await api(`/api/deputies/${encodeURIComponent(name)}`);
+    const d = data.deputy;
+    const votes = data.votes || [];
+
+    let html = `
+      <div class="detail-panel">
+        <h2 style="font-size:20px;margin-bottom:8px">${d.name}</h2>
+        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value">${d.faction||'—'}</div></div>
+      </div>`;
+
+    // Voting history
+    if (votes.length) {
+      html += `<div class="card"><div class="card-header"><div class="card-title">Історія голосувань (${votes.length})</div></div>
+        <div class="table-wrap"><table><thead><tr><th>Дата</th><th>Закон</th><th>Рішення</th><th>Результат</th></tr></thead><tbody>`;
+      html += votes.map(v => {
+        const label = v.vote_label || v.vote_code || '?';
+        const color = v.vote_code === 'yes' ? 'var(--green)' : v.vote_code === 'no' ? 'var(--red)' : v.vote_code === 'abstain' ? 'var(--orange)' : 'var(--muted)';
+        return `<tr>
+          <td style="font-size:12px">${v.vote_date||''}</td>
+          <td>${v.bill_number ? '#'+v.bill_number : (v.vote_title||'').substring(0,50)}</td>
+          <td style="color:${color};font-weight:600">${label}</td>
+          <td style="font-size:12px;color:var(--text2)">${v.vote_title||''}</td>
+        </tr>`;
+      }).join('');
+      html += `</tbody></table></div></div>`;
+    } else {
+      html += `<div class="card"><p style="color:var(--text2)">Даних про голосування поки немає</p></div>`;
+    }
+
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${e.message}</p>`; }
+}
+
+// === SCHEDULE ===
+async function loadSchedule() {
+  try {
+    const data = await api('/api/plenary-sessions');
+    const sessions = data.sessions || [];
+    const list = document.getElementById('schedule-list');
+    if (!sessions.length) {
+      list.innerHTML = '<p style="color:var(--text2)">Дані про засідання поки відсутні</p>';
+    } else {
+      list.innerHTML = sessions.map(s => `
+        <div class="schedule-item">
+          <div class="schedule-date">${s.date}</div>
+          <div class="schedule-info">
+            <div class="schedule-title">${(s.bills||[]).map(b => '#'+b.bill_number).join(', ') || '—'}</div>
+            <div class="schedule-meta">${(s.bills||[]).length} закон(ів)</div>
+          </div>
+        </div>`).join('');
+    }
+
+    // Bills for voting
+    const upcoming = await api('/api/bills?limit=10&stage=2&sort=registration_date&order=DESC');
+    const ub = document.getElementById('upcoming-bills');
+    if (upcoming.bills?.length) {
+      ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
+        <tr class="clickable" onclick="showBill(${b.id})">
+          <td><strong>${b.bill_number}</strong></td>
+          <td>${(b.title||'').substring(0,60)}</td>
+          <td>${b.current_status||''}</td>
+          <td style="font-size:12px;color:var(--text2)">${b.registration_date||''}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+    } else {
+      ub.innerHTML = '<p style="color:var(--text2)">Закони на голосування поки відсутні</p>';
+    }
+  } catch(e) { console.error('Schedule error:', e); }
+}
+
+// === INIT ===
+loadDashboard();
+
+// Load statuses for filter
+api('/api/statuses').then(d => {
+  const sel = document.getElementById('bill-status');
+  (d.statuses||[]).forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.current_status;
-    opt.textContent = s.current_status + ' (' + s.count + ')';
+    opt.textContent = `${s.current_status} (${s.count})`;
     sel.appendChild(opt);
   });
-}
+}).catch(()=>{});
 
-// ===== DEPUTIES TAB =====
-function renderDeputies(filter, factionFilter) {
-  const tbody = document.getElementById('deputiesBody');
-  tbody.innerHTML = '';
-
-  let deps = [...ALL_DEPUTIES];
-
-  if (filter) {
-    const f = filter.toLowerCase();
-    deps = deps.filter(d => d.name.toLowerCase().includes(f) || d.factionName.toLowerCase().includes(f));
-  }
-  if (factionFilter) {
-    deps = deps.filter(d => d.faction === factionFilter);
-  }
-
-  deps.sort((a,b) => b.kpd - a.kpd);
-
-  if (deps.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted);">Нічого не знайдено</td></tr>';
-    return;
-  }
-
-  for (const d of deps) {
-    const f = FACTIONS.find(x => x.id === d.faction);
-    const color = f ? f.color : '#888';
-
-    const kpdClass = d.kpd >= 80 ? 'kpd-high' : d.kpd >= 60 ? 'kpd-mid' : 'kpd-low';
-    const barColor = d.kpd >= 80 ? 'var(--accent-green)' : d.kpd >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
-
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight:500;">${d.name}</td>
-      <td><div class="dep-faction"><span class="faction-dot" style="background:${color}"></span>${d.factionName}</div></td>
-      <td>${d.votes} (відвідано ${d.attended})</td>
-      <td>
-        <span style="display:inline-flex;align-items:center;gap:6px;">
-          <span class="kpd-bar" style="width:${d.kpd}px;max-width:80px;background:${barColor}"></span>
-          <span class="${kpdClass}">${d.kpd}%</span>
-        </span>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  }
-}
-
-document.getElementById('depSearch').addEventListener('input', function() {
-  renderDeputies(this.value, document.getElementById('depFactionFilter').value);
-});
-document.getElementById('depFactionFilter').addEventListener('change', function() {
-  renderDeputies(document.getElementById('depSearch').value, this.value);
-});
-
-// Populate faction filter
-const facFilter = document.getElementById('depFactionFilter');
-FACTIONS.forEach(f => {
-  const opt = document.createElement('option');
-  opt.value = f.id;
-  opt.textContent = f.name;
-  facFilter.appendChild(opt);
-});
-
-// ===== INIT =====
-(async function init() {
-  await loadStats();
-  await loadStatuses();
-  await renderDashboard();
-  await renderBills();
-  renderDeputies('', '');
-})();
+// Load factions for filter
+api('/api/factions').then(d => {
+  const sel = document.getElementById('dep-faction');
+  (d.factions||[]).forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    sel.appendChild(opt);
+  });
+}).catch(()=>{});
 </script>
-<!-- v7-bill-detail-panel -->
 </body>
 </html>

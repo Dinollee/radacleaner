@@ -137,6 +137,16 @@ export default {
 				return json({ bill, risks, versions, changes, votes });
 			}
 
+			// --- BILL VERSIONS (for diff) ---
+			const billVersionsMatch = pathname.match(/^\/api\/bills\/(\d+)\/versions$/);
+			if (method === 'GET' && billVersionsMatch) {
+				const billId = Number(billVersionsMatch[1]);
+				const { results } = await env.radacleaner_db.prepare(
+					'SELECT id, law_id, version_date, status_at_moment, text_hash, plain_text, analysis_summary, risks_json FROM law_versions WHERE law_id = ? ORDER BY version_date DESC LIMIT 10'
+				).bind(billId).all();
+				return json({ versions: results });
+			}
+
 			// --- BILL RISKS ---
 			const billRisksMatch = pathname.match(/^\/api\/bills\/(\d+)\/risks$/);
 			if (method === 'GET' && billRisksMatch) {

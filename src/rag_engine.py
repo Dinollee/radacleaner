@@ -371,25 +371,32 @@ def main() -> None:
         return
 
     processed = []       # (info, data) — повний аналіз ризиків
-    status_updates = []  # info — тільки зміна статусу
+    status_updates = []  # info — тільки зміна статусу (без зміни тексту)
 
     for bill_info in bills_raw:
         try:
             change_type = bill_info.get("change_type", "new")
             if change_type == "status_change":
                 log.info(
-                    "  Status update: #%s | %s",
+                    "  Status change: #%s | %s → %s",
                     bill_info["bill_number"],
-                    bill_info["title"][:60],
-                )
-                log.info(
-                    "  %s → %s",
                     bill_info.get("old_value", "?"),
                     bill_info.get("new_value", "?"),
                 )
-                status_updates.append(bill_info)
-                mark_notified([bill_info["id"]])
+                # Пробуємо LLM-аналіз — якщо текст змінився, отримаємо результат
+                info, data = process_bill(bill_info, test_mode)
+                if data:
+                    # Текст змінився — повний аналіз + Telegram
+                    processed.append((info, data))
+                    mark_notified([info["id"]])
+                    log.info("  Text changed — full analysis sent")
+                else:
+                    # Текст не змінився — тільки статус-оновлення
+                    status_updates.append(bill_info)
+                    mark_notified([bill_info["id"]])
+                    log.info("  Text unchanged — status notification only")
             else:
+                # Новий закон — повний аналіз
                 info, data = process_bill(bill_info, test_mode)
                 if data:
                     processed.append((info, data))
