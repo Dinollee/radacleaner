@@ -99,6 +99,9 @@ tr.clickable { cursor: pointer; }
 .kpd-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
 .kpd-fill { height: 100%; border-radius: 4px; }
 
+/* Faction dot */
+.faction-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
 /* Vote bar */
 .vote-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; gap: 1px; }
 .vote-bar .yes { background: var(--green); }
@@ -216,12 +219,14 @@ tr.clickable { cursor: pointer; }
       <select id="dep-faction" onchange="loadDeputies()"></select>
       <select id="dep-sort" onchange="loadDeputies()">
         <option value="name">За ім'ям</option>
-        <option value="kpd">За КПД ↓</option>
-        <option value="total">За участю ↓</option>
+        <option value="conversion">За конверсією ↓</option>
+        <option value="py">За ПЯ ↓</option>
+        <option value="pda">За ПДА ↓</option>
+        <option value="vkp">За ВКП ↓</option>
       </select>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Участь</th><th>КПД</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -293,6 +298,21 @@ function kpdColor(kpd) {
   if (kpd >= 80) return 'var(--green)';
   if (kpd >= 50) return 'var(--orange)';
   return 'var(--red)';
+}
+
+function factionColor(faction) {
+  const colors = {
+    'СЛУГА НАРОДУ': '#2ecc71',
+    'Європейська Солідарність': '#3498db',
+    'Батьківщина': '#f1c40f',
+    'Платформа за життя та мир': '#9b59b6',
+    'ДОВІРА': '#e67e22',
+    'Партія "За майбутнє"': '#1abc9c',
+    'ГОЛОС': '#e74c3c',
+    'Відновлення України': '#95a5a6',
+    'Позафракційні': '#7f8c8d',
+  };
+  return colors[faction] || '#6c7a89';
 }
 
 function stageBar(current) {
@@ -534,25 +554,32 @@ async function loadDeputies() {
   let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (faction) url += `&faction=${encodeURIComponent(faction)}`;
-  if (sort === 'kpd') url += `&sort=name`;
+  if (sort === 'py' || sort === 'pda' || sort === 'vkp') url += `&sort=name`;
   try {
     const data = await api(url);
     depsTotal = data.deputies?.length || 0;
     document.getElementById('deputies-count').textContent = `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}`;
     let deps = data.deputies || [];
-    if (sort === 'kpd') deps.sort((a,b) => (b.kpd||0) - (a.kpd||0));
-    if (sort === 'total') deps.sort((a,b) => (b.total||0) - (a.total||0));
+    if (sort === 'py') deps.sort((a,b) => (b.py||0) - (a.py||0));
+    if (sort === 'pda') deps.sort((a,b) => (b.pda||0) - (a.pda||0));
+    if (sort === 'vkp') deps.sort((a,b) => (b.vkp||0) - (a.vkp||0));
+    if (sort === 'conversion') deps.sort((a,b) => (b.conversion||0) - (a.conversion||0));
     const tbody = document.querySelector('#deputies-table tbody');
     tbody.innerHTML = deps.map(d => `<tr class="clickable" onclick="showDeputy('${escAttr(d.name)}')">
       <td><strong>${d.name}</strong></td>
-      <td style="font-size:13px">${d.faction||'—'}</td>
+      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${d.faction||'—'}</td>
+      <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
+        ${d.totalBills||0}/${d.totalLaws||0}<br>
+        <span style="font-size:11px">${d.conversion||0}%</span>
+      </td>
+      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.py||0}%${!d.dataSufficient ? ' *' : ''}</td>
+      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.pda||0}%${!d.dataSufficient ? ' *' : ''}</td>
       <td>
         <div class="kpd-bar">
-          <div class="kpd-track"><div class="kpd-fill" style="width:${d.kpd||0}%;background:${kpdColor(d.kpd||0)}"></div></div>
-          <span class="kpd-value" style="color:${kpdColor(d.kpd||0)}">${d.kpd||0}%</span>
+          <div class="kpd-track"><div class="kpd-fill" style="width:${d.vkp||0}%;background:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}"></div></div>
+          <span class="kpd-value" style="color:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}">${d.vkp||0}%${!d.dataSufficient ? ' *' : ''}</span>
         </div>
       </td>
-      <td>${d.kpd||0}%</td>
       <td>${d.total||0}</td>
     </tr>`).join('');
   } catch(e) { console.error('Deputies error:', e); }
@@ -569,11 +596,30 @@ async function showDeputy(name) {
     const data = await api(`/api/deputies/${encodeURIComponent(name)}`);
     const d = data.deputy;
     const votes = data.votes || [];
+    const stats = data.stats || {};
 
     let html = `
       <div class="detail-panel">
         <h2 style="font-size:20px;margin-bottom:8px">${d.name}</h2>
         <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value">${d.faction||'—'}</div></div>
+        ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
+        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div class="stat-card">
+            <div class="stat-label">ПЯ (Індекс явки)</div>
+            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
+            <div style="font-size:11px;color:var(--text2)">(явка_за + явка_против + явка_воздерж) / всіх</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ПДА (Діяльне участь)</div>
+            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
+            <div style="font-size:11px;color:var(--text2)">(за + против) / (за + против + воздерж)</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ВКП (Зважений КПД)</div>
+            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
+            <div style="font-size:11px;color:var(--text2)">Σ(вага × дія) / Σ(вага)</div>
+          </div>
+        </div>
       </div>`;
 
     // Voting history
@@ -652,6 +698,11 @@ api('/api/statuses').then(d => {
 // Load factions for filter
 api('/api/factions').then(d => {
   const sel = document.getElementById('dep-faction');
+  // Добавляем "Всі депутати" первым
+  const allOpt = document.createElement('option');
+  allOpt.value = '';
+  allOpt.textContent = 'Всі депутати';
+  sel.appendChild(allOpt);
   (d.factions||[]).forEach(f => {
     const opt = document.createElement('option');
     opt.value = f;

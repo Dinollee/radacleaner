@@ -11,6 +11,7 @@ import json
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime
 
@@ -52,6 +53,8 @@ def fetch_url(url, timeout=30):
 
 def find_g_ids(bill_number):
     zn = bill_number.replace("/", "%2F")
+    # URL-encode any non-ASCII characters
+    zn = urllib.parse.quote(zn, safe="%")
     url = f"https://w1.c1.rada.gov.ua/pls/radan_gs09/ns_zakon_gol_dep_wohf?zn={zn}"
     html = fetch_url(url)
     return [int(x) for x in re.findall(r"ns_golos\?g_id=(\d+)", html)]
@@ -176,41 +179,47 @@ def save_vote(vote_data, bill_number=None):
         ],
     })
 
-    # Batch insert MPs — D1 limit is 100 bound params, so 25 rows × 4 cols = 100
+    # Batch insert MPs — D1 limit is 100 bound params, so 20 rows × 4 cols = 80
     mps = vote_data.get("mps", [])
     valid_mps = [(mp["name"], mp.get("faction", ""), STATUS_IDS[mp["status"]])
                  for mp in mps if STATUS_IDS.get(mp["status"])]
 
-    # Insert mps table
-    for i in range(0, len(valid_mps), 50):
-        batch = valid_mps[i:i+50]
+    # Insert mps table (2 cols)
+    for i in range(0, len(valid_mps), 40):
+        batch = valid_mps[i:i+40]
         values = []
         params = []
         for name, faction, _ in batch:
             values.append("(?, ?)")
             params.extend([name, faction])
         if values:
-            d1_exec("raw_sql", {
-                "sql": f"INSERT OR IGNORE INTO mps (name, faction) VALUES {','.join(values)}",
-                "params": params,
-            })
+            try:
+                d1_exec("raw_sql", {
+                    "sql": f"INSERT OR IGNORE INTO mps (name, faction) VALUES {','.join(values)}",
+                    "params": params,
+                })
+            except Exception as e:
+                log.warning("mps batch insert failed: %s", str(e)[:100])
 
-    # Insert mp_votes table
-    for i in range(0, len(valid_mps), 25):
-        batch = valid_mps[i:i+25]
+    # Insert mp_votes table (4 cols) — 20 rows at a time
+    for i in range(0, len(valid_mps), 20):
+        batch = valid_mps[i:i+20]
         values = []
         params = []
         for name, faction, status_id in batch:
             values.append("(?, ?, ?, ?)")
             params.extend([vote_data["g_id"], name, faction, status_id])
         if values:
-            d1_exec("raw_sql", {
-                "sql": f"""INSERT INTO mp_votes (vote_id, mp_name, mp_faction, status_id)
-                          VALUES {','.join(values)}
-                          ON CONFLICT(vote_id, mp_name) DO UPDATE SET
-                            mp_faction=excluded.mp_faction, status_id=excluded.status_id""",
-                "params": params,
-            })
+            try:
+                d1_exec("raw_sql", {
+                    "sql": f"""INSERT INTO mp_votes (vote_id, mp_name, mp_faction, status_id)
+                              VALUES {','.join(values)}
+                              ON CONFLICT(vote_id, mp_name) DO UPDATE SET
+                                mp_faction=excluded.mp_faction, status_id=excluded.status_id""",
+                    "params": params,
+                })
+            except Exception as e:
+                log.warning("mp_votes batch insert failed: %s", str(e)[:100])
 
     log.info("Saved vote %d: %d MPs", vote_data["g_id"], len(mps))
 

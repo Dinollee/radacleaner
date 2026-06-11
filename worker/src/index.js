@@ -211,7 +211,64 @@ export default {
 					WHERE mv.mp_name=?
 					ORDER BY v.vote_date DESC LIMIT 50
 				`).bind(deputy.name).all();
-				return json({ deputy, votes });
+				
+				// Calculate three metrics for this deputy
+				const { results: voteStats } = await env.radacleaner_db.prepare(`
+					SELECT COUNT(*) as total,
+						SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
+						SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted,
+						SUM(CASE WHEN vs.code = 'abstain' THEN 1 ELSE 0 END) as abstained
+					FROM mp_votes mv
+					JOIN vote_statuses vs ON mv.status_id = vs.id
+					JOIN votes v ON mv.vote_id = v.vote_id
+					WHERE mv.mp_name = ?
+					AND (? IS NULL OR v.vote_date >= ?)
+				`).bind(deputy.name, deputy.start_date || null, deputy.start_date || null).all();
+				
+				const total = voteStats[0]?.total || 0;
+				const attended = voteStats[0]?.attended || 0;
+				const voted = voteStats[0]?.voted || 0;
+				
+				// Минимум 5 голосований для осмысленных метрик
+				const MIN_VOTES = 5;
+				const dataSufficient = total >= MIN_VOTES;
+				
+				// ПЯ (Индекс явки)
+				const py = total > 0 ? Math.round((attended / total) * 100) : 0;
+				
+				// ПДА (Показатель деятельного участия)
+				const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
+				
+				// ВКП (Взвешенный коэффициент продуктивности)
+				const { results: weightedVotes } = await env.radacleaner_db.prepare(`
+					SELECT v.title, mv.status_id,
+						CASE 
+							WHEN v.title LIKE '%процедурн%' THEN 1
+							WHEN v.title LIKE '%друге читання%' THEN 2
+							WHEN v.title LIKE '%прийняття%' OR v.title LIKE '%останнє%' THEN 3
+							ELSE 1
+						END as weight,
+						CASE 
+							WHEN vs.code IN ('yes','no') THEN 1.0
+							WHEN vs.code = 'abstain' THEN 0.5
+							ELSE 0.0
+						END as action
+					FROM mp_votes mv
+					JOIN vote_statuses vs ON mv.status_id = vs.id
+					JOIN votes v ON mv.vote_id = v.vote_id
+					WHERE mv.mp_name = ?
+					AND (? IS NULL OR v.vote_date >= ?)
+				`).bind(deputy.name, deputy.start_date || null, deputy.start_date || null).all();
+				
+				let weightedSum = 0;
+				let weightTotal = 0;
+				for (const wv of weightedVotes) {
+					weightedSum += wv.weight * wv.action;
+					weightTotal += wv.weight;
+				}
+				const vkp = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 0;
+				
+				return json({ deputy, votes, stats: { total, attended, py, pda, vkp, dataSufficient } });
 			}
 
 			// --- DEPUTIES LIST ---
@@ -235,19 +292,75 @@ export default {
 
 				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
 
-				// Get attendance stats per deputy
+				// Get attendance stats per deputy with all three metrics
 				const deputiesWithStats = await Promise.all(results.map(async (d) => {
 					const { results: voteStats } = await env.radacleaner_db.prepare(`
 						SELECT COUNT(*) as total,
-							SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended
+							SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
+							SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted,
+							SUM(CASE WHEN vs.code = 'abstain' THEN 1 ELSE 0 END) as abstained
 						FROM mp_votes mv
 						JOIN vote_statuses vs ON mv.status_id = vs.id
+						JOIN votes v ON mv.vote_id = v.vote_id
 						WHERE mv.mp_name = ?
-					`).bind(d.name).all();
+						AND (? IS NULL OR v.vote_date >= ?)
+					`).bind(d.name, d.start_date || null, d.start_date || null).all();
 					const total = voteStats[0]?.total || 0;
 					const attended = voteStats[0]?.attended || 0;
-					const kpd = total > 0 ? Math.round((attended / total) * 100) : 0;
-					return { ...d, total, attended, kpd };
+					const voted = voteStats[0]?.voted || 0;
+					const abstained = voteStats[0]?.abstained || 0;
+					
+					// Минимум 5 голосований для осмысленных метрик
+					const MIN_VOTES = 5;
+					const dataSufficient = total >= MIN_VOTES;
+					
+					// ПЯ (Индекс явки) = (yes + no + abstain) / total
+					const py = total > 0 ? Math.round((attended / total) * 100) : 0;
+					
+					// ПДА (Показатель деятельного участия) = (yes + no) / (yes + no + abstain)
+					const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
+					
+					// ВКП (Взвешенный коэффициент продуктивности)
+					// Needs vote-level data with weights
+					const { results: weightedVotes } = await env.radacleaner_db.prepare(`
+						SELECT v.title, mv.status_id,
+							CASE 
+								WHEN v.title LIKE '%процедурн%' THEN 1
+								WHEN v.title LIKE '%друге читання%' THEN 2
+								WHEN v.title LIKE '%прийняття%' OR v.title LIKE '%останнє%' THEN 3
+								ELSE 1
+							END as weight,
+							CASE 
+								WHEN vs.code IN ('yes','no') THEN 1.0
+								WHEN vs.code = 'abstain' THEN 0.5
+								ELSE 0.0
+							END as action
+						FROM mp_votes mv
+						JOIN vote_statuses vs ON mv.status_id = vs.id
+						JOIN votes v ON mv.vote_id = v.vote_id
+						WHERE mv.mp_name = ?
+						AND (? IS NULL OR v.vote_date >= ?)
+					`).bind(d.name, d.start_date || null, d.start_date || null).all();
+					
+					let weightedSum = 0;
+					let weightTotal = 0;
+					for (const wv of weightedVotes) {
+						weightedSum += wv.weight * wv.action;
+						weightTotal += wv.weight;
+					}
+					const vkp = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 0;
+					
+					// Законотворча діяльність (з mp_bills)
+					const billStats = await env.radacleaner_db.prepare(`
+						SELECT COUNT(*) as total_bills,
+							SUM(CASE WHEN is_law = 1 THEN 1 ELSE 0 END) as total_laws
+						FROM mp_bills WHERE mp_name = ?
+					`).bind(d.name).first();
+					const totalBills = billStats?.total_bills || 0;
+					const totalLaws = billStats?.total_laws || 0;
+					const conversion = totalBills > 0 ? Math.round((totalLaws / totalBills) * 100) : 0;
+					
+					return { ...d, total, attended, py, pda, vkp, dataSufficient, totalBills, totalLaws, conversion };
 				}));
 
 				return json({ deputies: deputiesWithStats });
