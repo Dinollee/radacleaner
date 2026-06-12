@@ -47,17 +47,8 @@ log = logging.getLogger(__name__)
 
 # === Форматування повідомлень ===
 
-SEVERITY_ORDER = {"High": 0, "Medium": 1, "Low": 2}
-CATEGORY_EMOJI = {
-    "Corruption": "💰",
-    "Budgetary": "💵",
-    "Legal Collision": "⚖️",
-    "Ambiguity": "⚠️",
-    "Civil Rights": "👤",
-    "Power Concentration": "🏛",
-    "Other": "📌",
-}
-SEVERITY_EMOJI = {"High": "🔴", "Medium": "🟠", "Low": "🟡"}
+RISK_LEVEL_EMOJI = {"high": "🔴", "medium": "🟠", "low": "🟡"}
+RISK_LEVEL_UA = {"high": "ВИСОКИЙ", "medium": "СЕРЕДНІЙ", "low": "НИЗЬКИЙ"}
 
 STATUS_MAP = {
     "new": (1, "Зареєстровано"),
@@ -70,7 +61,7 @@ STATUS_MAP = {
 
 
 def format_risk_message(info: dict, data: dict) -> str:
-    """Формує HTML-повідомлення для Telegram з аналізом ризиків."""
+    """Формує HTML-повідомлення для Telegram з аналізом ризиків (Chain of Thought)."""
     bill_number = info["bill_number"]
     title = info["title"]
     status = info["status"]
@@ -92,31 +83,28 @@ def format_risk_message(info: dict, data: dict) -> str:
     lines.append(f"📊 Прогрес: {bar} {step_name}{date_str}")
 
     summary = data.get("summary", "—")
-    lines.append(f"💡 Суть: {summary[:150]}")
+    lines.append(f"💡 Суть: {summary[:200]}")
 
-    risks = data.get("risks", [])
-    if risks:
-        risks_sorted = sorted(
-            risks, key=lambda r: SEVERITY_ORDER.get(r.get("severity", ""), 9)
-        )
-        for risk in risks_sorted[:5]:
-            cat = risk.get("category", "Other")
-            sev = risk.get("severity", "Low")
-            emoji = CATEGORY_EMOJI.get(cat, "📌")
-            sev_icon = SEVERITY_EMOJI.get(sev, "🟡")
-            quote = risk.get("quote", "")[:100]
-            explanation = risk.get("explanation", "")[:120]
-            lines.append(f"{emoji} <b>{cat}</b> {sev_icon} {sev}")
-            if quote:
-                lines.append(f"   📝 «{quote}»")
-            if explanation:
-                lines.append(f"   💬 {explanation}")
-            lines.append("")
+    has_risks = data.get("has_risks", False)
+    risk_level = data.get("risk_level", "low")
+    detailed_risks = data.get("detailed_risks", [])
+
+    if has_risks and detailed_risks:
+        level_icon = RISK_LEVEL_EMOJI.get(risk_level, "🟡")
+        level_name = RISK_LEVEL_UA.get(risk_level, "НЕВІДОМИЙ")
+        lines.append(f"\n{level_icon} <b>Рівень ризику: {level_name}</b>")
+
+        analyzed = data.get("analyzed_chunks", [])
+        if analyzed:
+            lines.append(f"📋 Проаналізовано чанків: {', '.join(str(c) for c in analyzed[:10])}")
+
+        for i, risk in enumerate(detailed_risks[:5], 1):
+            lines.append(f"\n{i}. {risk[:200]}")
     else:
         lines.append("✅ Ризиків не виявлено")
 
     if data.get("insufficient_text"):
-        lines.append("⚠️ <i>Текст обмежений — аналіз може бути неповним</i>")
+        lines.append("\n⚠️ <i>Текст обмежений — аналіз може бути неповним</i>")
 
     return "\n".join(lines)
 
@@ -184,8 +172,11 @@ def process_bill(info: dict, test_mode: bool = False):
 
     from .pdf_utils import get_rada_token
     rada_token = get_rada_token()
-    all_chunks = []
+
+    # Кеш: якщо жоден PDF не змінився — skip all
+    stored_hash = get_stored_hash(bill_id)
     pdf_hashes = []
+    all_texts = []
 
     for doc in docs:
         try:
@@ -196,13 +187,11 @@ def process_bill(info: dict, test_mode: bool = False):
             pdf_hash = md5_hash(data)
             pdf_hashes.append(pdf_hash)
 
-            # Рання перевірка кешу
-            if len(pdf_hashes) == 1:
-                stored_hash = get_stored_hash(bill_id)
-                current_hash = md5_hash("".join(pdf_hashes).encode())
-                if stored_hash and stored_hash == current_hash:
-                    log.info("  Early cache hit (hash=%s) — skipping all", current_hash[:8])
-                    return None, None
+            # Рання перевірка кешу ПІСЛЯ кожного скачування
+            current_hash = md5_hash("".join(pdf_hashes).encode())
+            if stored_hash and stored_hash == current_hash:
+                log.info("  Cache hit after doc %s (hash=%s) — skipping", doc["file_id"], current_hash[:8])
+                return None, None
 
             safe_bn = "".join(
                 c if (c.isalnum() or c in "._-") else "_" for c in str(bill_number)
@@ -214,43 +203,41 @@ def process_bill(info: dict, test_mode: bool = False):
             text = extract_pdf_text(path)
             os.unlink(path)
 
-            doc_type = determine_doc_type(doc.get("type", ""))
-            chunks = chunk_text(text)
+            # Dedup по 120 символах ДО чанкингу — відсікаємо шапки/титули
+            short = text[:120].strip()
+            if short and short in {t[:120].strip() for t in all_texts}:
+                log.info("  Duplicate text from doc %s — skipping", doc["file_id"])
+                continue
 
-            for i, chunk in enumerate(chunks):
-                sec = classify_chunk_section(chunk)
-                all_chunks.append(
-                    {
-                        "bill_id": bill_id,
-                        "reg_number": bill_number,
-                        "doc_type": doc_type,
-                        "chunk_index": i,
-                        "text": chunk,
-                        "section": sec,
-                    }
-                )
+            all_texts.append(text)
         except Exception as e:
             log.warning("  Doc error for file_id=%s: %s: %s", doc.get("file_id"), type(e).__name__, str(e)[:200])
 
-    if not all_chunks:
+    if not all_texts:
         log.info("  No text extracted")
         return None, None
 
-    # Dedup
-    uniq, seen = [], set()
-    for chunk in all_chunks:
-        short = chunk["text"][:120]
-        if short not in seen:
-            seen.add(short)
-            uniq.append(chunk)
-    all_chunks = uniq
+    # Тепер чанкуємо тільки унікальний текст
+    all_chunks = []
+    for text in all_texts:
+        doc_type = determine_doc_type("combined")
+        chunks = chunk_text(text)
+        for i, chunk in enumerate(chunks):
+            sec = classify_chunk_section(chunk)
+            all_chunks.append({
+                "bill_id": bill_id,
+                "reg_number": bill_number,
+                "doc_type": doc_type,
+                "chunk_index": i,
+                "text": chunk,
+                "section": sec,
+            })
 
     all_pdf_hash = md5_hash("".join(pdf_hashes).encode()) if pdf_hashes else None
 
-    # Перевірка кешу після всіх PDF
-    stored_hash = get_stored_hash(bill_id)
+    # Фінальна перевірка кешу
     if stored_hash and stored_hash == all_pdf_hash:
-        log.info("  Cache hit (hash=%s) — skipping LLM", all_pdf_hash[:8])
+        log.info("  Final cache hit (hash=%s) — skipping LLM", all_pdf_hash[:8])
         return None, None
 
     # Зберігаємо чанки в D1

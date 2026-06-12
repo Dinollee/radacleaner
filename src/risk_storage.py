@@ -157,71 +157,49 @@ def find_bills_needing_rag(limit: int = 20) -> list[dict]:
 
 
 def save_risk(document_id: int, data: dict, model: str) -> None:
-    """Зберігає результати LLM-аналізу в risk_assessments."""
-    # Знаходимо bill_id з rag_documents
+    """Зберігає результати LLM-аналізу в risk_assessments (Chain of Thought формат)."""
     rows = d1_query("SELECT bill_id FROM rag_documents WHERE id = ?", [document_id])
     if not rows:
         raise RuntimeError(f"Missing rag_documents row for document_id={document_id}")
     bill_id = rows[0]["bill_id"]
 
-    # Новий формат: risks[] з category, severity, quote, explanation
-    risks = data.get("risks", [])
     summary = data.get("summary", "")
+    law_summary = data.get("law_summary", "")
+    has_risks = data.get("has_risks", False)
+    risk_level = data.get("risk_level", "low")
+    detailed_risks = data.get("detailed_risks", [])
+    analyzed_chunks = data.get("analyzed_chunks", [])
 
-    risks_json = json.dumps(risks, ensure_ascii=False)
-    legislative_risk = {
-        "summary": summary,
-        "risks": [r for r in risks if r.get("category") == "Civil Rights"],
-    }
-    official_power_risk = {
-        "risks": [r for r in risks if r.get("category") == "Power Concentration"]
-    }
-    vague_norms_risk = {
-        "risks": [
-            r for r in risks
-            if r.get("category") in ("Ambiguity", "Legal Collision")
-        ]
-    }
-    economic_risk = {
-        "risks": [r for r in risks if r.get("category") == "Budgetary"]
-    }
-    corruption_risk = {
-        "risks": [r for r in risks if r.get("category") == "Corruption"]
-    }
-
-    if risks:
-        overall_score = (
-            sum(SEVERITY_WEIGHTS.get(r.get("severity", "Low"), 1) for r in risks)
-            / len(risks)
-            * 33.33
-        )
-    else:
-        overall_score = 0.0
+    risk_level_score = {"high": 3, "medium": 2, "low": 1}.get(risk_level, 1)
+    overall_score = risk_level_score * 33.33 if has_risks else 0.0
 
     insufficient = bool(data.get("insufficient_text", False))
-    confidence = 5 if insufficient else min(5, max(1, 6 - len(risks)))
+    confidence = 5 if insufficient else (1 if has_risks else 3)
+
+    json_data = json.dumps(data, ensure_ascii=False)
 
     d1_exec("risk", {
         "document_id": document_id,
         "bill_id": bill_id,
         "model_used": model,
         "overall_score": float(overall_score),
-        "budget_risk": json.dumps(economic_risk, ensure_ascii=False),
-        "legal_risk": json.dumps(vague_norms_risk, ensure_ascii=False),
-        "economic_risk": json.dumps(economic_risk, ensure_ascii=False),
-        "social_risk": json.dumps(legislative_risk, ensure_ascii=False),
-        "corruption_risk": json.dumps(corruption_risk, ensure_ascii=False),
-        "raw_response": json.dumps(data, ensure_ascii=False),
-        "raw_analysis": summary,
-        "json_data": risks_json,
-        "legislative_risk": json.dumps(legislative_risk, ensure_ascii=False),
-        "official_power_risk": json.dumps(official_power_risk, ensure_ascii=False),
-        "vague_norms_risk": json.dumps(vague_norms_risk, ensure_ascii=False),
+        "budget_risk": json.dumps(detailed_risks, ensure_ascii=False),
+        "legal_risk": json.dumps(detailed_risks, ensure_ascii=False),
+        "economic_risk": json.dumps(detailed_risks, ensure_ascii=False),
+        "social_risk": json.dumps(detailed_risks, ensure_ascii=False),
+        "corruption_risk": json.dumps(detailed_risks, ensure_ascii=False),
+        "raw_response": json_data,
+        "raw_analysis": law_summary or summary,
+        "json_data": json_data,
+        "legislative_risk": json.dumps(analyzed_chunks, ensure_ascii=False),
+        "official_power_risk": json.dumps([], ensure_ascii=False),
+        "vague_norms_risk": json.dumps([], ensure_ascii=False),
         "confidence_level": confidence,
         "insufficient_text": insufficient,
     })
 
-    log.info("RISK_SAVED: doc_id=%d bill_id=%d confidence=%d", document_id, bill_id, confidence)
+    log.info("RISK_SAVED: doc_id=%d bill_id=%d has_risks=%s risk_level=%s confidence=%d",
+             document_id, bill_id, has_risks, risk_level, confidence)
 
 
 def mark_notified(bill_ids: list[int]) -> None:

@@ -180,7 +180,7 @@ export default {
 				if (!bill) return error('Bill not found', 404);
 
 				const risks = await env.radacleaner_db.prepare(
-					'SELECT bill_id, model_used, overall_score, budget_risk, legal_risk, economic_risk, social_risk, corruption_risk, legislative_risk, official_power_risk, vague_norms_risk, confidence_level, insufficient_text FROM risk_assessments WHERE bill_id = ?'
+					'SELECT bill_id, model_used, overall_score, budget_risk, legal_risk, economic_risk, social_risk, corruption_risk, legislative_risk, official_power_risk, vague_norms_risk, confidence_level, insufficient_text, raw_analysis, json_data, raw_response FROM risk_assessments WHERE bill_id = ?'
 				).bind(id).first();
 				const { results: versions } = await env.radacleaner_db.prepare(
 					'SELECT id, version_date, status_at_moment, text_hash FROM law_versions WHERE law_id = ? ORDER BY version_date DESC LIMIT 10'
@@ -193,7 +193,7 @@ export default {
 				).bind(id).all();
 
 				const { results: passings } = await env.radacleaner_db.prepare(
-					'SELECT pass_date, title, status FROM bill_passings WHERE bill_id = ? ORDER BY pass_date ASC'
+					'SELECT pass_date, title, status FROM bill_passings WHERE bill_id = ? ORDER BY pass_date DESC'
 				).bind(id).all();
 
 				// Fetch votes with deputy-level details

@@ -79,32 +79,95 @@ def extract_pdf_text(filepath: str) -> str:
     return text
 
 
-def chunk_text(text: str, max_size: int = 600) -> list[str]:
-    """Розбиває текст на смислові чанки.
+RECURSIVE_SEPARATORS = ["\n\n", "\n", " ", ""]
+
+
+def chunk_text(text: str, max_size: int = 600, overlap: int = 100) -> list[str]:
+    """Рекурсивний чанкинг тексту з overlap.
+
+    Ієрархія роздільників: \\n\\n → \\n → пробіл → символ.
+    Кожен чанк намагається закінчитись на межі абзацу/рядка/слова.
+    Overlap забезпечує зв'язність між сусідніми чанками.
 
     Args:
         text: Вхідний текст.
         max_size: Максимальний розмір чанку в символах.
+        overlap: Кількість символів overlap між чанками.
 
     Returns:
         Список чанків тексту.
     """
     text = re.sub(r"\n{3,}", "\n\n", text)
     text = re.sub(r" {2,}", " ", text)
-    paragraphs = [p.strip() for p in text.split("\n") if p.strip() and len(p.strip()) > 15]
+    text = text.strip()
 
+    if not text:
+        return []
+
+    if len(text) <= max_size:
+        return [text]
+
+    return _recursive_split(text, max_size, overlap)
+
+
+def _recursive_split(text: str, max_size: int, overlap: int) -> list[str]:
+    """Рекурсивно ділить текст, намагаючись знайти красивий стик."""
+    if len(text) <= max_size:
+        return [text.strip()] if text.strip() else []
+
+    # Шукаємо роздільник, який є в тексті
+    separator = ""
+    for sep in RECURSIVE_SEPARATORS:
+        if sep in text:
+            separator = sep
+            break
+
+    # Якщо немає жодного роздільника — ріжемо по max_size
+    if not separator:
+        cut = max_size
+        chunk = text[:cut].strip()
+        rest = text[max(0, cut - overlap):].strip()
+        result = []
+        if chunk:
+            result.append(chunk)
+        if rest:
+            result.extend(_recursive_split(rest, max_size, overlap))
+        return result
+
+    parts = text.split(separator)
     chunks: list[str] = []
     current = ""
-    for para in paragraphs:
-        if len(current) + len(para) < max_size:
-            current = (current + "\n" + para) if current else para
+
+    for part in parts:
+        candidate = (current + separator + part) if current else part
+
+        if len(candidate) <= max_size:
+            current = candidate
         else:
-            if current:
+            if current.strip():
                 chunks.append(current.strip())
-            current = para
-    if current and len(current) > 30:
+
+            # Якщо сам part більший за max_size — рекурсивно ділимо
+            if len(part) > max_size:
+                sub_chunks = _recursive_split(part, max_size, overlap)
+                chunks.extend(sub_chunks)
+                current = ""
+            else:
+                # overlap: беремо кінець попереднього чанка
+                if current and overlap > 0:
+                    tail = current[-overlap:]
+                    # Знаходимо межу слова в overlap-вікні
+                    space_idx = tail.find(" ") if " " in tail else -1
+                    if space_idx >= 0:
+                        tail = tail[space_idx + 1:]
+                    current = tail + separator + part
+                else:
+                    current = part
+
+    if current.strip():
         chunks.append(current.strip())
-    return chunks
+
+    return [c for c in chunks if c]
 
 
 def determine_doc_type(doc_name: str) -> str:

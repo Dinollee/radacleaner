@@ -438,16 +438,29 @@ async function showBill(id) {
     const votes = data.votes || [];
     const changes = data.changes || [];
 
-    // Parse risks
+    // Parse risks (Chain of Thought format)
     let risksList = [];
+    let riskLevel = 'low';
+    let hasRisks = false;
+    let analyzedChunks = [];
     if (risks && risks.json_data) {
-      try { risksList = JSON.parse(risks.json_data); } catch(e) {}
+      try {
+        const parsed = JSON.parse(risks.json_data);
+        // New CoT format: { has_risks, risk_level, detailed_risks: [...], analyzed_chunks: [...] }
+        if (parsed.hasOwnProperty('has_risks')) {
+          hasRisks = parsed.has_risks;
+          riskLevel = parsed.risk_level || 'low';
+          risksList = parsed.detailed_risks || [];
+          analyzedChunks = parsed.analyzed_chunks || [];
+        } else if (Array.isArray(parsed)) {
+          // Legacy format: [{category, severity, quote, explanation}]
+          risksList = parsed;
+        }
+      } catch(e) {}
     }
 
-    // Severity summary
-    const highRisks = risksList.filter(r => r.severity === 'High').length;
-    const medRisks = risksList.filter(r => r.severity === 'Medium').length;
-    const lowRisks = risksList.filter(r => r.severity === 'Low').length;
+    const riskLevelEmoji = {high:'🔴',medium:'🟠',low:'🟡'};
+    const riskLevelName = {high:'ВИСОКИЙ',medium:'СЕРЕДНІЙ',low:'НИЗЬКИЙ'};
 
     let html = `
       <div class="detail-panel">
@@ -456,7 +469,7 @@ async function showBill(id) {
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
               ${stageBar(b.stage)}
               ${stageBadge(b.stage)}
-              ${risksList.length ? `<span class="badge badge-${highRisks?'high':medRisks?'medium':'low'}" style="font-size:13px">${risksList.length} ризиків</span>` : '<span class="badge badge-low">Ризиків немає</span>'}
+              ${risksList.length ? `<span class="badge badge-${riskLevel}" style="font-size:13px">${riskLevelEmoji[riskLevel]||'🟡'} ${riskLevelName[riskLevel]||riskLevel} (${risksList.length})</span>` : '<span class="badge badge-low">Ризиків немає</span>'}
             </div>
             <h2 style="font-size:20px;margin-bottom:12px;line-height:1.3">#${b.bill_number} — ${(b.title||'')}</h2>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:13px">
@@ -488,7 +501,7 @@ async function showBill(id) {
     // LLM Summary card
     if (risks && risks.raw_analysis) {
       html += `<div class="card" style="border-left:3px solid var(--blue)">
-        <div class="card-title" style="margin-bottom:8px;color:var(--blue)">📝 Висновок аналізу</div>
+        <div class="card-title" style="margin-bottom:8px;color:var(--blue)">📝 Суть закону</div>
         <p style="font-size:14px;line-height:1.7;color:var(--text)">${risks.raw_analysis}</p>
         <div style="margin-top:8px;font-size:11px;color:var(--text2)">
           Модель: ${risks.model_used||'?'} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}
@@ -496,23 +509,20 @@ async function showBill(id) {
       </div>`;
     }
 
-    // Risk cards
+    // Risk cards (CoT format: detailed_risks is array of strings)
     if (risksList.length) {
-      const severityIcon = {High:'🔴',Medium:'🟠',Low:'🟡'};
-      const categoryNames = {
-        'Corruption':'Корупція','Budgetary':'Бюджет','Legal Collision':'Правовий конфлікт',
-        'Ambiguity':'Невизначеність','Civil Rights':'Права громадян',
-        'Power Concentration':'Концентрація влади','Other':'Інше'
-      };
-      html += `<div class="risk-grid">${risksList.map(r => `
-        <div class="risk-item" style="border-left:3px solid ${r.severity==='High'?'var(--red)':r.severity==='Medium'?'var(--orange)':'var(--yellow)'}">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-            <div class="risk-cat">${categoryNames[r.category]||r.category||'Інше'}</div>
-            <span style="font-size:11px">${severityIcon[r.severity]||''} ${r.severity||'Low'}</span>
-          </div>
-          <div class="risk-quote">«${r.quote||''}»</div>
-          <div class="risk-explanation">${r.explanation||''}</div>
-        </div>`).join('')}</div>`;
+      const levelColor = {high:'var(--red)',medium:'var(--orange)',low:'var(--yellow)'};
+      html += `<div class="card" style="border-left:3px solid ${levelColor[riskLevel]||'var(--yellow)'}">
+        <div class="card-title" style="margin-bottom:8px">${riskLevelEmoji[riskLevel]||'🟡'} Ризики (${riskLevelName[riskLevel]||riskLevel})</div>
+        ${analyzedChunks.length ? `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Проаналізовано чанків: ${analyzedChunks.join(', ')}</div>` : ''}
+        <div style="display:flex;flex-direction:column;gap:10px">
+          ${risksList.map((r, i) => `
+            <div style="padding:8px 12px;background:var(--bg2);border-radius:6px;font-size:13px;line-height:1.5">
+              <span style="color:var(--text2);font-weight:600">${i+1}.</span> ${r}
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
     } else if (risks) {
       html += `<div class="card"><p style="color:var(--green)">✅ Ризиків не виявлено</p></div>`;
     } else {
@@ -528,21 +538,51 @@ async function showBill(id) {
     const passings = data.passings || [];
     if (passings.length) {
       // Current status header
-      html += `<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:14px">
-        <span style="color:var(--text2)">Поточний стан:</span> <strong>${b.current_status||'new'}</strong>
+      html += `<div style="margin-bottom:16px;padding:10px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:15px;display:flex;align-items:center;gap:8px">
+        <span style="color:var(--text2)">Поточний стан:</span> <strong style="color:var(--green)">${b.current_status||'new'}</strong>
+        <span style="margin-left:auto;font-size:12px;color:var(--text2)">${passings.length} кроків</span>
       </div>`;
-      
-      html += `<div style="position:relative;padding-left:24px">`;
-      passings.forEach((p, i) => {
-        const isLast = i === passings.length - 1;
-        const color = isLast ? 'var(--green)' : 'var(--blue)';
-        html += `<div style="position:relative;padding-bottom:${isLast?0:16}px">
-          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:10px">${isLast?'📌':'📋'}</div>
-          ${!isLast ? `<div style="position:absolute;left:-17px;top:18px;width:2px;height:calc(100% - 18px);background:var(--border)"></div>` : ''}
-          <div style="font-size:12px;color:var(--text2)">${formatDate(p.pass_date)}</div>
-          <div style="font-size:14px;margin-top:2px">${p.title}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">${p.status||''}</div>
+
+      // Group passings by status transitions — keep first entry per unique status
+      const statusGroups = [];
+      let lastStatus = null;
+      for (const p of passings) {
+        if (p.status !== lastStatus) {
+          statusGroups.push({ status: p.status, entries: [p] });
+          lastStatus = p.status;
+        } else {
+          statusGroups[statusGroups.length - 1].entries.push(p);
+        }
+      }
+
+      // Render in reverse chronological order (newest status first)
+      html += `<div style="position:relative;padding-left:28px">`;
+      statusGroups.forEach((group, gi) => {
+        const isFirst = gi === 0;
+        const isLast = gi === statusGroups.length - 1;
+        const dotColor = isFirst ? 'var(--green)' : 'var(--blue)';
+        const dotIcon = isFirst ? '📌' : '📋';
+
+        // Status milestone header
+        html += `<div style="position:relative;padding-bottom:${group.entries.length > 1 || !isLast ? 8 : 0}px">
+          <div style="position:absolute;left:-28px;top:2px;width:20px;height:20px;border-radius:50%;background:${dotColor};display:flex;align-items:center;justify-content:center;font-size:11px;box-shadow:0 0 0 3px var(--bg1)">${dotIcon}</div>
+          ${!isLast ? `<div style="position:absolute;left:-19px;top:22px;width:2px;height:calc(100% - 22px);background:var(--border)"></div>` : ''}
+          <div style="font-size:13px;font-weight:600;color:${isFirst ? 'var(--green)' : 'var(--text)'};margin-bottom:4px">${group.status || '—'}</div>
         </div>`;
+
+        // Entries within this status (newest first within group)
+        const sortedEntries = [...group.entries].sort((a, b) => (b.pass_date || '').localeCompare(a.pass_date || ''));
+        sortedEntries.forEach((p, ei) => {
+          const isLastEntry = isLast && ei === sortedEntries.length - 1;
+          const entryLeft = '-14px';
+          html += `<div style="position:relative;padding-left:20px;padding-bottom:${isLastEntry ? 0 : 10}px;${!isLast ? '' : ''}">
+            <div style="position:absolute;left:${entryLeft};top:6px;width:8px;height:8px;border-radius:50%;background:var(--border)"></div>
+            <div style="display:flex;gap:12px;align-items:baseline">
+              <div style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:80px">${formatDate(p.pass_date)}</div>
+              <div style="font-size:13px;color:var(--text)">${p.title}</div>
+            </div>
+          </div>`;
+        });
       });
       html += `</div>`;
     } else {
@@ -558,14 +598,14 @@ async function showBill(id) {
       });
       timeline.push({date: b.updated_at, icon:'📌', text:`Поточний статус: ${b.current_status||'new'}`, color:'var(--green)'});
       timeline.sort((a,b) => (a.date||'').localeCompare(b.date||''));
-      
+
       if (timeline.length) {
-        html += `<div style="position:relative;padding-left:24px">`;
+        html += `<div style="position:relative;padding-left:28px">`;
         timeline.forEach((item, i) => {
           const isLast = i === timeline.length - 1;
-          html += `<div style="position:relative;padding-bottom:${isLast?0:16}px">
-            <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${item.color};display:flex;align-items:center;justify-content:center;font-size:10px">${item.icon}</div>
-            ${!isLast ? `<div style="position:absolute;left:-17px;top:18px;width:2px;height:calc(100% - 18px);background:var(--border)"></div>` : ''}
+          html += `<div style="position:relative;padding-bottom:${isLast?0:12}px">
+            <div style="position:absolute;left:-28px;top:2px;width:18px;height:18px;border-radius:50%;background:${item.color};display:flex;align-items:center;justify-content:center;font-size:10px;box-shadow:0 0 0 3px var(--bg1)">${item.icon}</div>
+            ${!isLast ? `<div style="position:absolute;left:-19px;top:20px;width:2px;height:calc(100% - 20px);background:var(--border)"></div>` : ''}
             <div style="font-size:12px;color:var(--text2)">${formatDate(item.date)}</div>
             <div style="font-size:14px;margin-top:2px">${item.text}</div>
           </div>`;
