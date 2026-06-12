@@ -146,6 +146,10 @@ export default {
 					'SELECT id, bill_id, file_id, doc_type FROM bill_documents WHERE bill_id = ? ORDER BY doc_type'
 				).bind(id).all();
 
+				const { results: passings } = await env.radacleaner_db.prepare(
+					'SELECT pass_date, title, status FROM bill_passings WHERE bill_id = ? ORDER BY pass_date ASC'
+				).bind(id).all();
+
 				// Fetch votes with deputy-level details
 				const { results: votes } = await env.radacleaner_db.prepare(
 					'SELECT vote_id, bill_id, vote_date, title FROM votes WHERE bill_id = ? ORDER BY vote_date ASC'
@@ -158,7 +162,7 @@ export default {
 					vote.deputies = deputies;
 				}
 
-				return json({ bill, risks, versions, changes, votes, documents });
+				return json({ bill, risks, versions, changes, votes, documents, passings });
 			}
 
 			// --- BILL VERSIONS (for diff) ---

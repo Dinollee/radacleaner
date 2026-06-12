@@ -515,44 +515,58 @@ async function showBill(id) {
 
     // === CHRONOLOGY TAB ===
     html += `<div id="tab-chronology" class="bill-tab" style="display:none">`;
-    html += `<div class="card"><div class="card-title" style="margin-bottom:16px">Хронологія подій</div>`;
+    html += `<div class="card"><div class="card-title" style="margin-bottom:16px">Дати та стан проходження</div>`;
 
-    // Build timeline from changes
-    const timeline = [];
-    // Registration
-    if (b.registration_date) {
-      timeline.push({date: b.registration_date, icon:'📋', text:'Зареєстровано у Верховній Раді', color:'var(--blue)'});
-    }
-    // Status changes from change_log
-    changes.forEach(c => {
-      if (c.change_type === 'status_change') {
-        timeline.push({date: c.created_at, icon:'🔄', text:`Статус змінено: ${c.old_value||'new'} → ${c.new_value}`, color:'var(--orange)'});
-      }
-    });
-    // Risk assessment
-    if (risks && risks.assessed_at) {
-      timeline.push({date: risks.assessed_at, icon:'🤖', text:`Проведено LLM-аналіз (${risksList.length} ризиків)`, color:'var(--purple)'});
-    }
-    // Current status
-    timeline.push({date: b.updated_at, icon:'📌', text:`Поточний статус: ${b.current_status||'new'}`, color:'var(--green)'});
-
-    // Sort by date
-    timeline.sort((a,b) => (a.date||'').localeCompare(b.date||''));
-
-    if (timeline.length) {
+    // Use passings from bill_passings table (RADA chronology)
+    const passings = data.passings || [];
+    if (passings.length) {
+      // Current status header
+      html += `<div style="margin-bottom:12px;padding:8px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:14px">
+        <span style="color:var(--text2)">Поточний стан:</span> <strong>${b.current_status||'new'}</strong>
+      </div>`;
+      
       html += `<div style="position:relative;padding-left:24px">`;
-      timeline.forEach((item, i) => {
-        const isLast = i === timeline.length - 1;
+      passings.forEach((p, i) => {
+        const isLast = i === passings.length - 1;
+        const color = isLast ? 'var(--green)' : 'var(--blue)';
         html += `<div style="position:relative;padding-bottom:${isLast?0:16}px">
-          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${item.color};display:flex;align-items:center;justify-content:center;font-size:10px">${item.icon}</div>
+          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:10px">${isLast?'📌':'📋'}</div>
           ${!isLast ? `<div style="position:absolute;left:-17px;top:18px;width:2px;height:calc(100% - 18px);background:var(--border)"></div>` : ''}
-          <div style="font-size:12px;color:var(--text2)">${formatDate(item.date)}</div>
-          <div style="font-size:14px;margin-top:2px">${item.text}</div>
+          <div style="font-size:12px;color:var(--text2)">${formatDate(p.pass_date)}</div>
+          <div style="font-size:14px;margin-top:2px">${p.title}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px">${p.status||''}</div>
         </div>`;
       });
       html += `</div>`;
     } else {
-      html += `<p style="color:var(--text2)">Хронологія відсутня</p>`;
+      // Fallback to change_log if no passings
+      const timeline = [];
+      if (b.registration_date) {
+        timeline.push({date: b.registration_date, icon:'📋', text:'Зареєстровано у Верховній Раді', color:'var(--blue)'});
+      }
+      changes.forEach(c => {
+        if (c.change_type === 'status_change') {
+          timeline.push({date: c.created_at, icon:'🔄', text:`Статус змінено: ${c.old_value||'new'} → ${c.new_value}`, color:'var(--orange)'});
+        }
+      });
+      timeline.push({date: b.updated_at, icon:'📌', text:`Поточний статус: ${b.current_status||'new'}`, color:'var(--green)'});
+      timeline.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+      
+      if (timeline.length) {
+        html += `<div style="position:relative;padding-left:24px">`;
+        timeline.forEach((item, i) => {
+          const isLast = i === timeline.length - 1;
+          html += `<div style="position:relative;padding-bottom:${isLast?0:16}px">
+            <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${item.color};display:flex;align-items:center;justify-content:center;font-size:10px">${item.icon}</div>
+            ${!isLast ? `<div style="position:absolute;left:-17px;top:18px;width:2px;height:calc(100% - 18px);background:var(--border)"></div>` : ''}
+            <div style="font-size:12px;color:var(--text2)">${formatDate(item.date)}</div>
+            <div style="font-size:14px;margin-top:2px">${item.text}</div>
+          </div>`;
+        });
+        html += `</div>`;
+      } else {
+        html += `<p style="color:var(--text2)">Хронологія відсутня</p>`;
+      }
     }
     html += `</div></div>`;
 
