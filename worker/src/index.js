@@ -107,10 +107,14 @@ export default {
 
 				if (useFts) {
 					// FTS5 search: join with bills_fts for fast full-text search
-					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis
+					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis,
+						CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
+						     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
+						     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
+						     ELSE NULL END as risk_level
 						FROM bills_fts fts
 						JOIN bills b ON b.id = fts.rowid
-						LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id
+						LEFT JOIN (SELECT bill_id, 1 as has_analysis, json_data FROM risk_assessments) ra ON ra.bill_id = b.id
 						WHERE bills_fts MATCH ?`;
 					params.push(ftsQuery);
 
@@ -141,7 +145,12 @@ export default {
 				}
 
 				// Non-search query: use LIKE (original path)
-				let query = 'SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis FROM bills b LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1';
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis,
+					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
+					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
+					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
+					     ELSE NULL END as risk_level
+					FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, json_data FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1`;
 
 				if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
 				if (status) { query += ' AND b.current_status = ?'; params.push(status); }
@@ -359,31 +368,16 @@ export default {
 				const dataQuery = `
 					SELECT 
 						m.id, m.name, m.faction, m.start_date,
-						COALESCE(vs_stats.total, 0) as total,
-						COALESCE(vs_stats.attended, 0) as attended,
-						COALESCE(vs_stats.voted, 0) as voted,
-						COALESCE(mb_stats.total_bills, 0) as totalBills,
-						COALESCE(mb_stats.total_laws, 0) as totalLaws
+						COALESCE(m.py, 0) as py,
+						COALESCE(m.pda, 0) as pda,
+						COALESCE(m.vkp, 0) as vkp,
+						COALESCE(m.data_sufficient, 0) as dataSufficient,
+						COALESCE(m.total_votes, 0) as total,
+						COALESCE(m.attended_votes, 0) as attended,
+						COALESCE(m.voted_votes, 0) as voted,
+						COALESCE(m.total_bills, 0) as totalBills,
+						COALESCE(m.total_laws, 0) as totalLaws
 					FROM mps m
-					LEFT JOIN (
-						SELECT 
-							mv.mp_name,
-							COUNT(*) as total,
-							SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
-							SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted
-						FROM mp_votes mv
-						JOIN vote_statuses vs ON mv.status_id = vs.id
-						JOIN votes v ON mv.vote_id = v.vote_id
-						GROUP BY mv.mp_name
-					) vs_stats ON m.name = vs_stats.mp_name
-					LEFT JOIN (
-						SELECT 
-							mp_name,
-							COUNT(*) as total_bills,
-							SUM(CASE WHEN is_law = 1 THEN 1 ELSE 0 END) as total_laws
-						FROM mp_bills
-						GROUP BY mp_name
-					) mb_stats ON m.name = mb_stats.mp_name
 					${whereClause}
 					ORDER BY m.${safeSort} ${order}
 					LIMIT ? OFFSET ?
@@ -398,19 +392,19 @@ export default {
 				]);
 
 				const deputiesWithStats = results.map(d => {
-					const total = d.total || 0;
-					const attended = d.attended || 0;
-					const voted = d.voted || 0;
-					const totalBills = d.totalBills || 0;
-					const totalLaws = d.totalLaws || 0;
-
-					const MIN_VOTES = 5;
-					const dataSufficient = total >= MIN_VOTES;
-					const py = total > 0 ? Math.round((attended / total) * 100) : 0;
-					const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
-					const conversion = totalBills > 0 ? Math.round((totalLaws / totalBills) * 100) : 0;
-
-					return { ...d, py, pda, vkp: 0, dataSufficient, totalBills, totalLaws, conversion };
+					return {
+						...d,
+						py: d.py || 0,
+						pda: d.pda || 0,
+						vkp: d.vkp || 0,
+						dataSufficient: d.dataSufficient || false,
+						total: d.total || 0,
+						attended: d.attended || 0,
+						voted: d.voted || 0,
+						totalBills: d.totalBills || 0,
+						totalLaws: d.totalLaws || 0,
+						conversion: d.totalBills > 0 ? Math.round((d.totalLaws / d.totalBills) * 100) : 0,
+					};
 				});
 
 				return json({ deputies: deputiesWithStats, total: countResult?.total || 0 });

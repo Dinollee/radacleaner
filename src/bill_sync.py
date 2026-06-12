@@ -271,10 +271,10 @@ def process_full_data(data: bytes) -> int:
         if docs:
             for kind in ["source", "workflow"]:
                 for d in docs.get(kind, []) or []:
-                    dtype = d.get("kind", "?")
                     for f in d.get("docFiles", []) or []:
                         file_id = f["id"]
                         fname = f.get("name", "")
+                        dtype = f.get("type") or d.get("kind", "?")
                         d1_exec("raw_sql", {
                             "sql": """INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type)
                                       VALUES (?, ?, ?)""",
