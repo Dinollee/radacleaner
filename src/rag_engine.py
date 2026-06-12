@@ -15,8 +15,8 @@ import sys
 import time
 
 from .config import (
-    GROQ_API_KEY,
-    GROQ_MODEL,
+    LLM_API_KEY,
+    LLM_MODEL,
     RISK_ANALYSIS_PROMPT,
     log,
 )
@@ -304,7 +304,7 @@ def process_bill(info: dict, test_mode: bool = False):
         llm_data["insufficient_text"] = True
 
     try:
-        save_risk(doc_db_id, llm_data, GROQ_MODEL)
+        save_risk(doc_db_id, llm_data, LLM_MODEL)
     except Exception as e:
         log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])
         return None, None
@@ -322,7 +322,7 @@ def process_bill(info: dict, test_mode: bool = False):
     d1_exec("risk", {
         "bill_number": bill_number,
         "overall_score": llm_data.get("overall_score", 0),
-        "model_used": GROQ_MODEL,
+            "model_used": LLM_MODEL,
         "json_data": json.dumps(llm_data, ensure_ascii=False),
         "raw_analysis": analysis_summary,
         "insufficient_text": bool(llm_data.get("insufficient_text", False)),
@@ -352,8 +352,8 @@ def main() -> None:
     test_mode = "--test" in sys.argv
     batch_mode = "--batch" in sys.argv
 
-    if not GROQ_API_KEY:
-        log.error("GROQ_API_KEY не встановлено")
+    if not LLM_API_KEY:
+        log.error("LLM_API_KEY не встановлено")
         return
 
     log.info("=== RAG Monitor %s ===", __import__("datetime").datetime.now())
@@ -432,7 +432,7 @@ def _run_batch(test_mode: bool = False) -> None:
         if arg == "--limit" and i + 1 < len(sys.argv):
             limit = int(sys.argv[i + 1])
 
-    log.info("Batch mode: limit=%d groq_key=%s", limit, bool(GROQ_API_KEY))
+    log.info("Batch mode: limit=%d llm_key=%s", limit, bool(LLM_API_KEY))
 
     rows = d1_query(
         """
@@ -504,7 +504,7 @@ def _run_batch(test_mode: bool = False) -> None:
             llm_data["insufficient_text"] = True
 
         try:
-            save_risk(id_, llm_data, GROQ_MODEL)
+            save_risk(id_, llm_data, LLM_MODEL)
             done += 1
         except Exception as e:
             log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])

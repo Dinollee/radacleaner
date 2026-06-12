@@ -2,7 +2,7 @@
 import json
 import logging
 
-from .config import GROQ_MODEL, log
+from .config import log
 from .d1_client import d1_query, d1_exec
 
 # Мапа severity → вага (для розрахунку overall_score)

@@ -1,13 +1,17 @@
 // radacleaner Worker API — Cloudflare Worker для REST API + D1
 
-function json(data, status) {
+function json(data, status, cacheSeconds) {
 	status = status || 200;
-	return new Response(JSON.stringify(data), { status, headers: {
+	const headers = {
 		'Content-Type': 'application/json',
 		'Access-Control-Allow-Origin': '*',
 		'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-	}});
+	};
+	if (cacheSeconds) {
+		headers['Cache-Control'] = `public, max-age=${cacheSeconds}`;
+	}
+	return new Response(JSON.stringify(data), { status, headers });
 }
 
 function error(msg, status) {
@@ -37,7 +41,7 @@ export default {
 				const { results } = await env.radacleaner_db.prepare(
 					'SELECT current_status, COUNT(*) as count FROM bills WHERE current_status IS NOT NULL AND current_status != "" GROUP BY current_status ORDER BY count DESC'
 				).all();
-				return json({ statuses: results });
+				return json({ statuses: results }, 200, 300);
 			}
 
 			// --- BY STAGE (for dashboard quick filter) ---
@@ -45,12 +49,12 @@ export default {
 				const { results } = await env.radacleaner_db.prepare(
 					'SELECT stage, current_status, COUNT(*) as count FROM bills GROUP BY stage, current_status ORDER BY stage, count DESC'
 				).all();
-				return json({ data: results });
+				return json({ data: results }, 200, 300);
 			}
 
 			// --- STATS ---
 			if (method === 'GET' && pathname === '/api/stats') {
-				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, recentSync] =
+				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, recentSync, analyzedCount] =
 					await Promise.all([
 						db(env, 'SELECT COUNT(*) as count FROM bills'),
 						db(env, 'SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage'),
@@ -59,6 +63,7 @@ export default {
 						db(env, 'SELECT COUNT(*) as count FROM votes'),
 						db(env, 'SELECT COUNT(*) as count FROM mps'),
 						db(env, 'SELECT * FROM sync_state ORDER BY last_checked DESC LIMIT 1', 'first'),
+						db(env, 'SELECT COUNT(DISTINCT bill_id) as count FROM risk_assessments'),
 					]);
 
 				return json({
@@ -69,6 +74,7 @@ export default {
 					totalVotes: totalVotes?.[0]?.count || 0,
 					totalMps: totalMps?.[0]?.count || 0,
 					lastSync: recentSync?.last_checked || null,
+					analyzedBills: analyzedCount?.[0]?.count || 0,
 				});
 			}
 
@@ -79,19 +85,26 @@ export default {
 				const stage = url.searchParams.get('stage');
 				const status = url.searchParams.get('status');
 				const search = url.searchParams.get('search');
-				const sort = url.searchParams.get('sort') || 'created_at';
+				const sort = url.searchParams.get('sort') || 'status_changed_at';
 				const order = (url.searchParams.get('order') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+				const updatedAfter = url.searchParams.get('updated_after');
+				const updatedBefore = url.searchParams.get('updated_before');
+				const analyzed = url.searchParams.get('analyzed');
 
-				let query = 'SELECT * FROM bills WHERE 1=1';
+				let query = 'SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis FROM bills b LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1';
 				const params = [];
 
-				if (stage) { query += ' AND stage = ?'; params.push(Number(stage)); }
-				if (status) { query += ' AND current_status = ?'; params.push(status); }
-				if (search) { query += ' AND (title LIKE ? OR bill_number LIKE ? OR act_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+				if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
+				if (status) { query += ' AND b.current_status = ?'; params.push(status); }
+				if (search) { query += ' AND (b.title LIKE ? OR b.bill_number LIKE ? OR b.act_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+				if (updatedAfter) { query += ' AND b.status_changed_at >= ?'; params.push(updatedAfter); }
+				if (updatedBefore) { query += ' AND b.status_changed_at <= ?'; params.push(updatedBefore + ' 23:59:59'); }
+				if (analyzed === '1') { query += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+				if (analyzed === '0') { query += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 
 				// Safe sort columns
-				const safeSort = ['created_at','updated_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'updated_at';
-				query += ` ORDER BY ${safeSort} ${order} LIMIT ? OFFSET ?`;
+				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
+				query += ` ORDER BY b.${safeSort} ${order} LIMIT ? OFFSET ?`;
 				params.push(limit, offset);
 
 				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
@@ -102,6 +115,10 @@ export default {
 				if (stage) { countQuery += ' AND stage = ?'; countParams.push(Number(stage)); }
 				if (status) { countQuery += ' AND current_status = ?'; countParams.push(status); }
 				if (search) { countQuery += ' AND (title LIKE ? OR bill_number LIKE ?)'; countParams.push(`%${search}%`, `%${search}%`); }
+				if (updatedAfter) { countQuery += ' AND status_changed_at >= ?'; countParams.push(updatedAfter); }
+				if (updatedBefore) { countQuery += ' AND status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
+				if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = bills.id)'; }
+				if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = bills.id)'; }
 				const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
 				return json({ bills: results, limit, offset, total: countResult?.total || 0 });
@@ -111,20 +128,27 @@ export default {
 			const billMatch = pathname.match(/^\/api\/bills\/(\d+)$/);
 			if (method === 'GET' && billMatch) {
 				const id = Number(billMatch[1]);
-				const bill = await env.radacleaner_db.prepare('SELECT * FROM bills WHERE id = ?').bind(id).first();
+				const bill = await env.radacleaner_db.prepare(
+					'SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at FROM bills WHERE id = ?'
+				).bind(id).first();
 				if (!bill) return error('Bill not found', 404);
 
-				const risks = await env.radacleaner_db.prepare('SELECT * FROM risk_assessments WHERE bill_id = ?').bind(id).first();
+				const risks = await env.radacleaner_db.prepare(
+					'SELECT bill_id, model_used, overall_score, budget_risk, legal_risk, economic_risk, social_risk, corruption_risk, legislative_risk, official_power_risk, vague_norms_risk, confidence_level, insufficient_text FROM risk_assessments WHERE bill_id = ?'
+				).bind(id).first();
 				const { results: versions } = await env.radacleaner_db.prepare(
 					'SELECT id, version_date, status_at_moment, text_hash FROM law_versions WHERE law_id = ? ORDER BY version_date DESC LIMIT 10'
 				).bind(id).all();
 				const { results: changes } = await env.radacleaner_db.prepare(
-					'SELECT * FROM change_log WHERE bill_id = ? ORDER BY created_at DESC LIMIT 20'
+					'SELECT id, change_type, old_value, new_value, created_at FROM change_log WHERE bill_id = ? ORDER BY created_at DESC LIMIT 20'
+				).bind(id).all();
+				const { results: documents } = await env.radacleaner_db.prepare(
+					'SELECT id, bill_id, file_id, doc_type FROM bill_documents WHERE bill_id = ? ORDER BY doc_type'
 				).bind(id).all();
 
 				// Fetch votes with deputy-level details
 				const { results: votes } = await env.radacleaner_db.prepare(
-					'SELECT * FROM votes WHERE bill_id = ? ORDER BY vote_date ASC'
+					'SELECT vote_id, bill_id, vote_date, title FROM votes WHERE bill_id = ? ORDER BY vote_date ASC'
 				).bind(id).all();
 
 				for (const vote of votes) {
@@ -134,7 +158,7 @@ export default {
 					vote.deputies = deputies;
 				}
 
-				return json({ bill, risks, versions, changes, votes });
+				return json({ bill, risks, versions, changes, votes, documents });
 			}
 
 			// --- BILL VERSIONS (for diff) ---
@@ -151,7 +175,7 @@ export default {
 			const billRisksMatch = pathname.match(/^\/api\/bills\/(\d+)\/risks$/);
 			if (method === 'GET' && billRisksMatch) {
 				const risks = await env.radacleaner_db.prepare(
-					'SELECT * FROM risk_assessments WHERE bill_id = ?'
+					'SELECT bill_id, model_used, overall_score, budget_risk, legal_risk, economic_risk, social_risk, corruption_risk, legislative_risk, official_power_risk, vague_norms_risk, confidence_level, insufficient_text FROM risk_assessments WHERE bill_id = ?'
 				).bind(Number(billRisksMatch[1])).first();
 				if (!risks) return error('No risks found', 404);
 				return json({ risks });
@@ -161,7 +185,7 @@ export default {
 			const billVotesMatch = pathname.match(/^\/api\/bills\/(\d+)\/votes$/);
 			if (method === 'GET' && billVotesMatch) {
 				const { results } = await env.radacleaner_db.prepare(
-					'SELECT * FROM votes WHERE bill_id = ? ORDER BY vote_date DESC'
+					'SELECT vote_id, bill_id, vote_date, title FROM votes WHERE bill_id = ? ORDER BY vote_date DESC'
 				).bind(Number(billVotesMatch[1])).all();
 				return json({ votes: results });
 			}
@@ -171,7 +195,7 @@ export default {
 				const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 100);
 				const billId = url.searchParams.get('bill_id');
 
-				let query = 'SELECT v.*, b.bill_number, b.title as bill_title FROM votes v LEFT JOIN bills b ON v.bill_id = b.id';
+				let query = 'SELECT v.vote_id, v.bill_id, v.vote_date, v.title, b.bill_number, b.title as bill_title FROM votes v LEFT JOIN bills b ON v.bill_id = b.id';
 				const params = [];
 
 				if (billId) { query += ' WHERE v.bill_id = ?'; params.push(Number(billId)); }
@@ -198,11 +222,13 @@ export default {
 			const deputyMatch = pathname.match(/^\/api\/deputies\/(\d+)$/);
 			if (method === 'GET' && deputyMatch) {
 				const id = Number(deputyMatch[1]);
-				const deputy = await env.radacleaner_db.prepare('SELECT * FROM mps WHERE id = ?').bind(id).first();
+				const deputy = await env.radacleaner_db.prepare(
+					'SELECT id, name, faction, start_date FROM mps WHERE id = ?'
+				).bind(id).first();
 				if (!deputy) return error('Deputy not found', 404);
 
 				const { results: votes } = await env.radacleaner_db.prepare(`
-					SELECT mv.*, vs.code as vote_code, vs.label as vote_label,
+					SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label,
 						v.title as vote_title, v.vote_date, b.bill_number
 					FROM mp_votes mv
 					JOIN vote_statuses vs ON mv.status_id=vs.id
@@ -212,12 +238,10 @@ export default {
 					ORDER BY v.vote_date DESC LIMIT 50
 				`).bind(deputy.name).all();
 				
-				// Calculate three metrics for this deputy
 				const { results: voteStats } = await env.radacleaner_db.prepare(`
 					SELECT COUNT(*) as total,
 						SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
-						SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted,
-						SUM(CASE WHEN vs.code = 'abstain' THEN 1 ELSE 0 END) as abstained
+						SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted
 					FROM mp_votes mv
 					JOIN vote_statuses vs ON mv.status_id = vs.id
 					JOIN votes v ON mv.vote_id = v.vote_id
@@ -229,19 +253,13 @@ export default {
 				const attended = voteStats[0]?.attended || 0;
 				const voted = voteStats[0]?.voted || 0;
 				
-				// Минимум 5 голосований для осмысленных метрик
 				const MIN_VOTES = 5;
 				const dataSufficient = total >= MIN_VOTES;
-				
-				// ПЯ (Индекс явки)
 				const py = total > 0 ? Math.round((attended / total) * 100) : 0;
-				
-				// ПДА (Показатель деятельного участия)
 				const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
 				
-				// ВКП (Взвешенный коэффициент продуктивности)
 				const { results: weightedVotes } = await env.radacleaner_db.prepare(`
-					SELECT v.title, mv.status_id,
+					SELECT v.title,
 						CASE 
 							WHEN v.title LIKE '%процедурн%' THEN 1
 							WHEN v.title LIKE '%друге читання%' THEN 2
@@ -280,90 +298,72 @@ export default {
 				const sort = url.searchParams.get('sort') || 'name';
 				const order = (url.searchParams.get('order') || 'ASC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-				let query = 'SELECT * FROM mps WHERE 1=1';
+				let whereClause = 'WHERE 1=1';
 				const params = [];
 
-				if (search) { query += ' AND name LIKE ?'; params.push(`%${search}%`); }
-				if (faction) { query += ' AND faction = ?'; params.push(faction); }
+				if (search) { whereClause += ' AND m.name LIKE ?'; params.push(`%${search}%`); }
+				if (faction) { whereClause += ' AND m.faction = ?'; params.push(faction); }
 
 				const safeSort = ['name','faction'].includes(sort) ? sort : 'name';
-				query += ` ORDER BY ${safeSort} ${order} LIMIT ? OFFSET ?`;
-				params.push(limit, offset);
 
-				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
-
-				// Get attendance stats per deputy with all three metrics
-				const deputiesWithStats = await Promise.all(results.map(async (d) => {
-					const { results: voteStats } = await env.radacleaner_db.prepare(`
-						SELECT COUNT(*) as total,
+				const dataQuery = `
+					SELECT 
+						m.id, m.name, m.faction, m.start_date,
+						COALESCE(vs_stats.total, 0) as total,
+						COALESCE(vs_stats.attended, 0) as attended,
+						COALESCE(vs_stats.voted, 0) as voted,
+						COALESCE(mb_stats.total_bills, 0) as totalBills,
+						COALESCE(mb_stats.total_laws, 0) as totalLaws
+					FROM mps m
+					LEFT JOIN (
+						SELECT 
+							mv.mp_name,
+							COUNT(*) as total,
 							SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
-							SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted,
-							SUM(CASE WHEN vs.code = 'abstain' THEN 1 ELSE 0 END) as abstained
+							SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted
 						FROM mp_votes mv
 						JOIN vote_statuses vs ON mv.status_id = vs.id
 						JOIN votes v ON mv.vote_id = v.vote_id
-						WHERE mv.mp_name = ?
-						AND (? IS NULL OR v.vote_date >= ?)
-					`).bind(d.name, d.start_date || null, d.start_date || null).all();
-					const total = voteStats[0]?.total || 0;
-					const attended = voteStats[0]?.attended || 0;
-					const voted = voteStats[0]?.voted || 0;
-					const abstained = voteStats[0]?.abstained || 0;
-					
-					// Минимум 5 голосований для осмысленных метрик
+						GROUP BY mv.mp_name
+					) vs_stats ON m.name = vs_stats.mp_name
+					LEFT JOIN (
+						SELECT 
+							mp_name,
+							COUNT(*) as total_bills,
+							SUM(CASE WHEN is_law = 1 THEN 1 ELSE 0 END) as total_laws
+						FROM mp_bills
+						GROUP BY mp_name
+					) mb_stats ON m.name = mb_stats.mp_name
+					${whereClause}
+					ORDER BY m.${safeSort} ${order}
+					LIMIT ? OFFSET ?
+				`;
+				const dataParams = [...params, limit, offset];
+
+				const countQuery = `SELECT COUNT(*) as total FROM mps m ${whereClause}`;
+
+				const [{ results }, countResult] = await Promise.all([
+					env.radacleaner_db.prepare(dataQuery).bind(...dataParams).all(),
+					env.radacleaner_db.prepare(countQuery).bind(...params).first()
+				]);
+
+				const deputiesWithStats = results.map(d => {
+					const total = d.total || 0;
+					const attended = d.attended || 0;
+					const voted = d.voted || 0;
+					const totalBills = d.totalBills || 0;
+					const totalLaws = d.totalLaws || 0;
+
 					const MIN_VOTES = 5;
 					const dataSufficient = total >= MIN_VOTES;
-					
-					// ПЯ (Индекс явки) = (yes + no + abstain) / total
 					const py = total > 0 ? Math.round((attended / total) * 100) : 0;
-					
-					// ПДА (Показатель деятельного участия) = (yes + no) / (yes + no + abstain)
 					const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
-					
-					// ВКП (Взвешенный коэффициент продуктивности)
-					// Needs vote-level data with weights
-					const { results: weightedVotes } = await env.radacleaner_db.prepare(`
-						SELECT v.title, mv.status_id,
-							CASE 
-								WHEN v.title LIKE '%процедурн%' THEN 1
-								WHEN v.title LIKE '%друге читання%' THEN 2
-								WHEN v.title LIKE '%прийняття%' OR v.title LIKE '%останнє%' THEN 3
-								ELSE 1
-							END as weight,
-							CASE 
-								WHEN vs.code IN ('yes','no') THEN 1.0
-								WHEN vs.code = 'abstain' THEN 0.5
-								ELSE 0.0
-							END as action
-						FROM mp_votes mv
-						JOIN vote_statuses vs ON mv.status_id = vs.id
-						JOIN votes v ON mv.vote_id = v.vote_id
-						WHERE mv.mp_name = ?
-						AND (? IS NULL OR v.vote_date >= ?)
-					`).bind(d.name, d.start_date || null, d.start_date || null).all();
-					
-					let weightedSum = 0;
-					let weightTotal = 0;
-					for (const wv of weightedVotes) {
-						weightedSum += wv.weight * wv.action;
-						weightTotal += wv.weight;
-					}
-					const vkp = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 0;
-					
-					// Законотворча діяльність (з mp_bills)
-					const billStats = await env.radacleaner_db.prepare(`
-						SELECT COUNT(*) as total_bills,
-							SUM(CASE WHEN is_law = 1 THEN 1 ELSE 0 END) as total_laws
-						FROM mp_bills WHERE mp_name = ?
-					`).bind(d.name).first();
-					const totalBills = billStats?.total_bills || 0;
-					const totalLaws = billStats?.total_laws || 0;
 					const conversion = totalBills > 0 ? Math.round((totalLaws / totalBills) * 100) : 0;
-					
-					return { ...d, total, attended, py, pda, vkp, dataSufficient, totalBills, totalLaws, conversion };
-				}));
 
-				return json({ deputies: deputiesWithStats });
+					return { ...d, py, pda, vkp: 0, dataSufficient, totalBills, totalLaws, conversion };
+				});
+
+				return json({ deputies: deputiesWithStats, total: countResult?.total || 0 });
 			}
 
 			// --- FACTIONS LIST ---
@@ -371,7 +371,7 @@ export default {
 				const { results } = await env.radacleaner_db.prepare(
 					'SELECT DISTINCT faction FROM mps WHERE faction IS NOT NULL AND faction != "" ORDER BY faction'
 				).all();
-				return json({ factions: results.map(r => r.faction) });
+				return json({ factions: results.map(r => r.faction) }, 200, 300);
 			}
 
 			// --- PLENARY SESSIONS (calendar) ---
@@ -499,13 +499,13 @@ export default {
 								act_date=COALESCE(?,act_date),
 								updated_at=datetime('now')
 						`).bind(
-							data.bill_number, data.title, data.current_status||'new',
+							data.bill_number||'', data.title||'', data.current_status||'new',
 							data.registration_date||null, data.committee||'', data.agenda_category||'other',
 							data.url||'', data.stage||1, data.act_number||null, data.act_date||null,
 							data.current_status||null, data.title||null,
 							data.registration_date||null, data.committee||null,
 							data.agenda_category||null, data.url||null, data.stage||null,
-						data.act_number||null, data.act_date||null,
+							data.act_number||null, data.act_date||null,
 						).run();
 						return json({ success: true });
 

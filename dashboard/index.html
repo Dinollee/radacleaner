@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Страж Демократії — Моніторинг ВРУ</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
 :root {
   --bg: #0a0a12;
@@ -85,6 +87,12 @@ tr.clickable { cursor: pointer; }
 .filters input, .filters select { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
 .filters input { flex: 1; min-width: 200px; }
 .filters select { min-width: 140px; }
+.filters input[type="date"] { min-width: 150px; flex: 0; }
+
+/* Analysis indicator */
+.analysis-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.analysis-dot.analyzed { background: var(--green); box-shadow: 0 0 6px rgba(46,204,113,0.5); }
+.analysis-dot.not-analyzed { background: var(--muted); }
 
 /* Diff */
 .diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -176,15 +184,15 @@ tr.clickable { cursor: pointer; }
     </div>
     <div class="card">
       <div class="card-header"><div class="card-title">Останні зміни</div></div>
-      <div class="table-wrap"><table id="recent-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="recent-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th></tr></thead><tbody></tbody></table></div>
     </div>
   </div>
 
   <!-- BILLS -->
   <div id="sec-bills" class="section">
     <div class="filters">
-      <input type="text" id="bill-search" placeholder="Пошук за номером або назвою..." oninput="loadBills()">
-      <select id="bill-stage" onchange="loadBills()">
+      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою..." oninput="billsOffset=0;loadBills()">
+      <select id="bill-stage" onchange="billsOffset=0;loadBills()">
         <option value="">Всі етапи</option>
         <option value="1">1 — Зареєстровано</option>
         <option value="2">2 — Перше читання</option>
@@ -192,10 +200,17 @@ tr.clickable { cursor: pointer; }
         <option value="4">4 — Підписано</option>
         <option value="5">5 — Відхилено</option>
       </select>
-      <select id="bill-status" onchange="loadBills()"></select>
+      <select id="bill-status" onchange="billsOffset=0;loadBills()"></select>
+      <select id="bill-analyzed" onchange="billsOffset=0;loadBills()">
+        <option value="">Всі</option>
+        <option value="1">✓ З аналізом</option>
+        <option value="0">— Без аналізу</option>
+      </select>
+      <input type="date" id="bill-date-from" title="Зміни з дати" onchange="billsOffset=0;loadBills()">
+      <input type="date" id="bill-date-to" title="Зміни по дату" onchange="billsOffset=0;loadBills()">
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>Дата</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="bills-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -215,9 +230,9 @@ tr.clickable { cursor: pointer; }
   <!-- DEPUTIES -->
   <div id="sec-deputies" class="section">
     <div class="filters">
-      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="loadDeputies()">
-      <select id="dep-faction" onchange="loadDeputies()"></select>
-      <select id="dep-sort" onchange="loadDeputies()">
+      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="depsOffset=0;loadDeputies()">
+      <select id="dep-faction" onchange="depsOffset=0;loadDeputies()"></select>
+      <select id="dep-sort" onchange="depsOffset=0;loadDeputies()">
         <option value="name">За ім'ям</option>
         <option value="conversion">За конверсією ↓</option>
         <option value="py">За ПЯ ↓</option>
@@ -267,7 +282,8 @@ function showSection(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('sec-' + name).classList.add('active');
-  document.querySelector(`nav button[onclick="showSection('${name}')"]`).classList.add('active');
+  const navBtn = document.querySelector(`nav button[onclick="showSection('${name}')"]`);
+  if (navBtn) navBtn.classList.add('active');
   if (name === 'dashboard') loadDashboard();
   if (name === 'bills') loadBills();
   if (name === 'deputies') loadDeputies();
@@ -331,6 +347,7 @@ async function loadDashboard() {
       <div class="stat-card"><div class="stat-label">Підписано</div><div class="stat-value" style="color:var(--green)">${(data.byStage||[]).find(s=>s.stage===4)?.count||0}</div></div>
       <div class="stat-card"><div class="stat-label">Відхилено</div><div class="stat-value" style="color:var(--red)">${(data.byStage||[]).find(s=>s.stage===5)?.count||0}</div></div>
       <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--orange)">${data.highRiskBills||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Проаналізовано LLM</div><div class="stat-value" style="color:var(--blue)">${data.analyzedBills||0}</div></div>
       <div class="stat-card"><div class="stat-label">Голосувань</div><div class="stat-value">${data.totalVotes||0}</div></div>
       <div class="stat-card"><div class="stat-label">Депутатів</div><div class="stat-value">${data.totalMps||0}</div></div>
     `;
@@ -354,13 +371,15 @@ async function loadDashboard() {
 
     // Recent changes
     const tbody = document.querySelector('#recent-table tbody');
-    const bills = await api('/api/bills?limit=10&sort=updated_at&order=DESC');
+    tbody.innerHTML = '<tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>';
+    const bills = await api('/api/bills?limit=10&sort=status_changed_at&order=DESC');
     tbody.innerHTML = (bills.bills||[]).map(b => `<tr class="clickable" onclick="showBill(${b.id})">
       <td><strong>${b.bill_number}</strong></td>
       <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
       <td>${b.current_status||'new'}</td>
       <td>${stageBadge(b.stage)}</td>
       <td>${riskBadge(b.risk_score)}</td>
+      <td><span class="analysis-dot ${b.has_analysis ? 'analyzed' : 'not-analyzed'}" title="${b.has_analysis ? 'Проаналізовано LLM' : 'Не проаналізовано'}"></span></td>
     </tr>`).join('');
   } catch(e) { console.error('Dashboard error:', e); }
 }
@@ -370,15 +389,22 @@ async function loadBills() {
   const search = document.getElementById('bill-search').value;
   const stage = document.getElementById('bill-stage').value;
   const status = document.getElementById('bill-status').value;
-  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}`;
+  const analyzed = document.getElementById('bill-analyzed').value;
+  const dateFrom = document.getElementById('bill-date-from').value;
+  const dateTo = document.getElementById('bill-date-to').value;
+  const tbody = document.querySelector('#bills-table tbody');
+  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
+  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=status_changed_at&order=DESC`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (stage) url += `&stage=${stage}`;
   if (status) url += `&status=${encodeURIComponent(status)}`;
+  if (analyzed) url += `&analyzed=${analyzed}`;
+  if (dateFrom) url += `&updated_after=${dateFrom}`;
+  if (dateTo) url += `&updated_before=${dateTo}`;
   try {
     const data = await api(url);
     billsTotal = data.total || 0;
     document.getElementById('bills-count').textContent = `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}`;
-    const tbody = document.querySelector('#bills-table tbody');
     tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" onclick="showBill(${b.id})">
       <td><strong>${b.bill_number}</strong></td>
       <td>${(b.title||'').substring(0,70)}${b.title?.length>70?'...':''}</td>
@@ -386,9 +412,9 @@ async function loadBills() {
       <td>${stageBadge(b.stage)}</td>
       <td style="font-size:12px;color:var(--text2)">${(b.committee||'').substring(0,40)}</td>
       <td>${riskBadge(b.risk_score)}</td>
-      <td style="font-size:12px;color:var(--text2)">${b.registration_date||''}</td>
+      <td style="font-size:12px"><span class="analysis-dot ${b.has_analysis ? 'analyzed' : 'not-analyzed'}" title="${b.has_analysis ? 'Проаналізовано LLM' : 'Не проаналізовано'}"></span>${formatDate(b.status_changed_at || b.updated_at)}</td>
     </tr>`).join('');
-  } catch(e) { console.error('Bills error:', e); }
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">Помилка: ${e.message}</td></tr>`; console.error('Bills error:', e); }
 }
 function billsPage(d) { billsOffset = Math.max(0, billsOffset + d * PAGE); loadBills(); }
 
@@ -403,56 +429,157 @@ async function showBill(id) {
     const risks = data.risks;
     const versions = data.versions || [];
     const votes = data.votes || [];
+    const changes = data.changes || [];
+
+    // Parse risks
+    let risksList = [];
+    if (risks && risks.json_data) {
+      try { risksList = JSON.parse(risks.json_data); } catch(e) {}
+    }
+
+    // Severity summary
+    const highRisks = risksList.filter(r => r.severity === 'High').length;
+    const medRisks = risksList.filter(r => r.severity === 'Medium').length;
+    const lowRisks = risksList.filter(r => r.severity === 'Low').length;
 
     let html = `
       <div class="detail-panel">
         <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px">
-          <div>
-            <h2 style="font-size:20px;margin-bottom:8px">#${b.bill_number} — ${(b.title||'').substring(0,100)}</h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:300px">
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
               ${stageBar(b.stage)}
               ${stageBadge(b.stage)}
-              ${riskBadge(risks?.overall_score)}
+              ${risksList.length ? `<span class="badge badge-${highRisks?'high':medRisks?'medium':'low'}" style="font-size:13px">${risksList.length} ризиків</span>` : '<span class="badge badge-low">Ризиків немає</span>'}
+            </div>
+            <h2 style="font-size:20px;margin-bottom:12px;line-height:1.3">#${b.bill_number} — ${(b.title||'')}</h2>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;font-size:13px">
+              <div><span style="color:var(--text2)">Статус:</span> <strong>${b.current_status||'new'}</strong></div>
+              <div><span style="color:var(--text2)">Комітет:</span> ${b.committee||'—'}</div>
+              <div><span style="color:var(--text2)">Реєстрація:</span> ${b.registration_date||'—'}</div>
+              <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
+              ${b.act_number ? `<div><span style="color:var(--text2)">Акт:</span> ${b.act_number} від ${b.act_date||'?'}</div>` : ''}
             </div>
           </div>
-          ${b.url ? `<a href="${b.url}" target="_blank" class="back-btn">На сайті ВРУ →</a>` : ''}
-        </div>
-        <div style="margin-top:12px">
-          <div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value">${b.current_status||'new'}</div></div>
-          <div class="detail-row"><div class="detail-label">Комітет</div><div class="detail-value">${b.committee||'—'}</div></div>
-          <div class="detail-row"><div class="detail-label">Дата реєстрації</div><div class="detail-value">${b.registration_date||'—'}</div></div>
-          ${b.act_number ? `<div class="detail-row"><div class="detail-label">Номер акту</div><div class="detail-value">${b.act_number} від ${b.act_date||'?'}</div></div>` : ''}
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            ${b.url ? `<a href="${b.url}" target="_blank" class="back-btn" style="text-decoration:none">📋 Сайт ВРУ</a>` : ''}
+          </div>
         </div>
       </div>`;
 
     // Tabs
     html += `<div class="tabs">
-      <button class="active" onclick="showBillTab(this,'risks')">Ризики</button>
-      <button onclick="showBillTab(this,'versions')">Версії (${versions.length})</button>
-      <button onclick="showBillTab(this,'votes')">Голосування (${votes.length})</button>
+      <button class="active" onclick="showBillTab(this,'analysis')">📊 Аналіз</button>
+      <button onclick="showBillTab(this,'chronology')">📅 Хронологія</button>
+      <button onclick="showBillTab(this,'documents')">📄 Документи (${data.documents?.length||0})</button>
+      <button onclick="showBillTab(this,'versions')">🔄 Версії (${versions.length})</button>
+      <button onclick="showBillTab(this,'votes')">🗳 Голосування (${votes.length})</button>
     </div>`;
 
-    // Risks tab
-    if (risks && risks.json_data) {
-      const risksList = JSON.parse(risks.json_data || '[]');
-      if (risksList.length) {
-        html += `<div id="tab-risks" class="bill-tab"><div class="risk-grid">${risksList.map(r => `
-          <div class="risk-item">
-            <div class="risk-cat">${r.category||'Other'} <span class="badge badge-${(r.severity||'low').toLowerCase()}">${r.severity||'Low'}</span></div>
-            <div class="risk-quote">${r.quote||''}</div>
-            <div class="risk-explanation">${r.explanation||''}</div>
-          </div>`).join('')}</div></div>`;
-      } else {
-        html += `<div id="tab-risks" class="bill-tab"><p style="color:var(--text2)">Ризиків не виявлено</p></div>`;
-      }
-      if (risks.raw_analysis) {
-        html += `<div id="tab-risks" class="bill-tab" style="margin-top:12px"><div class="card"><div class="card-title" style="margin-bottom:8px">Аналіз LLM</div><p style="font-size:14px;line-height:1.6">${risks.raw_analysis}</p></div></div>`;
-      }
-    } else {
-      html += `<div id="tab-risks" class="bill-tab"><p style="color:var(--text2)">Аналіз не проведено</p></div>`;
+    // === ANALYSIS TAB ===
+    html += `<div id="tab-analysis" class="bill-tab">`;
+
+    // LLM Summary card
+    if (risks && risks.raw_analysis) {
+      html += `<div class="card" style="border-left:3px solid var(--blue)">
+        <div class="card-title" style="margin-bottom:8px;color:var(--blue)">📝 Висновок аналізу</div>
+        <p style="font-size:14px;line-height:1.7;color:var(--text)">${risks.raw_analysis}</p>
+        <div style="margin-top:8px;font-size:11px;color:var(--text2)">
+          Модель: ${risks.model_used||'?'} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}
+        </div>
+      </div>`;
     }
 
-    // Versions tab
+    // Risk cards
+    if (risksList.length) {
+      const severityIcon = {High:'🔴',Medium:'🟠',Low:'🟡'};
+      const categoryNames = {
+        'Corruption':'Корупція','Budgetary':'Бюджет','Legal Collision':'Правовий конфлікт',
+        'Ambiguity':'Невизначеність','Civil Rights':'Права громадян',
+        'Power Concentration':'Концентрація влади','Other':'Інше'
+      };
+      html += `<div class="risk-grid">${risksList.map(r => `
+        <div class="risk-item" style="border-left:3px solid ${r.severity==='High'?'var(--red)':r.severity==='Medium'?'var(--orange)':'var(--yellow)'}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <div class="risk-cat">${categoryNames[r.category]||r.category||'Інше'}</div>
+            <span style="font-size:11px">${severityIcon[r.severity]||''} ${r.severity||'Low'}</span>
+          </div>
+          <div class="risk-quote">«${r.quote||''}»</div>
+          <div class="risk-explanation">${r.explanation||''}</div>
+        </div>`).join('')}</div>`;
+    } else if (risks) {
+      html += `<div class="card"><p style="color:var(--green)">✅ Ризиків не виявлено</p></div>`;
+    } else {
+      html += `<div class="card"><p style="color:var(--text2)">Аналіз LLM не проведено</p></div>`;
+    }
+    html += `</div>`;
+
+    // === CHRONOLOGY TAB ===
+    html += `<div id="tab-chronology" class="bill-tab" style="display:none">`;
+    html += `<div class="card"><div class="card-title" style="margin-bottom:16px">Хронологія подій</div>`;
+
+    // Build timeline from changes
+    const timeline = [];
+    // Registration
+    if (b.registration_date) {
+      timeline.push({date: b.registration_date, icon:'📋', text:'Зареєстровано у Верховній Раді', color:'var(--blue)'});
+    }
+    // Status changes from change_log
+    changes.forEach(c => {
+      if (c.change_type === 'status_change') {
+        timeline.push({date: c.created_at, icon:'🔄', text:`Статус змінено: ${c.old_value||'new'} → ${c.new_value}`, color:'var(--orange)'});
+      }
+    });
+    // Risk assessment
+    if (risks && risks.assessed_at) {
+      timeline.push({date: risks.assessed_at, icon:'🤖', text:`Проведено LLM-аналіз (${risksList.length} ризиків)`, color:'var(--purple)'});
+    }
+    // Current status
+    timeline.push({date: b.updated_at, icon:'📌', text:`Поточний статус: ${b.current_status||'new'}`, color:'var(--green)'});
+
+    // Sort by date
+    timeline.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+    if (timeline.length) {
+      html += `<div style="position:relative;padding-left:24px">`;
+      timeline.forEach((item, i) => {
+        const isLast = i === timeline.length - 1;
+        html += `<div style="position:relative;padding-bottom:${isLast?0:16}px">
+          <div style="position:absolute;left:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:${item.color};display:flex;align-items:center;justify-content:center;font-size:10px">${item.icon}</div>
+          ${!isLast ? `<div style="position:absolute;left:-17px;top:18px;width:2px;height:calc(100% - 18px);background:var(--border)"></div>` : ''}
+          <div style="font-size:12px;color:var(--text2)">${formatDate(item.date)}</div>
+          <div style="font-size:14px;margin-top:2px">${item.text}</div>
+        </div>`;
+      });
+      html += `</div>`;
+    } else {
+      html += `<p style="color:var(--text2)">Хронологія відсутня</p>`;
+    }
+    html += `</div></div>`;
+
+    // === DOCUMENTS TAB ===
+    html += `<div id="tab-documents" class="bill-tab" style="display:none">`;
+    const docs = data.documents || [];
+    if (docs.length) {
+      html += `<div class="card"><div class="card-title" style="margin-bottom:12px">Документи законопроєкту</div>`;
+      html += `<div class="table-wrap"><table><thead><tr><th>Тип</th><th>ID файлу</th><th>Посилання</th></tr></thead><tbody>`;
+      const seen = new Set();
+      docs.forEach(d => {
+        const key = `${d.file_id}-${d.doc_type}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        html += `<tr>
+          <td>${d.doc_type||'—'}</td>
+          <td style="font-size:12px;color:var(--text2)">${d.file_id}</td>
+          <td><a href="https://itd.rada.gov.ua/billInfo/Bills/ShowDocument/${d.file_id}" target="_blank" style="color:var(--blue)">Відкрити →</a></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+    } else {
+      html += `<div class="card"><p style="color:var(--text2)">Документи відсутні</p></div>`;
+    }
+    html += `</div>`;
+
+    // === VERSIONS TAB ===
     html += `<div id="tab-versions" class="bill-tab" style="display:none">`;
     if (versions.length >= 2) {
       html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
@@ -468,13 +595,13 @@ async function showBill(id) {
       html += `<div class="diff-container"><div><div class="diff-header">Стара версія</div><div class="diff-panel" id="diff-old"></div></div><div><div class="diff-header">Нова версія</div><div class="diff-panel" id="diff-new"></div></div></div>`;
       window._billVersions = versions;
     } else if (versions.length === 1) {
-      html += `<div class="card"><p style="color:var(--text2)">Є лише одна версія — порівняння неможливе</p><div class="diff-panel" style="margin-top:12px;max-height:400px;overflow-y:auto">${escHtml(versions[0].plain_text||'')}</div></div>`;
+      html += `<div class="card"><div class="card-title" style="margin-bottom:8px">Текст законопроєкту</div><div class="diff-panel" style="max-height:500px;overflow-y:auto">${escHtml(versions[0].plain_text||'')}</div></div>`;
     } else {
       html += `<p style="color:var(--text2)">Версії відсутні</p>`;
     }
     html += `</div>`;
 
-    // Votes tab
+    // === VOTES TAB ===
     html += `<div id="tab-votes" class="bill-tab" style="display:none">`;
     if (votes.length) {
       html += votes.map(v => {
@@ -504,7 +631,7 @@ async function showBill(id) {
         </div>`;
       }).join('');
     } else {
-      html += `<p style="color:var(--text2)">Голосувань не знайдено</p>`;
+      html += `<div class="card"><p style="color:var(--text2)">Голосувань поки немає — законопроєкт на початковій стадії</p></div>`;
     }
     html += `</div>`;
 
@@ -546,6 +673,13 @@ function simpleDiff(text, other, isOld) {
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
 // === DEPUTIES ===
 async function loadDeputies() {
   const search = document.getElementById('dep-search').value;
@@ -557,7 +691,7 @@ async function loadDeputies() {
   if (sort === 'py' || sort === 'pda' || sort === 'vkp') url += `&sort=name`;
   try {
     const data = await api(url);
-    depsTotal = data.deputies?.length || 0;
+    depsTotal = data.total || 0;
     document.getElementById('deputies-count').textContent = `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}`;
     let deps = data.deputies || [];
     if (sort === 'py') deps.sort((a,b) => (b.py||0) - (a.py||0));
@@ -687,6 +821,11 @@ loadDashboard();
 // Load statuses for filter
 api('/api/statuses').then(d => {
   const sel = document.getElementById('bill-status');
+  // Добавляем "Всі закони" первым
+  const allOpt = document.createElement('option');
+  allOpt.value = '';
+  allOpt.textContent = 'Всі закони';
+  sel.appendChild(allOpt);
   (d.statuses||[]).forEach(s => {
     const opt = document.createElement('option');
     opt.value = s.current_status;

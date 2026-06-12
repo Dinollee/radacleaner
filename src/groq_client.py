@@ -1,4 +1,4 @@
-"""Уніфікований Groq LLM клієнт з ретраями."""
+"""Уніфікований LLM клієнт (OpenRouter) з ретраями."""
 import json
 import re
 import time
@@ -6,7 +6,7 @@ import logging
 
 import requests
 
-from .config import GROQ_API_KEY, GROQ_API_URL, GROQ_MODEL, RISK_ANALYSIS_SYSTEM_PROMPT
+from .config import LLM_API_KEY, LLM_API_URL, LLM_MODEL, RISK_ANALYSIS_SYSTEM_PROMPT
 
 log = logging.getLogger(__name__)
 
@@ -19,12 +19,12 @@ def groq_completion(
     max_tokens: int = 1600,
     max_retries: int = 5,
 ) -> dict:
-    """Надіслати запит до Groq API, повернути розпаршений JSON.
+    """Надіслати запит до LLM API (OpenRouter), повернути розпаршений JSON.
 
     Args:
         prompt: Текст запиту (user content).
         system_prompt: System message.
-        model: Модель (за замовчуванням GROQ_MODEL з конфіга).
+        model: Модель (за замовчуванням LLM_MODEL з конфіга).
         temperature: Температура генерації.
         max_tokens: Максимум токенів у відповіді.
         max_retries: Кількість ретраїв при 429 або помилках.
@@ -35,13 +35,15 @@ def groq_completion(
     Raises:
         RuntimeError: Якщо всі ретраї вичерпано або ключ відсутній.
     """
-    if not GROQ_API_KEY:
-        raise RuntimeError("GROQ_API_KEY is not set — перевірте .env або змінні оточення")
+    if not LLM_API_KEY:
+        raise RuntimeError("LLM_API_KEY is not set — перевірте .env або змінні оточення")
 
-    model = model or GROQ_MODEL
+    model = model or LLM_MODEL
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {LLM_API_KEY}",
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/radacleaner",
+        "X-Title": "Radacleaner",
     }
     payload = {
         "model": model,
@@ -57,7 +59,7 @@ def groq_completion(
     for attempt in range(1, max_retries + 1):
         try:
             resp = requests.post(
-                f"{GROQ_API_URL}/chat/completions",
+                f"{LLM_API_URL}/chat/completions",
                 headers=headers,
                 json=payload,
                 timeout=120,

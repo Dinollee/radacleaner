@@ -7,11 +7,11 @@ from unittest.mock import patch, MagicMock
 class TestConfig:
     """Тесты конфігурації."""
 
-    def test_groq_model_is_gpt_oss(self):
-        """Модель має бути gpt-oss-120b."""
-        from src.config import GROQ_MODEL
-        assert GROQ_MODEL == "openai/gpt-oss-120b"
+    def test_llm_model_is_owl_alpha(self):
+        """Модель має бути openrouter/owl-alpha."""
+        from src.config import LLM_MODEL
 
+        assert LLM_MODEL == "openrouter/owl-alpha"
     def test_risk_prompt_has_required_fields(self):
         """Промпт має містити всі обов'язкові поля."""
         from src.config import RISK_ANALYSIS_PROMPT

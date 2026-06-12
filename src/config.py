@@ -24,14 +24,14 @@ SYNC_TOKEN = os.environ.get("CF_SYNC_TOKEN", "")
 D1_API_URL = f"{WORKER_URL}/api/sync"
 D1_QUERY_URL = f"{WORKER_URL}/api/query"
 
-# === Groq (LLM) ===
-GROQ_API_URL = "https://api.groq.com/openai/v1"
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+# === LLM (OpenRouter) ===
+LLM_API_URL = "https://openrouter.ai/api/v1"
+LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/owl-alpha")
 
 
-def get_groq_key() -> str:
-    """Отримує Groq API ключ: спочатку з оточення, потім з .env."""
-    key = os.environ.get("GROQ_API_KEY", "") or os.environ.get("GROQ_TOKEN", "")
+def get_llm_key() -> str:
+    """Отримує OpenRouter API ключ: спочатку з оточення, потім з .env."""
+    key = os.environ.get("OPENROUTER_API_KEY", "") or os.environ.get("LLM_API_KEY", "")
     if key:
         return key.strip()
 
@@ -40,10 +40,10 @@ def get_groq_key() -> str:
         with open(dotenv_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line.startswith("GROQ_API_KEY") or line.startswith("GROQ_TOKEN"):
+                if line.startswith("OPENROUTER_API_KEY") or line.startswith("LLM_API_KEY"):
                     val = line.split("=", 1)[1].strip().strip('"').strip("'")
                     if val:
-                        os.environ["GROQ_API_KEY"] = val
+                        os.environ["OPENROUTER_API_KEY"] = val
                         return val
     except Exception:
         pass
@@ -51,7 +51,7 @@ def get_groq_key() -> str:
     return ""
 
 
-GROQ_API_KEY = get_groq_key()
+LLM_API_KEY = get_llm_key()
 
 # === Telegram ===
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "") or os.environ.get("TG_BOT_TOKEN", "")

@@ -175,6 +175,13 @@ def sync_billinfo_list(data: bytes) -> int:
         if rows:
             log_change(rows[0]["id"], "new", None, "new")
 
+            # Для нових законів ставимо дату реєстрації як status_changed_at
+            if reg_date:
+                d1_exec("raw_sql", {
+                    "sql": "UPDATE bills SET status_changed_at=? WHERE bill_number=?",
+                    "params": [reg_date, bn],
+                })
+
         added += 1
 
     return added
@@ -199,13 +206,24 @@ def process_full_data(data: bytes) -> int:
         if bn not in db_bills:
             continue
 
-        new_status = b.get("currentPhase_title", "").strip()
+        # currentPhase — це об'єкт {status, title, date}, статус в .status
+        phase = b.get("currentPhase") or {}
+        new_status = (phase.get("status") or "").strip()
         new_rubric = b.get("rubric", "").strip()
         new_subject = b.get("subject", "").strip()
         new_url = b.get("url", "").strip()
         new_act_number = (b.get("actNumber") or "").strip() or None
         new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
         db_id, old_status = db_bills[bn]
+
+        # Отримуємо дату останнього проходження з passings
+        passings = b.get("passings", []) or []
+        status_changed_at = None
+        if passings:
+            last_passing = passings[-1]
+            raw_date = last_passing.get("date", "")
+            if raw_date:
+                status_changed_at = raw_date[:10] + " " + raw_date[11:19] if len(raw_date) > 10 else raw_date[:10]
 
         if new_status and new_status != old_status:
             d1_exec("bill", {
@@ -216,6 +234,13 @@ def process_full_data(data: bytes) -> int:
             })
             log_change(db_id, "status_change", old_status, new_status)
             updated += 1
+
+            # При зміні статусу оновлюємо дату
+            if status_changed_at:
+                d1_exec("raw_sql", {
+                    "sql": "UPDATE bills SET status_changed_at=? WHERE bill_number=?",
+                    "params": [status_changed_at, bn],
+                })
 
         if new_rubric:
             d1_exec("raw_sql", {
@@ -232,6 +257,13 @@ def process_full_data(data: bytes) -> int:
             d1_exec("raw_sql", {
                 "sql": "UPDATE bills SET act_number=?, act_date=? WHERE bill_number=?",
                 "params": [new_act_number, new_act_date, bn],
+            })
+
+        # Зберігаємо дату зміни статусу (якщо ще не збережено)
+        if status_changed_at:
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET status_changed_at=? WHERE bill_number=? AND status_changed_at IS NULL",
+                "params": [status_changed_at, bn],
             })
 
         # Document references
