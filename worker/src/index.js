@@ -91,34 +91,80 @@ export default {
 				const updatedBefore = url.searchParams.get('updated_before');
 				const analyzed = url.searchParams.get('analyzed');
 
-				let query = 'SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis FROM bills b LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1';
+				// Use FTS5 for search when available, fall back to LIKE for non-CJK
+				let useFts = false;
+				let ftsQuery = '';
+				if (search) {
+					// Build FTS5 query: match bill_number OR title OR act_number
+					// Prefix match with * for partial word support
+					const terms = search.trim().split(/\s+/).map(t => `"${t}"*`).join(' OR ');
+					ftsQuery = terms;
+					useFts = true;
+				}
+
+				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
 				const params = [];
+
+				if (useFts) {
+					// FTS5 search: join with bills_fts for fast full-text search
+					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis
+						FROM bills_fts fts
+						JOIN bills b ON b.id = fts.rowid
+						LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id
+						WHERE bills_fts MATCH ?`;
+					params.push(ftsQuery);
+
+					if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
+					if (status) { query += ' AND b.current_status = ?'; params.push(status); }
+					if (updatedAfter) { query += ' AND b.status_changed_at >= ?'; params.push(updatedAfter); }
+					if (updatedBefore) { query += ' AND b.status_changed_at <= ?'; params.push(updatedBefore + ' 23:59:59'); }
+					if (analyzed === '1') { query += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+					if (analyzed === '0') { query += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+
+					query += ` ORDER BY b.${safeSort} ${order} LIMIT ? OFFSET ?`;
+					params.push(limit, offset);
+
+					const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
+
+					// COUNT with FTS5
+					let countQuery = `SELECT COUNT(*) as total FROM bills_fts fts JOIN bills b ON b.id = fts.rowid WHERE bills_fts MATCH ?`;
+					const countParams = [ftsQuery];
+					if (stage) { countQuery += ' AND b.stage = ?'; countParams.push(Number(stage)); }
+					if (status) { countQuery += ' AND b.current_status = ?'; countParams.push(status); }
+					if (updatedAfter) { countQuery += ' AND b.status_changed_at >= ?'; countParams.push(updatedAfter); }
+					if (updatedBefore) { countQuery += ' AND b.status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
+					if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+					if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+					const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
+
+					return json({ bills: results, limit, offset, total: countResult?.total || 0, search_engine: 'fts5' });
+				}
+
+				// Non-search query: use LIKE (original path)
+				let query = 'SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis FROM bills b LEFT JOIN (SELECT DISTINCT bill_id, 1 as has_analysis FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1';
 
 				if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
 				if (status) { query += ' AND b.current_status = ?'; params.push(status); }
-				if (search) { query += ' AND (b.title LIKE ? OR b.bill_number LIKE ? OR b.act_number LIKE ?)'; params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
 				if (updatedAfter) { query += ' AND b.status_changed_at >= ?'; params.push(updatedAfter); }
 				if (updatedBefore) { query += ' AND b.status_changed_at <= ?'; params.push(updatedBefore + ' 23:59:59'); }
 				if (analyzed === '1') { query += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 				if (analyzed === '0') { query += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 
-				// Safe sort columns
-				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
 				query += ` ORDER BY b.${safeSort} ${order} LIMIT ? OFFSET ?`;
 				params.push(limit, offset);
 
 				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
 
-				// Also return total count for pagination
-				let countQuery = 'SELECT COUNT(*) as total FROM bills WHERE 1=1';
+				// COUNT using COUNT(*) OVER() window function — single query instead of two
+				let countQuery = 'SELECT COUNT(*) OVER() as total FROM bills b WHERE 1=1';
 				const countParams = [];
-				if (stage) { countQuery += ' AND stage = ?'; countParams.push(Number(stage)); }
-				if (status) { countQuery += ' AND current_status = ?'; countParams.push(status); }
-				if (search) { countQuery += ' AND (title LIKE ? OR bill_number LIKE ?)'; countParams.push(`%${search}%`, `%${search}%`); }
-				if (updatedAfter) { countQuery += ' AND status_changed_at >= ?'; countParams.push(updatedAfter); }
-				if (updatedBefore) { countQuery += ' AND status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
-				if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = bills.id)'; }
-				if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = bills.id)'; }
+				if (stage) { countQuery += ' AND b.stage = ?'; countParams.push(Number(stage)); }
+				if (status) { countQuery += ' AND b.current_status = ?'; countParams.push(status); }
+				if (updatedAfter) { countQuery += ' AND b.status_changed_at >= ?'; countParams.push(updatedAfter); }
+				if (updatedBefore) { countQuery += ' AND b.status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
+				if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+				if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+				countQuery += ` ORDER BY b.${safeSort} ${order} LIMIT 1`;
 				const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
 				return json({ bills: results, limit, offset, total: countResult?.total || 0 });

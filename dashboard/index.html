@@ -191,7 +191,7 @@ tr.clickable { cursor: pointer; }
   <!-- BILLS -->
   <div id="sec-bills" class="section">
     <div class="filters">
-      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою..." oninput="billsOffset=0;loadBills()">
+      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою..." oninput="debouncedLoadBills()">
       <select id="bill-stage" onchange="billsOffset=0;loadBills()">
         <option value="">Всі етапи</option>
         <option value="1">1 — Зареєстровано</option>
@@ -230,7 +230,7 @@ tr.clickable { cursor: pointer; }
   <!-- DEPUTIES -->
   <div id="sec-deputies" class="section">
     <div class="filters">
-      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="depsOffset=0;loadDeputies()">
+      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="debouncedLoadDeputies()">
       <select id="dep-faction" onchange="depsOffset=0;loadDeputies()"></select>
       <select id="dep-sort" onchange="depsOffset=0;loadDeputies()">
         <option value="name">За ім'ям</option>
@@ -276,6 +276,13 @@ tr.clickable { cursor: pointer; }
 const API = 'https://rada-monitor-api.distih.workers.dev';
 let billsOffset = 0, depsOffset = 0, billsTotal = 0, depsTotal = 0;
 const PAGE = 50;
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+const debouncedLoadBills = debounce(() => { billsOffset = 0; loadBills(); }, 300);
+const debouncedLoadDeputies = debounce(() => { depsOffset = 0; loadDeputies(); }, 300);
 
 // === Navigation ===
 function showSection(name) {
