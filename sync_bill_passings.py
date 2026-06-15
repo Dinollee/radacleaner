@@ -13,13 +13,19 @@ from src.config import log
 def sync_passings():
     log.info("=== Синхронізація bill_passings ===")
 
-    with open('/tmp/billinfo-skl9.json', 'r') as f:
-        data = json.load(f, strict=False)
+    with open('/tmp/billinfo-skl9.json', 'rb') as f:
+        raw = f.read().decode('utf-8', errors='replace')
+    import re
+    raw = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', ' ', raw)
+    data = json.loads(raw, strict=False)
 
-    # Отримуємо всі bills з D1
     db_bills = d1_query("SELECT id, bill_number FROM bills")
     bill_map = {str(b['bill_number']): b['id'] for b in db_bills}
     log.info("Bills in D1: %d", len(bill_map))
+
+    existing_rows = d1_query("SELECT bill_id, pass_date, title FROM bill_passings")
+    existing_set = {(r['bill_id'], r['pass_date'][:19], r['title']) for r in existing_rows}
+    log.info("Existing passings: %d", len(existing_set))
 
     inserted = 0
     skipped = 0
@@ -34,24 +40,16 @@ def sync_passings():
         if not passings:
             continue
 
-        # Отримуємо існуючі passings для цього bill
-        existing = d1_query(
-            "SELECT pass_date, title FROM bill_passings WHERE bill_id = ?",
-            [bill_id]
-        )
-        existing_set = {(p['pass_date'][:19], p['title']) for p in existing}
-
         for p in passings:
             raw_date = p.get('date', '')
             if not raw_date:
                 continue
 
-            # Форматуємо дату
             pass_date = raw_date[:10] + ' ' + raw_date[11:19] if len(raw_date) > 10 else raw_date[:10]
             title = p.get('title', '')
             status = p.get('status', '')
 
-            key = (pass_date, title)
+            key = (bill_id, pass_date, title)
             if key in existing_set:
                 skipped += 1
                 continue
