@@ -268,6 +268,7 @@ def process_full_data(data: bytes) -> int:
 
         # Document references
         docs = b.get("documents", {})
+        has_docs = False
         if docs:
             for kind in ["source", "workflow"]:
                 for d in docs.get(kind, []) or []:
@@ -281,9 +282,32 @@ def process_full_data(data: bytes) -> int:
                             "params": [db_id, str(file_id), dtype],
                         })
                         doc_count += 1
+                        has_docs = True
+        if has_docs:
+            queue_for_analysis(db_id, bn)
 
     log.info("Documents indexed: %d", doc_count)
     return updated
+
+
+def queue_for_analysis(db_id: int, bn: str) -> None:
+    """Додає bill в чергу LLM-аналізу (pending_analysis), якщо ще не аналізувався."""
+    existing = d1_query(
+        "SELECT 1 FROM risk_assessments WHERE bill_id=?", [db_id]
+    )
+    if existing:
+        return
+    pending = d1_query(
+        "SELECT 1 FROM pending_analysis WHERE bill_id=? AND status IN ('pending','running')",
+        [db_id],
+    )
+    if pending:
+        return
+    d1_exec("raw_sql", {
+        "sql": """INSERT INTO pending_analysis (bill_id, bill_number, status)
+                  VALUES (?, ?, 'pending')""",
+        "params": [db_id, bn],
+    })
 
 
 def recalc_stages() -> None:
