@@ -617,7 +617,16 @@ export default {
 								economic_risk, social_risk, corruption_risk, raw_response, raw_analysis, json_data,
 								legislative_risk, official_power_risk, vague_norms_risk, confidence_level, insufficient_text)
 							VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-							ON CONFLICT(bill_id) DO UPDATE SET assessed_at=datetime('now')
+							ON CONFLICT(bill_id) DO UPDATE SET
+								document_id=excluded.document_id, model_used=excluded.model_used,
+								overall_score=excluded.overall_score, budget_risk=excluded.budget_risk,
+								legal_risk=excluded.legal_risk, economic_risk=excluded.economic_risk,
+								social_risk=excluded.social_risk, corruption_risk=excluded.corruption_risk,
+								raw_response=excluded.raw_response, raw_analysis=excluded.raw_analysis,
+								json_data=excluded.json_data, legislative_risk=excluded.legislative_risk,
+								official_power_risk=excluded.official_power_risk, vague_norms_risk=excluded.vague_norms_risk,
+								confidence_level=excluded.confidence_level, insufficient_text=excluded.insufficient_text,
+								assessed_at=datetime('now')
 						`).bind(
 							data.document_id||null, billId, data.model_used||'', data.overall_score||0,
 							data.budget_risk||'{}', data.legal_risk||'{}', data.economic_risk||'{}',
