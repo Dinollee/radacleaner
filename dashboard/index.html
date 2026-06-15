@@ -220,7 +220,7 @@ tr.clickable { cursor: pointer; }
   <div class="logo">Страж Демократії <span>ВРУ IX</span></div>
   <nav>
     <button class="active" onclick="showSection('dashboard')">Дашборд</button>
-    <button onclick="showSection('bills')">Законопроєкти</button>
+    <button onclick="showSection('bills')">Закони</button>
     <button onclick="showSection('deputies')">Депутати</button>
     <button onclick="showSection('schedule')">Графік</button>
   </nav>
@@ -231,13 +231,13 @@ tr.clickable { cursor: pointer; }
 
   <!-- DASHBOARD -->
   <div id="sec-dashboard" class="section active">
+    <div class="stats-grid" id="dashboard-stats"></div>
     <div class="card">
-      <div class="card-header"><div class="card-title">⚠️ Потребують уваги</div></div>
-      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Ризик</th><th>Статус</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Останні зміни</div></div>
-      <div class="table-wrap"><table id="recent-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th></tr></thead><tbody></tbody></table></div>
+      <div class="card-header">
+        <div class="card-title">⚠️ Потребують уваги</div>
+        <span style="font-size:12px;color:var(--text2)">Непроцедурні закони зі змінами за останні 120 днів</span>
+      </div>
+      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>Зміна</th></tr></thead><tbody></tbody></table></div>
     </div>
   </div>
 
@@ -412,29 +412,41 @@ function stageBar(current) {
 // === DASHBOARD ===
 async function loadDashboard() {
   try {
-    // Threats (high+medium risk, recent changes)
-    const threats = await api('/api/bills?limit=10&threats=2&sort=status_changed_at&order=DESC');
-    const ttbody = document.querySelector('#threats-table tbody');
-    ttbody.innerHTML = (threats.bills||[]).map(b => `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
-      <td><strong>${b.bill_number}</strong></td>
-      <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
-      <td>${riskBadge(b.risk_level)}</td>
-      <td>${b.current_status||'new'}</td>
-      <td style="font-size:12px">${formatDate(b.status_changed_at || b.updated_at)}</td>
-    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text2)">Загроз поки немає</td></tr>';
+    const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
 
-    // Recent changes (all, excluding procedural)
-    const bills = await api('/api/bills?limit=15&sort=status_changed_at&order=DESC');
-    const tbody = document.querySelector('#recent-table tbody');
-    tbody.innerHTML = (bills.bills||[]).map(b => `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
-      <td><strong>${b.bill_number}</strong></td>
-      <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
-      <td>${b.current_status||'new'}</td>
-      <td>${stageBadge(b.stage)}</td>
-      <td>${riskBadge(b.risk_level)}</td>
-      <td><span class="analysis-dot ${b.has_analysis ? 'analyzed' : 'not-analyzed'}" title="${b.has_analysis ? 'Проаналізовано LLM' : 'Не проаналізовано'}"></span></td>
-    </tr>`).join('');
+    const [stats, threats] = await Promise.all([
+      api('/api/stats'),
+      api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}`),
+    ]);
+
+    const statsEl = document.getElementById('dashboard-stats');
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${stats.totalBills||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Активні (120 днів)</div><div class="stat-value" style="color:var(--blue)">${threats.total||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Проаналізовано</div><div class="stat-value" style="color:var(--green)">${stats.analyzedBills||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div></div>
+      <div class="stat-card"><div class="stat-label">Депутатів</div><div class="stat-value">${stats.totalMps||0}</div></div>
+    `;
+
+    const tbody = document.querySelector('#threats-table tbody');
+    tbody.innerHTML = (threats.bills||[]).map(b => {
+      const age = b.status_changed_at ? daysSince(b.status_changed_at) : null;
+      return `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
+        <td><strong>${b.bill_number}</strong></td>
+        <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
+        <td>${b.current_status||'new'}</td>
+        <td>${stageBadge(b.stage)}</td>
+        <td>${riskBadge(b.risk_level)}</td>
+        <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" style="color:var(--text2)">Активних законів немає</td></tr>';
   } catch(e) { console.error('Dashboard error:', e); }
+}
+
+function daysSince(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
 // === BILLS ===
