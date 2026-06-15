@@ -188,126 +188,105 @@ def sync_billinfo_list(data: bytes) -> int:
 
 
 def process_full_data(data: bytes) -> int:
-    """Обробляє повні дані про законопроекти (billinfo_full) → D1."""
+    """Обробляє повні дані про законопроекти (billinfo_full) → D1.
+
+    3-phase підхід для мінімізації D1 writes:
+    Phase 1: Parse JSON + зібрати зміни (без D1 writes)
+    Phase 2: Batch status updates
+    Phase 3: Batch document inserts (BATCH_DOCS за прохід)
+    Passings/status_changed_at — sync_bill_passings.py
+    """
+    BATCH_DOCS = 500
+
     if isinstance(data, bytes):
         data = data.decode("utf-8", errors="replace")
     data = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", data)
     bills = json.loads(data, strict=False)
 
-    # Отримуємо всі закони з D1
-    db_rows = d1_query("SELECT id, bill_number, current_status FROM bills")
-    db_bills = {row["bill_number"]: (row["id"], row["current_status"]) for row in db_rows}
+    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee FROM bills")
+    db_bills = {row["bill_number"]: row for row in db_rows}
 
-    updated = 0
-    doc_count = 0
+    docs_rows = d1_query("SELECT DISTINCT bill_id FROM bill_documents")
+    bills_with_docs = {r["bill_id"] for r in docs_rows}
+
+    ra_rows = d1_query("SELECT bill_id FROM risk_assessments")
+    bills_analyzed = {r["bill_id"] for r in ra_rows}
+
+    pending_rows = d1_query("SELECT bill_id FROM pending_analysis WHERE status IN ('pending','running')")
+    bills_pending = {r["bill_id"] for r in pending_rows}
+
+    status_updates = []
+    doc_updates = []
 
     for b in bills:
         bn = str(b.get("registrationNumber", "")).strip()
         if bn not in db_bills:
             continue
+        row = db_bills[bn]
+        db_id = row["id"]
 
-        # currentPhase — це об'єкт {status, title, date}, статус в .status
         phase = b.get("currentPhase") or {}
         new_status = (phase.get("status") or "").strip()
+
+        if new_status and new_status != row["current_status"]:
+            new_act = (b.get("actNumber") or "").strip() or None
+            new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
+            status_updates.append((bn, new_status, new_act, new_act_date, db_id, row["current_status"]))
+
         new_rubric = b.get("rubric", "").strip()
-        new_subject = b.get("subject", "").strip()
-        new_url = b.get("url", "").strip()
-        new_act_number = (b.get("actNumber") or "").strip() or None
-        new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
-        db_id, old_status = db_bills[bn]
-
-        # Отримуємо дату останнього проходження з passings
-        passings = b.get("passings", []) or []
-        status_changed_at = None
-        if passings:
-            last_passing = passings[-1]
-            raw_date = last_passing.get("date", "")
-            if raw_date:
-                status_changed_at = raw_date[:10] + " " + raw_date[11:19] if len(raw_date) > 10 else raw_date[:10]
-
-        if new_status and new_status != old_status:
-            d1_exec("bill", {
-                "bill_number": bn,
-                "current_status": new_status,
-                "act_number": new_act_number,
-                "act_date": new_act_date,
-            })
-            log_change(db_id, "status_change", old_status, new_status)
-            updated += 1
-
-            # При зміні статусу оновлюємо дату
-            if status_changed_at:
-                d1_exec("raw_sql", {
-                    "sql": "UPDATE bills SET status_changed_at=? WHERE bill_number=?",
-                    "params": [status_changed_at, bn],
-                })
-
-        if new_rubric:
+        if new_rubric and new_rubric != row.get("agenda_category"):
             d1_exec("raw_sql", {
-                "sql": "UPDATE bills SET agenda_category=? WHERE bill_number=? AND agenda_category='other'",
+                "sql": "UPDATE bills SET agenda_category=? WHERE bill_number=?",
                 "params": [new_rubric, bn],
             })
-        if new_subject:
+
+        new_subject = b.get("subject", "").strip()
+        if new_subject and new_subject != row.get("committee"):
             d1_exec("raw_sql", {
                 "sql": "UPDATE bills SET committee=? WHERE bill_number=?",
                 "params": [new_subject, bn],
             })
 
-        if new_act_number:
-            d1_exec("raw_sql", {
-                "sql": "UPDATE bills SET act_number=?, act_date=? WHERE bill_number=?",
-                "params": [new_act_number, new_act_date, bn],
-            })
+        if db_id in bills_with_docs:
+            continue
 
-        # Зберігаємо дату зміни статусу (якщо ще не збережено)
-        if status_changed_at:
-            d1_exec("raw_sql", {
-                "sql": "UPDATE bills SET status_changed_at=? WHERE bill_number=? AND status_changed_at IS NULL",
-                "params": [status_changed_at, bn],
-            })
-
-        # Document references
         docs = b.get("documents", {})
-        has_docs = False
         if docs:
             for kind in ["source", "workflow"]:
                 for d in docs.get(kind, []) or []:
                     for f in d.get("docFiles", []) or []:
-                        file_id = f["id"]
-                        fname = f.get("name", "")
-                        dtype = f.get("type") or d.get("kind", "?")
-                        d1_exec("raw_sql", {
-                            "sql": """INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type)
-                                      VALUES (?, ?, ?)""",
-                            "params": [db_id, str(file_id), dtype],
-                        })
-                        doc_count += 1
-                        has_docs = True
-        if has_docs:
-            queue_for_analysis(db_id, bn)
+                        if not f.get("id"):
+                            continue
+                        doc_updates.append((db_id, str(f["id"]), f.get("type") or d.get("kind", "?"), bn))
 
-    log.info("Documents indexed: %d", doc_count)
-    return updated
+    for bn, new_status, new_act, new_act_date, db_id, old_status in status_updates:
+        d1_exec("bill", {
+            "bill_number": bn, "current_status": new_status,
+            "act_number": new_act, "act_date": new_act_date,
+        })
+        log_change(db_id, "status_change", old_status, new_status)
 
+    doc_count = 0
+    queued = 0
+    for db_id, file_id, dtype, bn in doc_updates[:BATCH_DOCS]:
+        d1_exec("raw_sql", {
+            "sql": "INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?)",
+            "params": [db_id, file_id, dtype],
+        })
+        doc_count += 1
+        bills_with_docs.add(db_id)
+        if db_id not in bills_analyzed and db_id not in bills_pending:
+            d1_exec("raw_sql", {
+                "sql": "INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES (?, ?, ?)",
+                "params": [db_id, bn, "pending"],
+            })
+            bills_pending.add(db_id)
+            queued += 1
 
-def queue_for_analysis(db_id: int, bn: str) -> None:
-    """Додає bill в чергу LLM-аналізу (pending_analysis), якщо ще не аналізувався."""
-    existing = d1_query(
-        "SELECT 1 FROM risk_assessments WHERE bill_id=?", [db_id]
-    )
-    if existing:
-        return
-    pending = d1_query(
-        "SELECT 1 FROM pending_analysis WHERE bill_id=? AND status IN ('pending','running')",
-        [db_id],
-    )
-    if pending:
-        return
-    d1_exec("raw_sql", {
-        "sql": """INSERT INTO pending_analysis (bill_id, bill_number, status)
-                  VALUES (?, ?, 'pending')""",
-        "params": [db_id, bn],
-    })
+    log.info("Status changes: %d, Documents indexed: %d/%d, Queued for LLM: %d",
+             len(status_updates), doc_count, len(doc_updates), queued)
+    return len(status_updates)
+
 
 
 def recalc_stages() -> None:
