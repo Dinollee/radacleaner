@@ -261,6 +261,9 @@ def process_bill(info: dict, test_mode: bool = False):
     if insufficient:
         llm_data["insufficient_text"] = True
 
+    # Додаємо назву моделі в результат
+    llm_data["model_used"] = LLM_MODEL
+
     # Визначаємо чи процедурний
     is_procedural = llm_data.get("is_procedural", False)
     risk_level = llm_data.get("risk_level")
