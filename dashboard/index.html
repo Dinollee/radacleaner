@@ -548,7 +548,7 @@ async function toggleBillExpand(row, id) {
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;font-size:13px;margin-bottom:12px">
       <div><span style="color:var(--text2)">Статус:</span> <strong>${b.current_status||'new'}</strong></div>
       <div><span style="color:var(--text2)">Комітет:</span> ${b.committee||'—'}</div>
-      <div><span style="color:var(--text2)">Реєстрація:</span> ${b.registration_date||'—'}</div>
+      <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
       <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
       ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${risks.model_used}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
       ${b.url ? `<div><a href="${b.url}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
@@ -825,9 +825,11 @@ function escHtml(s) { const d = document.createElement('div'); d.textContent = s
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d)) return dateStr;
-  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const s = dateStr.replace('T', ' ').slice(0, 10);
+  if (s.length === 10 && s[4] === '-' && s[7] === '-') {
+    return s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4);
+  }
+  return dateStr;
 }
 
 // === DEPUTIES ===
@@ -980,7 +982,7 @@ async function loadSchedule() {
           <td><strong>${b.bill_number}</strong></td>
           <td>${(b.title||'').substring(0,60)}</td>
           <td>${b.current_status||''}</td>
-          <td style="font-size:12px;color:var(--text2)">${b.registration_date||''}</td>
+          <td style="font-size:12px;color:var(--text2)">${formatDate(b.registration_date)||''}</td>
         </tr>`).join('')}</tbody></table></div>`;
     } else {
       ub.innerHTML = '<p style="color:var(--text2)">Закони на голосування поки відсутні</p>';
