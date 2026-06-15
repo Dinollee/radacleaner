@@ -54,7 +54,7 @@ export default {
 
 			// --- STATS ---
 			if (method === 'GET' && pathname === '/api/stats') {
-				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount] =
+				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount, threatHigh, threatMedium, proceduralCount] =
 					await Promise.all([
 						db(env, 'SELECT COUNT(*) as count FROM bills'),
 						db(env, 'SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage'),
@@ -65,18 +65,23 @@ export default {
 						db(env, "SELECT COUNT(*) as count FROM mps WHERE end_date IS NULL OR end_date = ''"),
 						db(env, 'SELECT * FROM sync_state ORDER BY last_checked DESC LIMIT 1', 'first'),
 						db(env, 'SELECT COUNT(DISTINCT bill_id) as count FROM risk_assessments'),
+						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE ra.json_data LIKE '%\"risk_level\": \"high\"%'"),
+						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE ra.json_data LIKE '%\"risk_level\": \"medium\"%'"),
+						db(env, "SELECT COUNT(*) as c FROM bills WHERE agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)')"),
 					]);
 
 				return json({
 					totalBills: totalBills?.[0]?.count || 0,
 					byStage: byStage || [],
-					highRiskBills: highRisk?.[0]?.count || 0,
+					highRiskBills: threatHigh?.[0]?.c || highRisk?.[0]?.count || 0,
+					mediumRiskBills: threatMedium?.[0]?.c || 0,
 					recentChanges: recentChanges?.[0]?.count || 0,
 					totalVotes: totalVotes?.[0]?.count || 0,
 					totalMps: totalMps?.[0]?.count || 0,
 					activeMps: activeMps?.[0]?.count || 0,
 					lastSync: recentSync?.last_checked || null,
 					analyzedBills: analyzedCount?.[0]?.count || 0,
+					proceduralBills: proceduralCount?.[0]?.c || 0,
 				});
 			}
 
@@ -92,29 +97,49 @@ export default {
 				const updatedAfter = url.searchParams.get('updated_after');
 				const updatedBefore = url.searchParams.get('updated_before');
 				const analyzed = url.searchParams.get('analyzed');
+				const threats = url.searchParams.get('threats');
+				// procedural: '' = exclude procedural (default), '1' = include all, 'only' = only procedural
+				const procedural = url.searchParams.get('procedural') || '';
 
-			// Use FTS5 for search — indexes bill_number, title, act_number
-			let useFts = false;
-			let ftsQuery = '';
-			if (search && search.trim()) {
-				// Sanitize: strip chars that unicode61 tokenizer treats as separators (dashes etc)
-				const terms = search.trim().split(/\s+/)
-					.map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/\-]/g, '').trim())
-					.filter(t => t.length > 0)
-					.map(t => `"${t}"*`)
-					.join(' OR ');
-				if (terms) {
-					ftsQuery = terms;
-					useFts = true;
-				}
-			}
+				// Procedural categories to exclude by default
+				const PROCEDURAL_CATEGORIES = ['Організаційні питання', 'Інші (заяви, звернення ВРУ)'];
 
 				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
 				const params = [];
 
+				let whereExtra = '';
+				if (procedural === 'only') {
+					whereExtra = ` AND b.agenda_category IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')})`;
+					params.push(...PROCEDURAL_CATEGORIES);
+				} else if (procedural !== '1') {
+					whereExtra = ` AND (b.agenda_category IS NULL OR b.agenda_category NOT IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')}) OR b.agenda_category = '')`;
+					params.push(...PROCEDURAL_CATEGORIES);
+				}
+
+				let threatExtra = '';
+				if (threats === '1') {
+					threatExtra = ` AND ra.json_data LIKE '%"risk_level": "high"%'`;
+				} else if (threats === '2') {
+					threatExtra = ` AND (ra.json_data LIKE '%"risk_level": "high"%' OR ra.json_data LIKE '%"risk_level": "medium"%')`;
+				}
+
+				// FTS5 search
+				let useFts = false;
+				let ftsQuery = '';
+				if (search && search.trim()) {
+					const terms = search.trim().split(/\s+/)
+						.map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/\-]/g, '').trim())
+						.filter(t => t.length > 0)
+						.map(t => `"${t}"*`)
+						.join(' OR ');
+					if (terms) {
+						ftsQuery = terms;
+						useFts = true;
+					}
+				}
+
 				if (useFts) {
-					// FTS5 search: join with bills_fts for fast full-text search
-					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis,
+					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, ra.has_analysis,
 						CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
 						     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
 						     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
@@ -131,14 +156,15 @@ export default {
 					if (updatedBefore) { query += ' AND b.status_changed_at <= ?'; params.push(updatedBefore + ' 23:59:59'); }
 					if (analyzed === '1') { query += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 					if (analyzed === '0') { query += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+					query += whereExtra;
+					query += threatExtra;
 
 					query += ` ORDER BY b.${safeSort} ${order} LIMIT ? OFFSET ?`;
 					params.push(limit, offset);
 
 					const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
 
-					// COUNT with FTS5
-					let countQuery = `SELECT COUNT(*) as total FROM bills_fts fts JOIN bills b ON b.id = fts.rowid WHERE bills_fts MATCH ?`;
+					let countQuery = `SELECT COUNT(*) as total FROM bills_fts fts JOIN bills b ON b.id = fts.rowid LEFT JOIN (SELECT bill_id, json_data FROM risk_assessments) ra ON ra.bill_id = b.id WHERE bills_fts MATCH ?`;
 					const countParams = [ftsQuery];
 					if (stage) { countQuery += ' AND b.stage = ?'; countParams.push(Number(stage)); }
 					if (status) { countQuery += ' AND b.current_status = ?'; countParams.push(status); }
@@ -146,13 +172,15 @@ export default {
 					if (updatedBefore) { countQuery += ' AND b.status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
 					if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 					if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+					countQuery += whereExtra;
+					countQuery += threatExtra;
 					const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
 					return json({ bills: results, limit, offset, total: countResult?.total || 0, search_engine: 'fts5' });
 				}
 
-				// Non-search query: use LIKE (original path)
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, ra.has_analysis,
+				// Non-search query
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, ra.has_analysis,
 					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
 					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
 					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
@@ -165,14 +193,15 @@ export default {
 				if (updatedBefore) { query += ' AND b.status_changed_at <= ?'; params.push(updatedBefore + ' 23:59:59'); }
 				if (analyzed === '1') { query += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 				if (analyzed === '0') { query += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
+				query += whereExtra;
+				query += threatExtra;
 
 				query += ` ORDER BY b.${safeSort} ${order} LIMIT ? OFFSET ?`;
 				params.push(limit, offset);
 
 				const { results } = await env.radacleaner_db.prepare(query).bind(...params).all();
 
-				// COUNT using COUNT(*) OVER() window function — single query instead of two
-				let countQuery = 'SELECT COUNT(*) OVER() as total FROM bills b WHERE 1=1';
+				let countQuery = `SELECT COUNT(*) as total FROM bills b LEFT JOIN (SELECT bill_id, json_data FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1`;
 				const countParams = [];
 				if (stage) { countQuery += ' AND b.stage = ?'; countParams.push(Number(stage)); }
 				if (status) { countQuery += ' AND b.current_status = ?'; countParams.push(status); }
@@ -180,7 +209,8 @@ export default {
 				if (updatedBefore) { countQuery += ' AND b.status_changed_at <= ?'; countParams.push(updatedBefore + ' 23:59:59'); }
 				if (analyzed === '1') { countQuery += ' AND EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
 				if (analyzed === '0') { countQuery += ' AND NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)'; }
-				countQuery += ` ORDER BY b.${safeSort} ${order} LIMIT 1`;
+				countQuery += whereExtra;
+				countQuery += threatExtra;
 				const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
 				return json({ bills: results, limit, offset, total: countResult?.total || 0 });

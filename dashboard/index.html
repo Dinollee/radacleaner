@@ -232,6 +232,10 @@ tr.clickable { cursor: pointer; }
   <!-- DASHBOARD -->
   <div id="sec-dashboard" class="section active">
     <div class="card">
+      <div class="card-header"><div class="card-title">⚠️ Потребують уваги</div></div>
+      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Ризик</th><th>Статус</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <div class="card">
       <div class="card-header"><div class="card-title">Останні зміни</div></div>
       <div class="table-wrap"><table id="recent-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th></tr></thead><tbody></tbody></table></div>
     </div>
@@ -254,6 +258,16 @@ tr.clickable { cursor: pointer; }
         <option value="">Всі</option>
         <option value="1">✓ З аналізом</option>
         <option value="0">— Без аналізу</option>
+      </select>
+      <select id="bill-threats" onchange="billsOffset=0;loadBills()">
+        <option value="">Всі закони</option>
+        <option value="1">🔴 Високий ризик</option>
+        <option value="2">🔴🟠 Високий + середній</option>
+      </select>
+      <select id="bill-procedural" onchange="billsOffset=0;loadBills()">
+        <option value="">Без процедурних</option>
+        <option value="1">Включити процедурні</option>
+        <option value="only">Тільки процедурні</option>
       </select>
       <input type="date" id="bill-date-from" title="Зміни з дати" onchange="billsOffset=0;loadBills()">
       <input type="date" id="bill-date-to" title="Зміни по дату" onchange="billsOffset=0;loadBills()">
@@ -398,6 +412,18 @@ function stageBar(current) {
 // === DASHBOARD ===
 async function loadDashboard() {
   try {
+    // Threats (high+medium risk, recent changes)
+    const threats = await api('/api/bills?limit=10&threats=2&sort=status_changed_at&order=DESC');
+    const ttbody = document.querySelector('#threats-table tbody');
+    ttbody.innerHTML = (threats.bills||[]).map(b => `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
+      <td><strong>${b.bill_number}</strong></td>
+      <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
+      <td>${riskBadge(b.risk_level)}</td>
+      <td>${b.current_status||'new'}</td>
+      <td style="font-size:12px">${formatDate(b.status_changed_at || b.updated_at)}</td>
+    </tr>`).join('') || '<tr><td colspan="5" style="color:var(--text2)">Загроз поки немає</td></tr>';
+
+    // Recent changes (all, excluding procedural)
     const bills = await api('/api/bills?limit=15&sort=status_changed_at&order=DESC');
     const tbody = document.querySelector('#recent-table tbody');
     tbody.innerHTML = (bills.bills||[]).map(b => `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
@@ -419,6 +445,8 @@ async function loadBills() {
   const stage = document.getElementById('bill-stage').value;
   const status = document.getElementById('bill-status').value;
   const analyzed = document.getElementById('bill-analyzed').value;
+  const threats = document.getElementById('bill-threats').value;
+  const procedural = document.getElementById('bill-procedural').value;
   const dateFrom = document.getElementById('bill-date-from').value;
   const dateTo = document.getElementById('bill-date-to').value;
   const tbody = document.querySelector('#bills-table tbody');
@@ -429,6 +457,8 @@ async function loadBills() {
   if (stage) url += `&stage=${stage}`;
   if (status) url += `&status=${encodeURIComponent(status)}`;
   if (analyzed) url += `&analyzed=${analyzed}`;
+  if (threats) url += `&threats=${threats}`;
+  if (procedural) url += `&procedural=${procedural}`;
   if (dateFrom) url += `&updated_after=${dateFrom}`;
   if (dateTo) url += `&updated_before=${dateTo}`;
   try {
@@ -915,6 +945,8 @@ async function loadHeaderStats() {
     const el = document.getElementById('header-stats');
     el.innerHTML = `
       <div class="header-stat"><div class="header-stat-value">${(data.totalBills||0).toLocaleString()}</div><div class="header-stat-label">Законів</div></div>
+      <div class="header-stat"><div class="header-stat-value" style="color:var(--red)">${data.highRiskBills||0}</div><div class="header-stat-label">🔴 Загрози</div></div>
+      <div class="header-stat"><div class="header-stat-value" style="color:var(--orange)">${data.mediumRiskBills||0}</div><div class="header-stat-label">🟠 Середній</div></div>
       <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${data.activeMps||0}</div><div class="header-stat-label">Депутатів</div></div>
       <div class="header-stat"><div class="header-stat-value">${(data.totalVotes||0).toLocaleString()}</div><div class="header-stat-label">Голосувань</div></div>
       <div class="header-stat"><div class="header-stat-value" style="color:var(--blue)">${data.analyzedBills||0}</div><div class="header-stat-label">LLM</div></div>
