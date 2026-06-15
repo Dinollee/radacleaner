@@ -185,6 +185,7 @@ tr.clickable { cursor: pointer; }
 .vote-block-summary .vc-no { color: var(--red); }
 .vote-block-summary .vc-ab { color: var(--orange); }
 .vote-block-summary .vc-np { color: var(--muted); }
+.vote-bar-seg { height: 100%; transition: width 0.3s; }
 .vote-expand-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
 .vote-block.expanded .vote-expand-hint { color: var(--blue); }
 .vote-factions-inner { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; border-top: 1px solid transparent; }
@@ -642,7 +643,7 @@ async function toggleBillExpand(row, id) {
               <div class="vote-bar-seg" style="width:${barW(v.yes_count)}%;background:var(--green)"></div>
               <div class="vote-bar-seg" style="width:${barW(v.no_count)}%;background:var(--red)"></div>
               <div class="vote-bar-seg" style="width:${barW(v.abstain_count)}%;background:var(--orange)"></div>
-              <div class="vote-bar-seg" style="width:${barW((v.not_present_count||0)+(v.absent_count||0))};background:var(--muted)"></div>
+              <div class="vote-bar-seg" style="width:${barW((v.not_present_count||0)+(v.absent_count||0))}%;background:var(--muted)"></div>
             </div>
             <div class="vote-expand-hint">▼ Депутати (${v.deputies?.length||0})</div>
           </div>
