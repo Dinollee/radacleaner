@@ -128,8 +128,8 @@ tr.clickable { cursor: pointer; }
 .detail-value { font-size: 14px; }
 
 /* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.tabs button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.tabs button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
 .tabs button:hover { color: var(--text); }
 .tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
 
@@ -154,6 +154,8 @@ tr.clickable { cursor: pointer; }
 /* Loading */
 .loading { text-align: center; padding: 40px; color: var(--text2); }
 .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
+.section-loading { text-align: center; padding: 60px 20px; color: var(--text2); }
+.section-loading .spinner { width: 32px; height: 32px; margin-bottom: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Inline bill expansion */
@@ -356,6 +358,17 @@ function showSection(name) {
     expandRow.remove();
     expandedBillId = null;
   }
+  // Show section-level spinner while loading
+  const sectionEl = document.getElementById('sec-' + name);
+  if (sectionEl && (name === 'dashboard' || name === 'bills' || name === 'deputies')) {
+    const cards = sectionEl.querySelectorAll('.card');
+    if (cards.length && !sectionEl.querySelector('.section-loading')) {
+      const loader = document.createElement('div');
+      loader.className = 'section-loading';
+      loader.innerHTML = '<div class="spinner"></div><div>Завантаження...</div>';
+      sectionEl.prepend(loader);
+    }
+  }
   if (name === 'dashboard') loadDashboard();
   if (name === 'bills') loadBills();
   if (name === 'deputies') loadDeputies();
@@ -411,6 +424,7 @@ function stageBar(current) {
 
 // === DASHBOARD ===
 async function loadDashboard() {
+  document.querySelector('#sec-dashboard .section-loading')?.remove();
   try {
     const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
 
@@ -433,7 +447,7 @@ async function loadDashboard() {
       const age = b.status_changed_at ? daysSince(b.status_changed_at) : null;
       return `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
         <td><strong>${b.bill_number}</strong></td>
-        <td>${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
+        <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
         <td>${b.current_status||'new'}</td>
         <td>${stageBadge(b.stage)}</td>
         <td>${riskBadge(b.risk_level)}</td>
@@ -453,6 +467,7 @@ function daysSince(dateStr) {
 let expandedBillId = null;
 
 async function loadBills() {
+  document.querySelector('#sec-bills .section-loading')?.remove();
   const search = document.getElementById('bill-search').value;
   const stage = document.getElementById('bill-stage').value;
   const status = document.getElementById('bill-status').value;
@@ -479,7 +494,7 @@ async function loadBills() {
     document.getElementById('bills-count').textContent = `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}`;
     tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" data-bill-id="${b.id}" onclick="toggleBillExpand(this,${b.id})">
       <td><strong>${b.bill_number}</strong></td>
-      <td>${(b.title||'').substring(0,70)}${b.title?.length>70?'...':''}</td>
+      <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,70)}${b.title?.length>70?'...':''}</td>
       <td>${b.current_status||'new'}</td>
       <td>${stageBadge(b.stage)}</td>
       <td style="font-size:12px;color:var(--text2)">${(b.committee||'').substring(0,40)}</td>
@@ -834,6 +849,7 @@ function formatDate(dateStr) {
 
 // === DEPUTIES ===
 async function loadDeputies() {
+  document.querySelector('#sec-deputies .section-loading')?.remove();
   const search = document.getElementById('dep-search').value;
   const faction = document.getElementById('dep-faction').value;
   const sort = document.getElementById('dep-sort').value;
@@ -980,7 +996,7 @@ async function loadSchedule() {
       ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
         <tr class="clickable" onclick="goToBill(${b.id})">
           <td><strong>${b.bill_number}</strong></td>
-          <td>${(b.title||'').substring(0,60)}</td>
+          <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,60)}</td>
           <td>${b.current_status||''}</td>
           <td style="font-size:12px;color:var(--text2)">${formatDate(b.registration_date)||''}</td>
         </tr>`).join('')}</tbody></table></div>`;
