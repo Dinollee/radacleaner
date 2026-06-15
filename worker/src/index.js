@@ -91,16 +91,21 @@ export default {
 				const updatedBefore = url.searchParams.get('updated_before');
 				const analyzed = url.searchParams.get('analyzed');
 
-				// Use FTS5 for search when available, fall back to LIKE for non-CJK
-				let useFts = false;
-				let ftsQuery = '';
-				if (search) {
-					// Build FTS5 query: match bill_number OR title OR act_number
-					// Prefix match with * for partial word support
-					const terms = search.trim().split(/\s+/).map(t => `"${t}"*`).join(' OR ');
+			// Use FTS5 for search — indexes bill_number, title, act_number
+			let useFts = false;
+			let ftsQuery = '';
+			if (search && search.trim()) {
+				// Sanitize: strip chars that unicode61 tokenizer treats as separators (dashes etc)
+				const terms = search.trim().split(/\s+/)
+					.map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/\-]/g, '').trim())
+					.filter(t => t.length > 0)
+					.map(t => `"${t}"*`)
+					.join(' OR ');
+				if (terms) {
 					ftsQuery = terms;
 					useFts = true;
 				}
+			}
 
 				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
 				const params = [];
