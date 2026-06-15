@@ -172,6 +172,38 @@ tr.clickable { cursor: pointer; }
 .vote-deputy-faction { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
 .bill-expand-tab { padding-top: 4px; }
 
+/* Vote block (best.html pattern) */
+.vote-block { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
+.vote-block:hover { border-color: rgba(74,158,255,0.3); }
+.vote-block.expanded { border-color: var(--blue); }
+.vote-block-header { padding: 14px 16px; cursor: pointer; }
+.vote-block-header:hover { background: var(--hover); }
+.vote-block-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+.vote-block-summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+.vote-block-summary .vc { white-space: nowrap; }
+.vote-block-summary .vc-za { color: var(--green); }
+.vote-block-summary .vc-no { color: var(--red); }
+.vote-block-summary .vc-ab { color: var(--orange); }
+.vote-block-summary .vc-np { color: var(--muted); }
+.vote-expand-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.vote-block.expanded .vote-expand-hint { color: var(--blue); }
+.vote-factions-inner { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; border-top: 1px solid transparent; }
+.vote-block.expanded .vote-factions-inner { max-height: 5000px; border-top-color: var(--border); }
+.deputies-filter { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.filter-btn { padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 11px; cursor: pointer; transition: all 0.2s; }
+.filter-btn:hover { border-color: var(--blue); color: var(--text); }
+.filter-btn.active { background: rgba(74,158,255,0.15); border-color: var(--blue); color: var(--blue); }
+.deputies-list { padding: 4px 14px 10px; }
+.deputy-row { display: flex; align-items: center; padding: 5px 8px; gap: 8px; border-radius: 6px; font-size: 13px; }
+.deputy-row:hover { background: var(--hover); }
+.deputy-row .dep-name { flex: 1; }
+.deputy-row .dep-faction { font-size: 11px; color: var(--text2); }
+.deputy-row .dep-vote { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.deputy-row .dep-vote.v-za { background: rgba(46,204,113,0.15); color: var(--green); }
+.deputy-row .dep-vote.v-no { background: rgba(231,76,60,0.15); color: var(--red); }
+.deputy-row .dep-vote.v-ab { background: rgba(243,156,18,0.15); color: var(--orange); }
+.deputy-row .dep-vote.v-np { background: rgba(90,106,133,0.15); color: var(--muted); }
+
 /* Responsive */
 @media (max-width: 768px) {
   .diff-container { grid-template-columns: 1fr; }
@@ -593,39 +625,49 @@ async function toggleBillExpand(row, id) {
     // === TAB: Голосування ===
     html += `<div id="bill-tab-${id}-votes" class="bill-expand-tab" style="display:none">`;
     if (votes.length) {
-      votes.forEach(v => {
-        const total = (v.yes_count||0)+(v.no_count||0)+(v.abstain_count||0)+(v.not_present_count||0)+(v.absent_count||0);
-        const yesPct = total ? (v.yes_count/total*100) : 0;
-        const noPct = total ? (v.no_count/total*100) : 0;
-        const absPct = total ? (v.abstain_count/total*100) : 0;
-        const npPct = total ? ((v.not_present_count+v.absent_count)/total*100) : 0;
-        html += `<div style="background:var(--bg);border-radius:6px;padding:10px 12px;margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span style="font-size:13px;font-weight:600">${v.title||'Голосування'}</span>
-            <span style="font-size:11px;color:var(--text2)">${v.vote_date||''}</span>
+      votes.forEach((v, vi) => {
+        const total = (v.yes_count||0)+(v.no_count||0)+(v.abstain_count||0)+(v.not_present_count||0)+(v.absent_count||0) || 1;
+        const barW = p => Math.max(0, Math.round(p/total*100));
+        html += `<div class="vote-block" data-vi="${vi}">
+          <div class="vote-block-header" onclick="toggleVoteBlock(this)">
+            <div class="vote-block-title">${v.title||'Голосування'}</div>
+            <div class="vote-block-summary">
+              <span class="vc vc-za">✅ ${v.yes_count} За</span>
+              <span class="vc vc-no">❌ ${v.no_count} Проти</span>
+              <span class="vc vc-ab">⏸️ ${v.abstain_count} Утр</span>
+              <span class="vc vc-np">⬜ ${(v.not_present_count||0)+(v.absent_count||0)} Відсутні</span>
+              <span style="font-size:11px;color:var(--text2);margin-left:auto">${v.vote_date||''}</span>
+            </div>
+            <div class="vote-bar" style="height:10px">
+              <div class="vote-bar-seg" style="width:${barW(v.yes_count)}%;background:var(--green)"></div>
+              <div class="vote-bar-seg" style="width:${barW(v.no_count)}%;background:var(--red)"></div>
+              <div class="vote-bar-seg" style="width:${barW(v.abstain_count)}%;background:var(--orange)"></div>
+              <div class="vote-bar-seg" style="width:${barW((v.not_present_count||0)+(v.absent_count||0))};background:var(--muted)"></div>
+            </div>
+            <div class="vote-expand-hint">▼ Депутати (${v.deputies?.length||0})</div>
           </div>
-          <div class="vote-bar" style="height:20px">
-            <div class="yes" style="width:${yesPct}%" title="За: ${v.yes_count}"></div>
-            <div class="no" style="width:${noPct}%" title="Проти: ${v.no_count}"></div>
-            <div class="abstain" style="width:${absPct}%" title="Утрималися: ${v.abstain_count}"></div>
-            <div class="not-present" style="width:${npPct}%" title="Не голосували: ${(v.not_present_count||0)+(v.absent_count||0)}"></div>
-          </div>
-          <div style="display:flex;gap:12px;margin-top:6px;font-size:12px;color:var(--text2)">
-            <span style="color:var(--green)">За: ${v.yes_count}</span>
-            <span style="color:var(--red)">Проти: ${v.no_count}</span>
-            <span style="color:var(--orange)">Утрим: ${v.abstain_count}</span>
-            <span>Відсутні: ${(v.not_present_count||0)+(v.absent_count||0)}</span>
-          </div>`;
+          <div class="vote-factions-inner">`;
         if (v.deputies && v.deputies.length) {
-          html += `<div class="vote-deputies-toggle" onclick="toggleVoteDeputies(this, event)">▶ Депутати (${v.deputies.length})</div>`;
-          html += `<div class="vote-deputy-list" style="display:none"><table><tbody>`;
+          html += `<div class="deputies-filter">
+            <button class="filter-btn active" onclick="filterBillDeputies(this,'all')">Всі (${v.deputies.length})</button>
+            <button class="filter-btn" onclick="filterBillDeputies(this,'za')">За (${v.yes_count})</button>
+            <button class="filter-btn" onclick="filterBillDeputies(this,'no')">Проти (${v.no_count})</button>
+            <button class="filter-btn" onclick="filterBillDeputies(this,'ab')">Утримались (${v.abstain_count})</button>
+            <button class="filter-btn" onclick="filterBillDeputies(this,'np')">Відсутні (${(v.not_present_count||0)+(v.absent_count||0)})</button>
+          </div>`;
+          html += `<div class="deputies-list">`;
           v.deputies.forEach(d => {
-            const color = d.vote_code === 'yes' ? 'var(--green)' : d.vote_code === 'no' ? 'var(--red)' : d.vote_code === 'abstain' ? 'var(--orange)' : 'var(--muted)';
-            html += `<tr><td><span class="vote-deputy-faction" style="background:${factionColor(d.mp_faction)}"></span>${d.mp_name}</td><td style="color:${color};font-weight:500">${d.vote_label||d.vote_code}</td></tr>`;
+            const vc = d.vote_code === 'yes' ? 'za' : d.vote_code === 'no' ? 'no' : d.vote_code === 'abstain' ? 'ab' : 'np';
+            const vlabel = d.vote_code === 'yes' ? '✅ За' : d.vote_code === 'no' ? '❌ Проти' : d.vote_code === 'abstain' ? '⏸️ Утримався' : '⬜ Відсутній';
+            html += `<div class="deputy-row" data-vc="${vc}">
+              <span class="dep-name"><span class="vote-deputy-faction" style="background:${factionColor(d.mp_faction)}"></span>${d.mp_name}</span>
+              <span class="dep-faction">${d.mp_faction||''}</span>
+              <span class="dep-vote v-${vc}">${vlabel}</span>
+            </div>`;
           });
-          html += `</tbody></table></div>`;
+          html += `</div>`;
         }
-        html += `</div>`;
+        html += `</div></div>`;
       });
     } else {
       html += `<p style="color:var(--text2)">Голосувань поки немає</p>`;
@@ -680,12 +722,22 @@ function closeBillExpand() {
   expandedBillId = null;
 }
 
-function toggleVoteDeputies(el, e) {
-  e.stopPropagation();
-  const list = el.nextElementSibling;
-  const isHidden = list.style.display === 'none';
-  list.style.display = isHidden ? 'block' : 'none';
-  el.textContent = (isHidden ? '▼' : '▶') + el.textContent.substring(1);
+function toggleVoteBlock(header) {
+  const block = header.closest('.vote-block');
+  block.classList.toggle('expanded');
+}
+
+function filterBillDeputies(btn, type) {
+  const wrap = btn.closest('.vote-factions-inner');
+  wrap.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  wrap.querySelectorAll('.deputy-row').forEach(row => {
+    if (type === 'all') {
+      row.style.display = '';
+    } else {
+      row.style.display = row.dataset.vc === type ? '' : 'none';
+    }
+  });
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
