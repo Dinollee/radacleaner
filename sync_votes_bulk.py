@@ -6,6 +6,7 @@ Usage:
     python sync_votes_bulk.py --limit 100 — максимум законів для перевірки
     python sync_votes_bulk.py --resume  — продовжити звідки зупинились
 """
+import os
 import re
 import sys
 import time
@@ -15,7 +16,7 @@ from src.config import log
 from src.d1_client import d1_query
 from sync_votes import parse_vote_page, save_vote, find_g_ids
 
-PROGRESS_FILE = "/home/radamon/.vote_sync_progress.txt"
+PROGRESS_FILE = os.path.join(os.path.dirname(__file__), ".vote_sync_progress.txt")
 
 
 def get_bills_to_check(limit=None):

@@ -54,7 +54,7 @@ export default {
 
 			// --- STATS ---
 			if (method === 'GET' && pathname === '/api/stats') {
-				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, recentSync, analyzedCount] =
+				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount] =
 					await Promise.all([
 						db(env, 'SELECT COUNT(*) as count FROM bills'),
 						db(env, 'SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage'),
@@ -62,6 +62,7 @@ export default {
 						db(env, "SELECT COUNT(*) as count FROM change_log WHERE created_at > datetime('now', '-7 days')"),
 						db(env, 'SELECT COUNT(*) as count FROM votes'),
 						db(env, 'SELECT COUNT(*) as count FROM mps'),
+						db(env, "SELECT COUNT(*) as count FROM mps WHERE end_date IS NULL OR end_date = ''"),
 						db(env, 'SELECT * FROM sync_state ORDER BY last_checked DESC LIMIT 1', 'first'),
 						db(env, 'SELECT COUNT(DISTINCT bill_id) as count FROM risk_assessments'),
 					]);
@@ -73,6 +74,7 @@ export default {
 					recentChanges: recentChanges?.[0]?.count || 0,
 					totalVotes: totalVotes?.[0]?.count || 0,
 					totalMps: totalMps?.[0]?.count || 0,
+					activeMps: activeMps?.[0]?.count || 0,
 					lastSync: recentSync?.last_checked || null,
 					analyzedBills: analyzedCount?.[0]?.count || 0,
 				});
@@ -210,10 +212,21 @@ export default {
 					'SELECT pass_date, title, status FROM bill_passings WHERE bill_id = ? ORDER BY pass_date DESC'
 				).bind(id).all();
 
-				// Fetch votes with deputy-level details
-				const { results: votes } = await env.radacleaner_db.prepare(
-					'SELECT vote_id, bill_id, vote_date, title FROM votes WHERE bill_id = ? ORDER BY vote_date ASC'
-				).bind(id).all();
+				// Fetch votes with counts and deputy-level details
+				const { results: votes } = await env.radacleaner_db.prepare(`
+					SELECT v.vote_id, v.bill_id, v.vote_date, v.title,
+						SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END) as yes_count,
+						SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END) as no_count,
+						SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END) as abstain_count,
+						SUM(CASE WHEN vs.code='not_present' THEN 1 ELSE 0 END) as not_present_count,
+						SUM(CASE WHEN vs.code='absent' THEN 1 ELSE 0 END) as absent_count
+					FROM votes v
+					LEFT JOIN mp_votes mv ON mv.vote_id = v.vote_id
+					LEFT JOIN vote_statuses vs ON mv.status_id = vs.id
+					WHERE v.bill_id = ?
+					GROUP BY v.vote_id
+					ORDER BY v.vote_date ASC
+				`).bind(id).all();
 
 				for (const vote of votes) {
 					const { results: deputies } = await env.radacleaner_db.prepare(
