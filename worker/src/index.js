@@ -218,6 +218,29 @@ export default {
 				return json({ bills: results, limit, offset, total: countResult?.total || 0 });
 			}
 
+			// --- ANALYZE BILL (trigger LLM re-analysis) ---
+			const analyzeMatch = pathname.match(/^\/api\/bills\/(\d+)\/analyze$/);
+			if (analyzeMatch) {
+				const billId = Number(analyzeMatch[1]);
+				const bill = await env.radacleaner_db.prepare('SELECT id, bill_number FROM bills WHERE id = ?').bind(billId).first();
+				if (!bill) return error('Bill not found', 404);
+
+				if (method === 'POST') {
+					await env.radacleaner_db.prepare(
+						'INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES (?, ?, ?)'
+					).bind(billId, bill.bill_number, 'pending').run();
+					return json({ status: 'triggered', bill_number: bill.bill_number });
+				}
+
+				if (method === 'GET') {
+					const pending = await env.radacleaner_db.prepare(
+						'SELECT * FROM pending_analysis WHERE bill_id = ? ORDER BY id DESC LIMIT 1'
+					).bind(billId).first();
+					if (!pending) return json({ status: 'none' });
+					return json({ status: pending.status, output: pending.output || '', created: pending.created_at, finished: pending.finished_at });
+				}
+			}
+
 			// --- SINGLE BILL ---
 			const billMatch = pathname.match(/^\/api\/bills\/(\d+)$/);
 			if (method === 'GET' && billMatch) {

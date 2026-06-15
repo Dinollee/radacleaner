@@ -780,8 +780,33 @@ function filterBillDeputies(btn, type) {
 
 function reanalyzeBill(id, billNumber) {
   const statusEl = document.getElementById(`reanalyze-status-${id}`);
-  statusEl.innerHTML = `<span style="color:var(--orange)">⏳ Аналіз запущено...</span>`;
-  statusEl.innerHTML = `📋 Виконай в терміналі:<br><code style="background:var(--bg);padding:4px 8px;border-radius:4px;font-size:11px;color:var(--blue)">cd /home/radamon/radacleaner && ./venv/bin/python analyze_bill.py ${billNumber} --force</code>`;
+  statusEl.innerHTML = `<span style="color:var(--orange)">⏳ Запуск аналізу...</span>`;
+
+  fetch(`${API}/api/bills/${id}/analyze`, { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+      statusEl.innerHTML = `<span style="color:var(--green)">✅ Аналіз запущено. Оновіть сторінку через 2-3 хв.</span>`;
+      // Poll for completion
+      let attempts = 0;
+      const poll = setInterval(() => {
+        attempts++;
+        if (attempts > 20) { clearInterval(poll); return; }
+        fetch(`${API}/api/bills/${id}/analyze`)
+          .then(r => r.json())
+          .then(s => {
+            if (s.status === 'done') {
+              clearInterval(poll);
+              statusEl.innerHTML = `<span style="color:var(--green)">✅ Аналіз завершено! Оновіть сторінку.</span>`;
+            } else if (s.status === 'error') {
+              clearInterval(poll);
+              statusEl.innerHTML = `<span style="color:var(--red)">❌ Помилка аналізу</span>`;
+            }
+          }).catch(() => {});
+      }, 15000);
+    })
+    .catch(e => {
+      statusEl.innerHTML = `<span style="color:var(--red)">❌ Помилка: ${e.message}</span>`;
+    });
 }
 
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
