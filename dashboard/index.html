@@ -634,37 +634,50 @@ async function showDeputy(name) {
     let html = `
       <div class="detail-panel">
         <h2 style="font-size:20px;margin-bottom:8px">${d.name}</h2>
-        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value">${d.faction||'—'}</div></div>
+        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${d.faction||'—'}</div></div>
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
         <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
           <div class="stat-card">
             <div class="stat-label">ПЯ (Індекс явки)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
-            <div style="font-size:11px;color:var(--text2)">(явка_за + явка_против + явка_воздерж) / всіх</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">ПДА (Діяльне участь)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
-            <div style="font-size:11px;color:var(--text2)">(за + против) / (за + против + воздерж)</div>
           </div>
           <div class="stat-card">
             <div class="stat-label">ВКП (Зважений КПД)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
-            <div style="font-size:11px;color:var(--text2)">Σ(вага × дія) / Σ(вага)</div>
           </div>
         </div>
       </div>`;
 
-    // Voting history
+    // Voting history with filters
     if (votes.length) {
-      html += `<div class="card"><div class="card-header"><div class="card-title">Історія голосувань (${votes.length})</div></div>
-        <div class="table-wrap"><table><thead><tr><th>Дата</th><th>Закон</th><th>Рішення</th><th>Результат</th></tr></thead><tbody>`;
+      html += `<div class="card">
+        <div class="card-header"><div class="card-title">Історія голосувань (${votes.length})</div></div>
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--green)">
+            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="yes"> За
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--red)">
+            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="no"> Проти
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--orange)">
+            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="abstain"> Утримався
+          </label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--muted)">
+            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="not_present"> Не був
+          </label>
+        </div>
+        <div class="table-wrap"><table id="dep-votes-table"><thead><tr><th>Дата</th><th>Закон</th><th>Фракція</th><th>Рішення</th><th>Результат</th></tr></thead><tbody>`;
       html += votes.map(v => {
         const label = v.vote_label || v.vote_code || '?';
         const color = v.vote_code === 'yes' ? 'var(--green)' : v.vote_code === 'no' ? 'var(--red)' : v.vote_code === 'abstain' ? 'var(--orange)' : 'var(--muted)';
-        return `<tr>
+        return `<tr data-vote="${v.vote_code}">
           <td style="font-size:12px">${v.vote_date||''}</td>
           <td>${v.bill_number ? '#'+v.bill_number : (v.vote_title||'').substring(0,50)}</td>
+          <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(v.mp_faction)}"></span>${v.mp_faction||'—'}</td>
           <td style="color:${color};font-weight:600">${label}</td>
           <td style="font-size:12px;color:var(--text2)">${v.vote_title||''}</td>
         </tr>`;
@@ -676,6 +689,16 @@ async function showDeputy(name) {
 
     el.innerHTML = html;
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${e.message}</p>`; }
+}
+
+function filterDepVotes(checkbox) {
+  const filter = checkbox.dataset.filter;
+  const checked = checkbox.checked;
+  document.querySelectorAll('#dep-votes-table tbody tr').forEach(row => {
+    if (row.dataset.vote === filter) {
+      row.style.display = checked ? '' : 'none';
+    }
+  });
 }
 
 // === SCHEDULE ===

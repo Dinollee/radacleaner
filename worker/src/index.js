@@ -296,12 +296,13 @@ export default {
 			}
 
 			// --- DEPUTY ---
-			const deputyMatch = pathname.match(/^\/api\/deputies\/(\d+)$/);
+			const deputyMatch = pathname.match(/^\/api\/deputies\/(.+)$/);
 			if (method === 'GET' && deputyMatch) {
-				const id = Number(deputyMatch[1]);
-				const deputy = await env.radacleaner_db.prepare(
-					'SELECT id, name, faction, start_date FROM mps WHERE id = ?'
-				).bind(id).first();
+				const param = decodeURIComponent(deputyMatch[1]);
+				const isNum = /^\d+$/.test(param);
+				const deputy = isNum
+					? await env.radacleaner_db.prepare('SELECT id, name, faction, start_date FROM mps WHERE id = ?').bind(Number(param)).first()
+					: await env.radacleaner_db.prepare('SELECT id, name, faction, start_date FROM mps WHERE name = ?').bind(param).first();
 				if (!deputy) return error('Deputy not found', 404);
 
 				const { results: votes } = await env.radacleaner_db.prepare(`
