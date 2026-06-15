@@ -24,9 +24,6 @@ from .groq_client import groq_completion
 from .pdf_utils import (
     download_rada_pdf,
     extract_pdf_text,
-    chunk_text,
-    determine_doc_type,
-    classify_chunk_section,
     md5_hash,
 )
 from .risk_storage import (
@@ -35,9 +32,7 @@ from .risk_storage import (
     mark_notified,
     find_bills_needing_rag,
     get_bill_documents,
-    delete_existing_chunks,
     insert_new_document,
-    insert_chunks,
 )
 from .d1_client import d1_exec, d1_query
 from .telegram_notifier import send_message
@@ -85,6 +80,14 @@ def format_risk_message(info: dict, data: dict) -> str:
     summary = data.get("summary", "—")
     lines.append(f"💡 Суть: {summary[:200]}")
 
+    # Класифікація
+    is_procedural = data.get("is_procedural", False)
+    if is_procedural:
+        reason = data.get("classification_reason", "")
+        lines.append(f"\n📋 <b>Процедурний</b> — {reason[:150]}")
+        lines.append("✅ Ризиків немає (процедурний закон)")
+        return "\n".join(lines)
+
     has_risks = data.get("has_risks", False)
     risk_level = data.get("risk_level", "low")
     detailed_risks = data.get("detailed_risks", [])
@@ -93,10 +96,6 @@ def format_risk_message(info: dict, data: dict) -> str:
         level_icon = RISK_LEVEL_EMOJI.get(risk_level, "🟡")
         level_name = RISK_LEVEL_UA.get(risk_level, "НЕВІДОМИЙ")
         lines.append(f"\n{level_icon} <b>Рівень ризику: {level_name}</b>")
-
-        analyzed = data.get("analyzed_chunks", [])
-        if analyzed:
-            lines.append(f"📋 Проаналізовано чанків: {', '.join(str(c) for c in analyzed[:10])}")
 
         for i, risk in enumerate(detailed_risks[:5], 1):
             lines.append(f"\n{i}. {risk[:200]}")
@@ -147,6 +146,12 @@ def format_status_message(info: dict) -> str:
 
 def process_bill(info: dict, test_mode: bool = False):
     """Повна обробка одного законопроекту: PDF → текст → LLM → збереження в D1.
+
+    Пайплайн:
+      1. Скачуємо PDF文档а
+      2. Витягуємо весь текст
+      3. LLM: класифікація (процедурний/непроцедурний) + аналіз ризиків
+      4. Зберігаємо результати
 
     Args:
         info: Словник з даними законопроекту.
@@ -203,7 +208,7 @@ def process_bill(info: dict, test_mode: bool = False):
             text = extract_pdf_text(path)
             os.unlink(path)
 
-            # Dedup по 120 символах ДО чанкингу — відсікаємо шапки/титули
+            # Dedup по 120 символах — відсікаємо шапки/титули
             short = text[:120].strip()
             if short and short in {t[:120].strip() for t in all_texts}:
                 log.info("  Duplicate text from doc %s — skipping", doc["file_id"])
@@ -217,22 +222,8 @@ def process_bill(info: dict, test_mode: bool = False):
         log.info("  No text extracted")
         return None, None
 
-    # Тепер чанкуємо тільки унікальний текст
-    all_chunks = []
-    for text in all_texts:
-        doc_type = determine_doc_type("combined")
-        chunks = chunk_text(text)
-        for i, chunk in enumerate(chunks):
-            sec = classify_chunk_section(chunk)
-            all_chunks.append({
-                "bill_id": bill_id,
-                "reg_number": bill_number,
-                "doc_type": doc_type,
-                "chunk_index": i,
-                "text": chunk,
-                "section": sec,
-            })
-
+    # Об'єднуємо весь текст
+    full_text = "\n\n".join(all_texts)
     all_pdf_hash = md5_hash("".join(pdf_hashes).encode()) if pdf_hashes else None
 
     # Фінальна перевірка кешу
@@ -240,46 +231,26 @@ def process_bill(info: dict, test_mode: bool = False):
         log.info("  Final cache hit (hash=%s) — skipping LLM", all_pdf_hash[:8])
         return None, None
 
-    # Зберігаємо чанки в D1
-    delete_existing_chunks(bill_id)
+    # Зберігаємо документ
     doc_db_id = insert_new_document(bill_id, bill_number, all_pdf_hash)
-    insert_chunks(doc_db_id, bill_id, all_chunks)
-    log.info("  Stored: doc_id=%d chunks=%d pdf_hash=%s", doc_db_id, len(all_chunks), all_pdf_hash[:8])
+    log.info("  Stored: doc_id=%d pdf_hash=%s text_len=%d", doc_db_id, all_pdf_hash[:8], len(full_text))
 
     # Зберігаємо версію в law_versions (D1)
-    plain_text = "\n\n".join(c["text"] for c in all_chunks)
     d1_exec("raw_sql", {
         "sql": """INSERT OR IGNORE INTO law_versions (law_id, status_at_moment, text_hash, plain_text)
                   VALUES (?, ?, ?, ?)""",
-        "params": [bill_id, status, all_pdf_hash, plain_text[:50000]],
+        "params": [bill_id, status, all_pdf_hash, full_text[:50000]],
     })
 
     # Оновлюємо bills.text_hash та bills.plain_text (D1)
     d1_exec("raw_sql", {
         "sql": "UPDATE bills SET text_hash=?, plain_text=? WHERE id=?",
-        "params": [all_pdf_hash, plain_text[:50000], bill_id],
+        "params": [all_pdf_hash, full_text[:50000], bill_id],
     })
 
-    # Готуємо контекст для LLM
-    substantive = [
-        c["text"]
-        for c in all_chunks
-        if any(
-            w in c["text"]
-            for w in [
-                "стаття", "Угода", "Позик", "Меморандум",
-                "фінансов", "Кредитор", "Позичальник", "макрофінансова",
-            ]
-        )
-    ]
-    ctx = (
-        "\n\n".join(substantive[:5])
-        if substantive
-        else "\n\n".join(c["text"] for c in all_chunks[:3])
-    )
-    insufficient = len(ctx.strip()) < 1200
-
-    prompt = RISK_ANALYSIS_PROMPT.format(text=ctx)
+    # Відправляємо повний текст в LLM
+    insufficient = len(full_text.strip()) < 1200
+    prompt = RISK_ANALYSIS_PROMPT.format(text=full_text)
 
     try:
         llm_data = groq_completion(prompt)
@@ -290,6 +261,20 @@ def process_bill(info: dict, test_mode: bool = False):
     if insufficient:
         llm_data["insufficient_text"] = True
 
+    # Визначаємо чи процедурний
+    is_procedural = llm_data.get("is_procedural", False)
+    risk_level = llm_data.get("risk_level")
+    has_risks = llm_data.get("has_risks", False)
+
+    if is_procedural:
+        log.info("  Classification: ПРОЦЕДУРНИЙ — %s", llm_data.get("classification_reason", "")[:80])
+        # Для процедурних — зберігаємо без ризиків
+        llm_data["has_risks"] = False
+        llm_data["risk_level"] = None
+        llm_data["detailed_risks"] = []
+    else:
+        log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d", risk_level, len(llm_data.get("detailed_risks", [])))
+
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)
     except Exception as e:
@@ -298,6 +283,7 @@ def process_bill(info: dict, test_mode: bool = False):
 
     # Оновлюємо law_versions з результатами (D1)
     analysis_summary = llm_data.get("summary", "")[:2000]
+    law_summary = llm_data.get("law_summary", "")[:3000]
     risks_json_str = json.dumps(llm_data, ensure_ascii=False)
     d1_exec("raw_sql", {
         "sql": """UPDATE law_versions SET analysis_summary=?, risks_json=?
@@ -308,17 +294,17 @@ def process_bill(info: dict, test_mode: bool = False):
     # Push risk + law_version через стандартний sync API
     d1_exec("risk", {
         "bill_number": bill_number,
-        "overall_score": llm_data.get("overall_score", 0),
-            "model_used": LLM_MODEL,
+        "overall_score": 100 if risk_level == "high" else 70 if risk_level == "medium" else 30 if risk_level == "low" else 0,
+        "model_used": LLM_MODEL,
         "json_data": json.dumps(llm_data, ensure_ascii=False),
-        "raw_analysis": analysis_summary,
+        "raw_analysis": law_summary or analysis_summary,
         "insufficient_text": bool(llm_data.get("insufficient_text", False)),
     })
     d1_exec("law_version", {
         "bill_number": bill_number,
         "status_at_moment": status,
         "text_hash": all_pdf_hash,
-        "plain_text": plain_text[:50000],
+        "plain_text": full_text[:50000],
         "analysis_summary": analysis_summary,
         "risks_json": risks_json_str,
     })
@@ -446,12 +432,12 @@ def _run_batch(test_mode: bool = False) -> None:
 
         log.info("[%d/%d] doc_id=%d bill_id=%d", idx, len(rows), id_, bill_id)
 
-        # Отримуємо текст з rag_chunks
-        texts_rows = d1_query(
-            "SELECT chunk_text FROM rag_chunks WHERE document_id = ? ORDER BY chunk_index",
-            [id_],
+        # Отримуємо текст з law_versions
+        text_rows = d1_query(
+            "SELECT plain_text FROM law_versions WHERE law_id = ? ORDER BY version_date DESC LIMIT 1",
+            [bill_id],
         )
-        texts = [r["chunk_text"] for r in texts_rows if r.get("chunk_text")]
+        texts = [r["plain_text"] for r in text_rows if r.get("plain_text")]
 
         if not texts:
             log.info("  SKIP: empty text")
@@ -460,24 +446,11 @@ def _run_batch(test_mode: bool = False) -> None:
                 time.sleep(1)
             continue
 
-        log.info("  TEXT_LEN: %d chars", sum(len(t) for t in texts))
-        text = "\n".join(texts)
+        text = texts[0]
+        log.info("  TEXT_LEN: %d chars", len(text))
+        insufficient = len(text.strip()) < 1200
 
-        substantive = [
-            t
-            for t in text.split("\n\n")
-            if any(
-                w in t
-                for w in [
-                    "стаття", "Угода", "Позик", "Меморандум",
-                    "фінансов", "Кредитор", "Позичальник", "макрофінансова",
-                ]
-            )
-        ]
-        ctx = "\n\n".join(substantive[:5]) if substantive else text[:4000]
-        insufficient = len(ctx.strip()) < 1200
-
-        prompt = RISK_ANALYSIS_PROMPT.format(text=ctx)
+        prompt = RISK_ANALYSIS_PROMPT.format(text=text)
 
         try:
             llm_data = groq_completion(prompt)
