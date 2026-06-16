@@ -32,24 +32,27 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     ВАЖКИЙ СЕРВЕР (Python)                  │
+│                     VPS (Python)                            │
 │                                                             │
-│  sync_bills.py ────→ RADA API ────→ законопроєкти → D1     │
+│  sync_bills.py ────→ RADA JSON API ────→ закони → D1       │
+│  sync_active_bills.py → VRU HTML → live статуси → D1       │
+│  sync_bill_passings.py → хронологія → D1                   │
 │  rag_engine.py ────→ PDF → LLM → ризики → D1              │
-│  sync_votes_bulk.py → RADA HTML → депутати + голосування   │
-│  sync_mp_stats.py ──→ перерахунок ПЯ/ПДА/ВКП → D1         │
-│  sync_bill_passings.py → хронологія проходження → D1       │
+│  analyze_api.py ───→ pending_analysis → LLM → risks        │
+│  sync_mp_stats.py ──→ ПЯ/ПДА/ВКП депутатів → D1           │
+│  sync_votes_bulk.py → голосування → D1                     │
+│  monitor.py ────→ change_log → Telegram                    │
 │                          │                                  │
 │                    POST /api/sync                           │
 └──────────────────────────┼──────────────────────────────────┘
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  CLOUDFLARE FREE TIER                       │
+│                  CLOUDFLARE                                  │
 │                                                             │
-│  🌐 Pages    — фронтенд-дашборд (Vanilla JS)               │
-│  ⚡ Worker   — REST API (~2ms CPU)                         │
-│  🗄 D1       — SQLite база (15K+ законів, 160K+ записів)   │
+│  🌐 Pages    — дашборд (Vanilla JS, SPA)                   │
+│  ⚡ Worker   — REST API + FTS5 search                       │
+│  🗄 D1       — SQLite (15K+ bills, 6.8M mp_votes)          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -73,35 +76,31 @@
 
 ```
 radacleaner/
-├── src/                        # Python пакет
-│   ├── config.py               # Конфігурація + промпт LLM
-│   ├── bill_sync.py            # Синхронізація з RADA API → D1
-│   ├── rag_engine.py           # LLM-аналіз ризиків (Chain of Thought)
-│   ├── risk_storage.py         # Збереження оцінок ризиків
-│   ├── pdf_utils.py            # PDF → текст (PyMuPDF) + рекурсивний чанкинг
-│   ├── groq_client.py          # OpenRouter API клієнт
-│   ├── d1_client.py            # HTTP-клієнт до Worker (D1)
-│   └── telegram_notifier.py    # Telegram бот
+├── src/                        # Python package
+│   ├── config.py               # Config + LLM prompt
+│   ├── bill_sync.py            # Bill sync: RADA JSON → D1 (3-phase)
+│   ├── rag_engine.py           # LLM risk analysis (Chain of Thought)
+│   ├── risk_storage.py         # Risk assessment storage
+│   ├── pdf_utils.py            # PDF → text (PyMuPDF)
+│   ├── groq_client.py          # OpenRouter API client
+│   ├── d1_client.py            # HTTP client to Worker (D1)
+│   └── telegram_notifier.py    # Telegram bot
 ├── worker/
 │   └── src/index.js            # Cloudflare Worker (REST API + FTS5)
 ├── dashboard/
-│   └── index.html              # Веб-дашборд (SPA, 5 секцій)
-├── migrations/                 # SQL міграції D1
-│   ├── 001_initial.sql
-│   ├── 002_d1_schema.sql
-│   ├── 003_add_act_number.sql
-│   ├── 004_add_mp_start_date.sql
-│   ├── 005_add_mp_bills.sql
-│   ├── 006_add_bills_fts5.sql      # FTS5 повнотекстовий пошук
-│   ├── 007_add_mp_stats.sql        # Статистика депутатів
-│   └── 008_fix_bill_documents.sql  # Унікальність документів
-├── sync_bills.py               # Точка входу: синхронізація законів
-├── sync_votes_bulk.py          # Масова синхронізація голосувань
-├── sync_mp_stats.py            # Перерахунок ПЯ/ПДА/ВКП депутатів
-├── sync_bill_passings.py       # Синхронізація хронології проходження
-├── sync_mp_factions.py         # Синхронізація фракцій
-├── sync_mp_bills.py            # Законотворча діяльність депутатів
-└── wrangler.jsonc              # Конфігурація Cloudflare
+│   └── index.html              # Dashboard (SPA, 4 sections)
+├── migrations/                 # D1 SQL migrations (001-009)
+├── sync_bills.py               # Entry: bill sync (list/full/all modes)
+├── sync_active_bills.py        # Live VRU HTML check (30-day bills, 1 req/sec)
+├── sync_bill_passings.py       # Bill chronology sync (optimized batch)
+├── sync_votes_bulk.py          # Bulk vote sync from RADA
+├── sync_mp_stats.py            # Deputy stats recalculation (ПЯ/ПДА/ВКП)
+├── sync_mp_factions.py         # Faction sync from RADA
+├── sync_mp_bills.py            # Deputy bill activity from itd.rada.gov.ua
+├── analyze_api.py              # LLM analysis service (polls pending_analysis)
+├── analyze_bill.py             # CLI: analyze single bill via LLM
+├── monitor.py                  # Telegram notifications from change_log
+└── wrangler.jsonc              # Cloudflare config
 ```
 
 ---
@@ -129,23 +128,24 @@ radacleaner/
 
 ```bash
 # Перевірка статусу
-systemctl list-timers | grep radacleaner
+systemctl list-timers | grep -E 'sync|monitor|radacleaner'
 
 # Логи
-journalctl -u radacleaner-sync.service -f       # Синхронізація законів
-journalctl -u radacleaner-monitor.timer -f       # LLM-аналіз + Telegram
-journalctl -u radacleaner-votesync.service -f    # Голосування
-journalctl -u radacleaner-mpstats.service -f     # Статистика депутатів
-journalctl -u radacleaner-passings.service -f    # Хронологія проходження
+journalctl -u sync_bills.service -f           # Синхронізація законів
+journalctl -u sync_active_bills.service -f    # Live VRU check (30 хв)
+journalctl -u monitor.service -f              # Telegram сповіщення
+journalctl -u radacleaner-analyze.service -f  # LLM аналіз
 ```
 
 | Сервіс | Інтервал | Що робить |
 |--------|----------|-----------|
-| `radacleaner-sync.timer` | кожні 4 години | Синхронізація законів з RADA API |
-| `radacleaner-monitor.timer` | кожні 30 хвилин | LLM-аналіз нових/змінених законів + Telegram |
-| `radacleaner-votesync.service` | безперервно | Масова синхронізація голосувань (~8,000) |
-| `radacleaner-mpstats.timer` | кожні 6 годин | Перерахунок ПЯ/ПДА/ВКП депутатів |
-| `radacleaner-passings.timer` | кожні 4 години | Синхронізація хронології проходження |
+| `sync_bills.timer` | щогодини :55 | Bill sync: list + full JSON + passings |
+| `sync_active_bills.timer` | кожні 30 хв | Live VRU HTML check (30-денні bills) |
+| `monitor.timer` | кожні 30 хв | Telegram notifications з change_log |
+| `radacleaner-mpstats.timer` | кожні 6 год | Перерахунок ПЯ/ПДА/ВКП депутатів |
+| `radacleaner-votesync.timer` | кожні 6 год | Синхронізація голосувань |
+| `digest.timer` | щодня 09:00 | Щоденний Telegram дайджест |
+| `radacleaner-analyze.service` | безперервно | LLM аналіз (pending_analysis → risks) |
 
 ---
 
@@ -153,13 +153,13 @@ journalctl -u radacleaner-passings.service -f    # Хронологія прох
 
 Система використовує двоетапний аналіз:
 
-1. **Етап 1 — Фільтрація**: виділення критичних чанків (статті кодексів, санкції, фінанси, корупція, ЄС)
-2. **Етап 2 — Аналіз**: глибокий аналіз тільки критичних чанків
+1. **Етап 1 — Класифікація**: визначення чи є закон процедурним (напр. постанова про відхилення)
+2. **Етап 2 — Аналіз ризиків**: глибокий аналіз тільки для непроцедурних законів
 
 **Формат відповіді LLM:**
 ```json
 {
-  "analyzed_chunks": [1, 3, 5],
+  "is_procedural": false,
   "has_risks": true,
   "risk_level": "high",
   "summary": "Стислий опис суті змін",
@@ -168,6 +168,8 @@ journalctl -u radacleaner-passings.service -f    # Хронологія прох
   "insufficient_text": false
 }
 ```
+
+**Автоматична черга**: `process_full_data()` додає bills в `pending_analysis` після індексації документів. `analyze_api.py` (безперервний сервіс) опитує чергу кожні 30 сек і запускає аналіз.
 
 **Метрики депутатів:**
 - **ПЯ** (Індекс явки) = (yes + no + abstain) / total
