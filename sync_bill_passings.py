@@ -63,6 +63,18 @@ def sync_passings():
 
     log.info("=== Done: inserted=%d, skipped=%d ===", inserted, skipped)
 
+    # Оновлюємо status_changed_at з останнього проходження
+    d1_exec("raw_sql", {
+        "sql": """UPDATE bills SET status_changed_at = (
+            SELECT MAX(pass_date) FROM bill_passings WHERE bill_id = bills.id
+        ) WHERE id IN (
+            SELECT DISTINCT bill_id FROM bill_passings
+        ) AND (status_changed_at IS NULL OR status_changed_at < (
+            SELECT MAX(pass_date) FROM bill_passings WHERE bill_id = bills.id
+        ))""",
+        "params": [],
+    })
+
 
 if __name__ == "__main__":
     sync_passings()
