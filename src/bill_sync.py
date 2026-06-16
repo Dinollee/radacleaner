@@ -196,7 +196,7 @@ def process_full_data(data: bytes) -> int:
     Phase 3: Batch document inserts (BATCH_DOCS за прохід)
     Passings/status_changed_at — sync_bill_passings.py
     """
-    BATCH_DOCS = 500
+    BATCH_DOCS = 5000
 
     if isinstance(data, bytes):
         data = data.decode("utf-8", errors="replace")

@@ -130,7 +130,7 @@ export default {
 				let ftsQuery = '';
 				if (search && search.trim()) {
 					const terms = search.trim().split(/\s+/)
-						.map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/\-]/g, '').trim())
+						.map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/]/g, '').trim())
 						.filter(t => t.length > 0)
 						.map(t => `"${t}"*`)
 						.join(' OR ');
