@@ -861,7 +861,7 @@ function reanalyzeBill(id) {
   statusEl.textContent = '⏳ Запуск аналізу...';
   statusEl.style.color = 'var(--orange)';
 
-  fetch(`/api/bills/${id}/analyze`, { method: 'POST' })
+  fetch(API + `/api/bills/${id}/analyze`, { method: 'POST' })
     .then(r => r.json())
     .then(d => {
       statusEl.textContent = '✅ Аналіз запущено. Оновіть сторінку через 2-3 хв.';
@@ -870,7 +870,7 @@ function reanalyzeBill(id) {
       const poll = setInterval(() => {
         attempts++;
         if (attempts > 20) { clearInterval(poll); return; }
-        fetch(`/api/bills/${id}/analyze`)
+        fetch(API + `/api/bills/${id}/analyze`)
           .then(r => r.json())
           .then(s => {
             if (s.status === 'done') {
