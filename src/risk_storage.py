@@ -202,6 +202,14 @@ def save_risk(document_id: int, data: dict, model: str) -> None:
              document_id, bill_id, has_risks, risk_level, confidence)
 
 
+def update_bill_procedural(bill_id: int, is_procedural: bool) -> None:
+    """Оновлює bills.is_procedural на основі LLM-класифікації."""
+    d1_exec("raw_sql", {
+        "sql": "UPDATE bills SET is_procedural = ? WHERE id = ?",
+        "params": [1 if is_procedural else 0, bill_id],
+    })
+
+
 def mark_notified(bill_ids: list[int]) -> None:
     """Позначає change_log як notified для списку bill_id."""
     if not bill_ids:

@@ -29,6 +29,7 @@ from .pdf_utils import (
 from .risk_storage import (
     get_stored_hash,
     save_risk,
+    update_bill_procedural,
     mark_notified,
     find_bills_needing_rag,
     get_bill_documents,
@@ -280,6 +281,7 @@ def process_bill(info: dict, test_mode: bool = False):
 
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)
+        update_bill_procedural(bill_id, is_procedural)
     except Exception as e:
         log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])
         return None, None
@@ -468,6 +470,7 @@ def _run_batch(test_mode: bool = False) -> None:
 
         try:
             save_risk(id_, llm_data, LLM_MODEL)
+            update_bill_procedural(bill_id, llm_data.get("is_procedural", False))
             done += 1
         except Exception as e:
             log.error("  SAVE_FAIL: %s: %s", type(e).__name__, str(e)[:200])

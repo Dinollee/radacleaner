@@ -67,7 +67,7 @@ export default {
 						db(env, 'SELECT COUNT(DISTINCT bill_id) as count FROM risk_assessments'),
 						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE ra.json_data LIKE '%\"risk_level\": \"high\"%' OR ra.overall_score >= 70"),
 						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE (ra.json_data LIKE '%\"risk_level\": \"medium\"%' OR (ra.overall_score >= 40 AND ra.overall_score < 70))"),
-						db(env, "SELECT COUNT(*) as c FROM bills WHERE agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)')"),
+						db(env, "SELECT COUNT(*) as c FROM bills WHERE is_procedural = 1 OR (is_procedural IS NULL AND agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)'))"),
 						db(env, "SELECT COUNT(*) as count FROM bills WHERE registration_date >= date('now', '-1 day')"),
 						db(env, "SELECT COUNT(*) as count FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')"),
 						db(env, "SELECT COUNT(DISTINCT mp_name) as cnt FROM mp_votes WHERE vote_id IN (SELECT vote_id FROM votes WHERE vote_date >= date('now', '-30 days'))"),
@@ -107,21 +107,23 @@ export default {
 				// procedural: '' = exclude procedural (default), '1' = include all, 'only' = only procedural
 				const procedural = url.searchParams.get('procedural') || '';
 
-				// Procedural categories to exclude by default
+				// Procedural categories to exclude by default (fallback for unanalyzed bills)
 				const PROCEDURAL_CATEGORIES = ['Організаційні питання', 'Інші (заяви, звернення ВРУ)'];
 
 				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
 				const params = [];
 
-				// Build procedural filter SQL and params separately for reuse
+				// Build procedural filter: prefer LLM is_procedural, fallback to agenda_category
 				let procSql = '';
 				const procParams = [];
 				if (procedural === 'only') {
-					procSql = ` AND b.agenda_category IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')})`;
+					procSql = ` AND (b.is_procedural = 1 OR (b.is_procedural IS NULL AND b.agenda_category IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')}`;
 					procParams.push(...PROCEDURAL_CATEGORIES);
+					procSql += ')))';
 				} else if (procedural !== '1') {
-					procSql = ` AND (b.agenda_category IS NULL OR b.agenda_category NOT IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')}) OR b.agenda_category = '')`;
+					procSql = ` AND (b.is_procedural = 0 OR (b.is_procedural IS NULL AND (b.agenda_category IS NULL OR b.agenda_category NOT IN (${PROCEDURAL_CATEGORIES.map(() => '?').join(',')}`;
 					procParams.push(...PROCEDURAL_CATEGORIES);
+					procSql += ') OR b.agenda_category = \'\')))';
 				}
 
 				let threatSql = '';
@@ -664,6 +666,18 @@ export default {
 							data.legislative_risk||'{}', data.official_power_risk||'{}', data.vague_norms_risk||'{}',
 							data.confidence_level||5, data.insufficient_text?1:0,
 						).run();
+
+						// Оновлюємо bills.is_procedural з json_data
+						try {
+							const jsonStr = data.json_data || '{}';
+							const parsed = JSON.parse(jsonStr);
+							if (parsed.is_procedural !== undefined) {
+								await env.radacleaner_db.prepare(
+									'UPDATE bills SET is_procedural = ? WHERE id = ?'
+								).bind(parsed.is_procedural ? 1 : 0, billId).run();
+							}
+						} catch (_) {}
+
 						return json({ success: true });
 					}
 
