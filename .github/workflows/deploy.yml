@@ -2,7 +2,7 @@ name: Deploy to Cloudflare
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 concurrency:
@@ -39,7 +39,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "08fa8a530c85d31a11b04446d9c3ade6"
-        run: ./node_modules/.bin/wrangler deploy
+        run: ./node_modules/.bin/wrangler deploy --branch ${{ github.ref_name }}
 
       - name: Deploy Pages
         working-directory: worker
@@ -47,4 +47,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "08fa8a530c85d31a11b04446d9c3ade6"
         run: |
-          ./node_modules/.bin/wrangler pages deploy "$GITHUB_WORKSPACE/dashboard" --project-name radacleaner-dashboard --branch main --commit-dirty=true --cwd "$GITHUB_WORKSPACE"
+          ./node_modules/.bin/wrangler pages deploy "$GITHUB_WORKSPACE/dashboard" --project-name radacleaner-dashboard --branch ${{ github.ref_name }} --commit-dirty=true --cwd "$GITHUB_WORKSPACE"
