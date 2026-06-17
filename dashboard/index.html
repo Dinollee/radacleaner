@@ -416,8 +416,9 @@ function showSection(name) {
 }
 
 // === API helpers ===
+const API = 'https://rada-monitor-api.distih.workers.dev';
 async function api(path) {
-  const r = await fetch(path);
+  const r = await fetch(API + path);
   if (!r.ok) throw new Error(`API ${r.status}`);
   return r.json();
 }
