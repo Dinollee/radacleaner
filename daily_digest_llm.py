@@ -61,7 +61,14 @@ def collect_our_data():
         high_risk = d1_query('SELECT b.bill_number, b.title, b.stage, b.current_status, ra.overall_score FROM bills b JOIN risk_assessments ra ON ra.bill_id = b.id WHERE ra.overall_score > 0 ORDER BY ra.overall_score DESC LIMIT 10')
         data['high_risk_bills'] = high_risk
         today = get_today_date()
-        changes = d1_query('SELECT cl.change_type, cl.old_value, cl.new_value, cl.created_at, b.bill_number, b.title, b.url, b.stage, b.current_status, ra.overall_score FROM change_log cl JOIN bills b ON cl.bill_id = b.id LEFT JOIN risk_assessments ra ON ra.bill_id = b.id WHERE date(cl.created_at) = ? ORDER BY cl.created_at DESC LIMIT ?', [today, MAX_CHANGES])
+        changes = d1_query(
+            'SELECT cl.change_type, cl.old_value, cl.new_value, cl.created_at, '
+            'b.bill_number, b.title, b.url, b.stage, b.current_status, ra.overall_score '
+            'FROM change_log cl '
+            'JOIN bills b ON cl.bill_id = b.id '
+            'LEFT JOIN risk_assessments ra ON ra.bill_id = b.id '
+            'WHERE date(cl.created_at) = ? ORDER BY cl.created_at DESC LIMIT ?',
+            [today, MAX_CHANGES])
         for c in changes:
             entry = {'change_type': c['change_type'], 'bill_number': c['bill_number'], 'title': c['title'][:80] if c['title'] else '', 'url': c['url'] or '', 'old_value': c['old_value'] or '', 'new_value': c['new_value'] or '', 'stage': c['stage'], 'status': c['current_status'] or '', 'score': c['overall_score'] or 0, 'created_at': c['created_at']}
             if c['change_type'] == 'new': data['new_bills'].append(entry)
@@ -105,9 +112,10 @@ def format_our_data_for_llm(data):
     if data['tracked_bills']:
         lines.append('Tracked (with risks): ' + str(len(data['tracked_bills'])))
         for b in data['tracked_bills'][:5]:
-            stage = b.get('stage', 1)
+            stage = b.get('stage') or 1
             bar = '#' * min(stage, 5) + '-' * (5 - min(stage, 5))
-            lines.append('  - #' + b['bill_number'] + ' [' + bar + '] ' + b['title'][:50])
+            pct = min(stage * 20, 100)
+            lines.append('  - #' + b['bill_number'] + ' [' + bar + '] ' + str(pct) + '% ' + b['title'][:50])
         lines.append('')
     return NL.join(lines)
 
@@ -169,7 +177,7 @@ def format_fallback(data):
     lines.append('')
     lines.append(chr(128204) + ' ВІДСЛІДЖУВАНІ (з флагами):')
     for b in data['tracked_bills'][:5]:
-        stage = b.get('stage', 1)
+        stage = b.get('stage') or 1
         bar = chr(9608) * min(stage, 5) + chr(9617) * (5 - min(stage, 5))
         pct = min(stage * 20, 100)
         title = b['title'][:50] if b['title'] else 'Без назви'
