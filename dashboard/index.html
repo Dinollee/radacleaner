@@ -510,7 +510,7 @@ async function loadDashboard() {
         <div class="header-stat"><div class="header-stat-value">${(stats.totalBills||0).toLocaleString()}</div><div class="header-stat-label">Законів</div></div>
         <div class="header-stat"><div class="header-stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div><div class="header-stat-label">🔴 Загрози</div></div>
         <div class="header-stat"><div class="header-stat-value" style="color:var(--orange)">${stats.mediumRiskBills||0}</div><div class="header-stat-label">🟠 Середній</div></div>
-        <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${stats.activeMps30d||0}</div><div class="header-stat-label">Депутатів</div></div>
+        <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${stats.activeMps||0}</div><div class="header-stat-label">Депутатів</div></div>
         <div class="header-stat"><div class="header-stat-value">${(stats.totalVotes||0).toLocaleString()}</div><div class="header-stat-label">Голосувань</div></div>
         <div class="header-stat"><div class="header-stat-value" style="color:var(--blue)">${stats.analyzedBills||0}</div><div class="header-stat-label">LLM</div></div>
       `;
@@ -522,7 +522,7 @@ async function loadDashboard() {
       <div class="stat-card"><div class="stat-label">Активні (120 днів)</div><div class="stat-value" style="color:var(--blue)">${threats.total||0}</div></div>
       <div class="stat-card"><div class="stat-label">Проаналізовано</div><div class="stat-value" style="color:var(--green)">${stats.analyzedBills||0}</div></div>
       <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div></div>
-      <div class="stat-card"><div class="stat-label">Депутатів (активних)</div><div class="stat-value">${stats.activeMps30d||0}<span style="font-size:13px;color:var(--text2);font-weight:400">/${stats.totalMps||0}</span></div></div>
+      <div class="stat-card"><div class="stat-label">Депутатів (активних)</div><div class="stat-value">${stats.activeMps||0}<span style="font-size:13px;color:var(--text2);font-weight:400">/${stats.totalMps||0}</span></div></div>
     `;
 
     tbody.innerHTML = (threats.bills||[]).map(b => {

@@ -70,13 +70,12 @@ export default {
 					recentChanges: Number(cache.recent_changes) || 0,
 					totalVotes: Number(cache.total_votes) || 0,
 					totalMps: Number(cache.total_mps) || 0,
-					activeMps: Number(cache.total_mps) || 0,
+					activeMps: Number(cache.active_mps) || 0,
 					lastSync: cache.last_updated || null,
 					analyzedBills: Number(cache.analyzed_bills) || 0,
 					proceduralBills: Number(cache.procedural_bills) || 0,
 					newBills24h: Number(cache.new_bills_24h) || 0,
 					statusChanges24h: Number(cache.status_changes_24h) || 0,
-					activeMps30d: Number(cache.active_mps_30d) || 0,
 				}, 200, 30);
 			}
 
@@ -727,7 +726,7 @@ async function db(env, sql, mode) {
 async function refreshStatsCache(env) {
 	const db = env.radacleaner_db;
 
-	const [totalBills, byStage, highRisk, mediumRisk, analyzed, procedural, totalVotes, totalMps, newBills24h, statusChanges24h, recentChanges, activeMps30d] =
+	const [totalBills, byStage, highRisk, mediumRisk, analyzed, procedural, totalVotes, totalMps, activeMps, newBills24h, statusChanges24h, recentChanges] =
 		await Promise.all([
 			db.prepare('SELECT COUNT(*) as c FROM bills').first(),
 			db.prepare('SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage').all(),
@@ -737,10 +736,10 @@ async function refreshStatsCache(env) {
 			db.prepare("SELECT COUNT(*) as c FROM bills WHERE is_procedural = 1 OR (is_procedural IS NULL AND agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)'))").first(),
 			db.prepare('SELECT COUNT(*) as c FROM votes').first(),
 			db.prepare('SELECT COUNT(*) as c FROM mps').first(),
+			db.prepare("SELECT COUNT(*) as c FROM mps WHERE end_date IS NULL OR end_date = ''").first(),
 			db.prepare("SELECT COUNT(*) as c FROM bills WHERE registration_date >= date('now', '-1 day')").first(),
 			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')").first(),
 			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE created_at > datetime('now', '-7 days')").first(),
-			db.prepare("SELECT COUNT(DISTINCT mp_name) as c FROM mp_votes WHERE vote_id IN (SELECT vote_id FROM votes WHERE vote_date >= date('now', '-30 days'))").first(),
 		]);
 
 	const now = new Date().toISOString();
@@ -753,10 +752,10 @@ async function refreshStatsCache(env) {
 		['procedural_bills', String(procedural?.c || 0)],
 		['total_votes', String(totalVotes?.c || 0)],
 		['total_mps', String(totalMps?.c || 0)],
+		['active_mps', String(activeMps?.c || 0)],
 		['new_bills_24h', String(newBills24h?.c || 0)],
 		['status_changes_24h', String(statusChanges24h?.c || 0)],
 		['recent_changes', String(recentChanges?.c || 0)],
-		['active_mps_30d', String(activeMps30d?.c || 0)],
 		['last_updated', now],
 	];
 

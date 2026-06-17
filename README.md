@@ -39,6 +39,7 @@
 │  sync_bill_passings.py → хронологія → D1                   │
 │  rag_engine.py ────→ PDF → LLM → ризики → D1              │
 │  analyze_api.py ───→ pending_analysis → LLM → risks        │
+│  sync_mp_factions.py → фракції + дати (RADA HTML) → D1     │
 │  sync_mp_stats.py ──→ ПЯ/ПДА/ВКП депутатів → D1           │
 │  sync_votes_bulk.py → голосування → D1                     │
 │  monitor.py ────→ change_log → Telegram                    │
@@ -52,7 +53,7 @@
 │                                                             │
 │  🌐 Pages    — дашборд (Vanilla JS, SPA)                   │
 │  ⚡ Worker   — REST API + FTS5 search                       │
-│  🗄 D1       — SQLite (15K+ bills, 6.8M mp_votes)          │
+│  🗄 D1       — SQLite (15K+ bills, 7.4M mp_votes)          │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -89,13 +90,13 @@ radacleaner/
 │   └── src/index.js            # Cloudflare Worker (REST API + FTS5)
 ├── dashboard/
 │   └── index.html              # Dashboard (SPA, 4 sections)
-├── migrations/                 # D1 SQL migrations (001-009)
+├── migrations/                 # D1 SQL migrations (001-012)
 ├── sync_bills.py               # Entry: bill sync (list/full/all modes)
 ├── sync_active_bills.py        # Live VRU HTML check (30-day bills, 1 req/sec)
 ├── sync_bill_passings.py       # Bill chronology sync (optimized batch)
 ├── sync_votes_bulk.py          # Bulk vote sync from RADA
 ├── sync_mp_stats.py            # Deputy stats recalculation (ПЯ/ПДА/ВКП)
-├── sync_mp_factions.py         # Faction sync from RADA
+├── sync_mp_factions.py         # Faction + date sync from RADA (active & left MPs)
 ├── sync_mp_bills.py            # Deputy bill activity from itd.rada.gov.ua
 ├── analyze_api.py              # LLM analysis service (polls pending_analysis)
 ├── analyze_bill.py             # CLI: analyze single bill via LLM
@@ -142,7 +143,7 @@ journalctl -u radacleaner-analyze.service -f  # LLM аналіз
 | `sync_bills.timer` | щогодини :55 | Bill sync: list + full JSON + passings |
 | `sync_active_bills.timer` | кожні 30 хв | Live VRU HTML check (30-денні bills) |
 | `monitor.timer` | кожні 30 хв | Telegram notifications з change_log |
-| `radacleaner-mpstats.timer` | кожні 6 год | Перерахунок ПЯ/ПДА/ВКП депутатів |
+| `radacleaner-mpstats.timer` | щодня 01:00 | Фракції + дати депутатів, перерахунок ПЯ/ПДА/ВКП |
 | `radacleaner-votesync.timer` | кожні 6 год | Синхронізація голосувань |
 | `digest.timer` | щодня 09:00 | Щоденний Telegram дайджест |
 | `radacleaner-analyze.service` | безперервно | LLM аналіз (pending_analysis → risks) |

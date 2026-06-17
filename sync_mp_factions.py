@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""sync_mp_factions.py — Парсинг фракцій депутатів з RADA → D1.
+"""sync_mp_factions.py — Парсинг фракцій та дат депутатів з RADA → D1.
 
 Usage:
     python sync_mp_factions.py
 """
 import re
-import sys
 import urllib.request
 
 from src.config import log
-from src.d1_client import d1_exec, d1_query
+from src.d1_client import d1_exec
 
 
 def fetch_url(url, timeout=30):
@@ -19,7 +18,6 @@ def fetch_url(url, timeout=30):
     })
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         raw = resp.read()
-        # Handle gzip encoding
         if resp.headers.get('Content-Encoding') == 'gzip':
             import gzip
             raw = gzip.decompress(raw)
@@ -30,12 +28,9 @@ def fetch_url(url, timeout=30):
 
 
 def parse_faction_name(raw_faction):
-    """Нормалізація назви фракції."""
     if not raw_faction:
         return ""
-    
     raw = raw_faction.lower()
-    
     if "слуга народу" in raw or "слуга народа" in raw:
         return "СЛУГА НАРОДУ"
     elif "європейська солідарність" in raw:
@@ -56,66 +51,61 @@ def parse_faction_name(raw_faction):
         return "Позафракційні"
 
 
-def sync_factions():
-    """Парсинг сторінки депутатів та оновлення фракцій."""
-    log.info("Fetching deputy list from RADA...")
-    url = "https://people.rada.gov.ua/go/vr-mps"
-    html = fetch_url(url)
-    
-    # Знаходимо всі карточки депутатів з data-faction і data-name
-    # Структура: <li class="mp-card" data-name="..." data-faction="...">
+def parse_mp_cards(html):
+    """Парсинг mp-card li з data-name, data-faction, data-start-date, data-end-date."""
     pattern = re.compile(
-        r'data-name="([^"]*)"[^>]*data-faction="([^"]*)"',
+        r'data-name="([^"]*)"[^>]*data-faction="([^"]*)"[^>]*'
+        r'data-fr_id="([^"]*)"[^>]*'
+        r'data-start-date="([^"]*)"[^>]*data-end-date="([^"]*)"',
         re.IGNORECASE | re.DOTALL
     )
-    
-    matches = pattern.findall(html)
-    log.info("Found %d deputies with faction data", len(matches))
-    
-    if not matches:
+    return pattern.findall(html)
+
+
+def sync_factions():
+    log.info("Fetching deputy list from RADA...")
+    active_html = fetch_url("https://people.rada.gov.ua/go/vr-mps")
+    left_html = fetch_url("https://people.rada.gov.ua/go/vr-exmps")
+
+    active_cards = parse_mp_cards(active_html)
+    left_cards = parse_mp_cards(left_html)
+    log.info("Active: %d, Left: %d", len(active_cards), len(left_cards))
+
+    all_cards = active_cards + left_cards
+    if not all_cards:
         log.error("Could not parse deputy list")
         return
-    
-    # Групуємо по фракціях
+
     factions_count = {}
-    updates = []
-    
-    for full_name, raw_faction in matches:
+    total_updated = 0
+
+    for full_name, raw_faction, fr_id, start_date, end_date in all_cards:
         faction = parse_faction_name(raw_faction)
         factions_count[faction] = factions_count.get(faction, 0) + 1
-        
-        # Шукаємо депутата в БД за ім'ям
-        # RADA дає повне ім'я, в БД може бути скорочене
-        # Спробуємо знайти за прізвищем
+
         parts = full_name.strip().split()
         if len(parts) < 1:
             continue
-        
         last_name = parts[0]
-        updates.append((faction, last_name))
-    
-    # Батч-оновлення через raw_sql
-    batch_size = 20
-    total_updated = 0
-    
-    for i in range(0, len(updates), batch_size):
-        batch = updates[i:i+batch_size]
-        
-        # Оновлюємо кожного депутата окремо
-        for faction, last_name in batch:
-            try:
-                d1_exec("raw_sql", {
-                    "sql": "UPDATE mps SET faction = ? WHERE name LIKE ?",
-                    "params": [faction, f"%{last_name}%"]
-                })
-                total_updated += 1
-            except Exception as e:
-                log.warning("Update failed for %s: %s", last_name, str(e)[:100])
-    
+
+        try:
+            d1_exec("raw_sql", {
+                "sql": "UPDATE mps SET faction = ?, start_date = ?, end_date = ? WHERE name LIKE ?",
+                "params": [
+                    faction,
+                    start_date if start_date else None,
+                    end_date if end_date else None,
+                    f"%{last_name}%",
+                ],
+            })
+            total_updated += 1
+        except Exception as e:
+            log.warning("Update failed for %s: %s", last_name, str(e)[:100])
+
     log.info("Faction distribution:")
     for f, c in sorted(factions_count.items(), key=lambda x: -x[1]):
         log.info("  %s: %d", f, c)
-    
+
     log.info("Updated %d deputies in database", total_updated)
 
 

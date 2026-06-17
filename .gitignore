@@ -8,3 +8,4 @@ node_modules/
 package-lock.json
 package.json
 dashboard/best.html
+.vote_sync_progress.txt
