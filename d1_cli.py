@@ -10,12 +10,13 @@ Usage:
     python d1_cli.py --table bills         — схема таблиці
 """
 import json
+import os
 import sys
 import urllib.request
 import urllib.parse
 
 WORKER_URL = "https://rada-monitor-api.distih.workers.dev"
-SYNC_TOKEN = "radacleaner-sync-secret-2026"
+SYNC_TOKEN = os.environ["CF_SYNC_TOKEN"]
 
 
 def query(sql, params=None):
