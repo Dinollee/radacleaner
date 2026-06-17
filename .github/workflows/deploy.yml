@@ -47,8 +47,4 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "08fa8a530c85d31a11b04446d9c3ade6"
         run: |
-          mv ../wrangler.jsonc ../wrangler.worker.jsonc
-          mv ../wrangler.pages.jsonc ../wrangler.jsonc
           ./node_modules/.bin/wrangler pages deploy "$GITHUB_WORKSPACE/dashboard" --project-name radacleaner-dashboard --branch main --commit-dirty=true --cwd "$GITHUB_WORKSPACE"
-          mv ../wrangler.jsonc ../wrangler.pages.jsonc
-          mv ../wrangler.worker.jsonc ../wrangler.jsonc

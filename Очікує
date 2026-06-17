@@ -1,0 +1,4 @@
+  File "<string>", line 5
+    prompt = '''Проаналізуй дані та сформуй щоденну сводку.
+             ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 37)

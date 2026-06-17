@@ -1,13 +1,5 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rada-monitor-api",
-  "main": "worker/src/index.js",
-  "compatibility_date": "2026-06-06",
-  "d1_databases": [
-    {
-      "binding": "radacleaner_db",
-      "database_name": "radacleaner-db",
-      "database_id": "166e55f8-f2eb-41cf-830a-461399accac8"
-    }
-  ]
+  "name": "radacleaner-dashboard",
+  "pages_build_output_dir": "dashboard"
 }
