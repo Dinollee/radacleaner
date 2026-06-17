@@ -7,3 +7,4 @@ worker/package-lock.json
 node_modules/
 package-lock.json
 package.json
+dashboard/best.html

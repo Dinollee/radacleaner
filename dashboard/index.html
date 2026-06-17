@@ -249,13 +249,13 @@ tr.clickable { cursor: pointer; }
 <div class="header">
   <div class="logo">Страж Демократії <span>ВРУ IX</span></div>
   <nav>
-    <button class="active" onclick="showSection('dashboard')">Дашборд</button>
-    <button onclick="showSection('bills')">Закони</button>
-    <button onclick="showSection('deputies')">Депутати</button>
-    <button onclick="showSection('schedule')">Графік</button>
+    <button class="active" data-section="dashboard">Дашборд</button>
+    <button data-section="bills">Закони</button>
+    <button data-section="deputies">Депутати</button>
+    <button data-section="schedule">Графік</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
-  <div class="theme-toggle" onclick="toggleTheme()" title="Переключити тему"></div>
+  <div class="theme-toggle" id="theme-toggle" title="Переключити тему"></div>
 </div>
 
 <div class="container">
@@ -275,8 +275,8 @@ tr.clickable { cursor: pointer; }
   <!-- BILLS -->
   <div id="sec-bills" class="section">
     <div class="filters">
-      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою..." oninput="debouncedLoadBills()">
-      <select id="bill-stage" onchange="billsOffset=0;loadBills()">
+      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою...">
+      <select id="bill-stage">
         <option value="">Всі етапи</option>
         <option value="1">1 — Зареєстровано</option>
         <option value="2">2 — Перше читання</option>
@@ -284,32 +284,32 @@ tr.clickable { cursor: pointer; }
         <option value="4">4 — Підписано</option>
         <option value="5">5 — Відхилено</option>
       </select>
-      <select id="bill-status" onchange="billsOffset=0;loadBills()"></select>
-      <select id="bill-analyzed" onchange="billsOffset=0;loadBills()">
+      <select id="bill-status"></select>
+      <select id="bill-analyzed">
         <option value="">Всі</option>
         <option value="1">✓ З аналізом</option>
         <option value="0">— Без аналізу</option>
       </select>
-      <select id="bill-threats" onchange="billsOffset=0;loadBills()">
+      <select id="bill-threats">
         <option value="">Всі закони</option>
         <option value="1">🔴 Високий ризик</option>
         <option value="2">🔴🟠 Високий + середній</option>
       </select>
-      <select id="bill-procedural" onchange="billsOffset=0;loadBills()">
+      <select id="bill-procedural">
         <option value="">Без процедурних</option>
         <option value="1">Включити процедурні</option>
         <option value="only">Тільки процедурні</option>
       </select>
-      <input type="date" id="bill-date-from" title="Зміни з дати" onchange="billsOffset=0;loadBills()">
-      <input type="date" id="bill-date-to" title="Зміни по дату" onchange="billsOffset=0;loadBills()">
+      <input type="date" id="bill-date-from" title="Зміни з дати">
+      <input type="date" id="bill-date-to" title="Зміни по дату">
     </div>
     <div class="card">
       <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="bills-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
-          <button class="back-btn" onclick="billsPage(-1)">← Назад</button>
-          <button class="back-btn" onclick="billsPage(1)">Далі →</button>
+          <button class="back-btn" data-page="-1">← Назад</button>
+          <button class="back-btn" data-page="1">Далі →</button>
         </div>
       </div>
     </div>
@@ -318,9 +318,9 @@ tr.clickable { cursor: pointer; }
   <!-- DEPUTIES -->
   <div id="sec-deputies" class="section">
     <div class="filters">
-      <input type="text" id="dep-search" placeholder="Пошук депутата..." oninput="debouncedLoadDeputies()">
-      <select id="dep-faction" onchange="depsOffset=0;loadDeputies()"></select>
-      <select id="dep-sort" onchange="depsOffset=0;loadDeputies()">
+      <input type="text" id="dep-search" placeholder="Пошук депутата...">
+      <select id="dep-faction"></select>
+      <select id="dep-sort">
         <option value="name">За ім'ям</option>
         <option value="conversion">За конверсією ↓</option>
         <option value="py">За ПЯ ↓</option>
@@ -333,8 +333,8 @@ tr.clickable { cursor: pointer; }
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
-          <button class="back-btn" onclick="depsPage(-1)">← Назад</button>
-          <button class="back-btn" onclick="depsPage(1)">Далі →</button>
+          <button class="back-btn" data-page="-1" data-list="deputies">← Назад</button>
+          <button class="back-btn" data-page="1" data-list="deputies">Далі →</button>
         </div>
       </div>
     </div>
@@ -342,7 +342,7 @@ tr.clickable { cursor: pointer; }
 
   <!-- DEPUTY DETAIL -->
   <div id="sec-deputy-detail" class="section">
-    <button class="back-btn" onclick="showSection('deputies')">← Назад до списку</button>
+    <button class="back-btn" data-section="deputies">← Назад до списку</button>
     <div id="deputy-detail-content"></div>
   </div>
 
@@ -361,9 +361,20 @@ tr.clickable { cursor: pointer; }
 </div>
 
 <script>
-const API = 'https://rada-monitor-api.distih.workers.dev';
 let billsOffset = 0, depsOffset = 0, billsTotal = 0, depsTotal = 0;
 const PAGE = 50;
+
+function escHtml(s) {
+  if (s == null) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function attr(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function debounce(fn, ms) {
   let t;
@@ -377,7 +388,7 @@ function showSection(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('sec-' + name).classList.add('active');
-  const navBtn = document.querySelector(`nav button[onclick="showSection('${name}')"]`);
+  const navBtn = document.querySelector(`nav button[data-section="${name}"]`);
   if (navBtn) navBtn.classList.add('active');
   // Close any expanded bill row
   const expandRow = document.querySelector('.bill-expand-row');
@@ -406,7 +417,7 @@ function showSection(name) {
 
 // === API helpers ===
 async function api(path) {
-  const r = await fetch(API + path);
+  const r = await fetch(path);
   if (!r.ok) throw new Error(`API ${r.status}`);
   return r.json();
 }
@@ -445,15 +456,11 @@ function factionColor(faction) {
   return colors[faction] || '#6c7a89';
 }
 
-function stageBar(current) {
-  let html = '<div class="stage-bar">';
-  for (let i = 1; i <= 5; i++) html += `<span class="${i <= current ? 'filled' : ''}"></span>`;
-  return html + '</div>';
-}
-
 // === DASHBOARD ===
 async function loadDashboard() {
   document.querySelector('#sec-dashboard .section-loading')?.remove();
+  const statsEl = document.getElementById('dashboard-stats');
+  const tbody = document.querySelector('#threats-table tbody');
   try {
     const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
 
@@ -462,7 +469,6 @@ async function loadDashboard() {
       api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}`),
     ]);
 
-    const statsEl = document.getElementById('dashboard-stats');
     statsEl.innerHTML = `
       <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${stats.totalBills||0}</div><div class="stat-daily"><span class="stat-badge new${(stats.newBills24h||0)===0?' zero':''}">+${stats.newBills24h||0} new</span><span class="stat-badge changed${(stats.statusChanges24h||0)===0?' zero':''}">~${stats.statusChanges24h||0} змін</span></div></div>
       <div class="stat-card"><div class="stat-label">Активні (120 днів)</div><div class="stat-value" style="color:var(--blue)">${threats.total||0}</div></div>
@@ -471,19 +477,22 @@ async function loadDashboard() {
       <div class="stat-card"><div class="stat-label">Депутатів (активних)</div><div class="stat-value">${stats.activeMps30d||0}<span style="font-size:13px;color:var(--text2);font-weight:400">/${stats.totalMps||0}</span></div></div>
     `;
 
-    const tbody = document.querySelector('#threats-table tbody');
     tbody.innerHTML = (threats.bills||[]).map(b => {
       const age = b.status_changed_at ? daysSince(b.status_changed_at) : null;
-      return `<tr class="clickable" onclick="toggleBillExpand(this,${b.id})">
-        <td><strong>${b.bill_number}</strong></td>
-        <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,60)}${b.title?.length>60?'...':''}</td>
-        <td>${b.current_status||'new'}</td>
+      return `<tr class="clickable" data-bill-id="${b.id}">
+        <td><strong>${escHtml(b.bill_number)}</strong></td>
+        <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}${(b.title||'').length>60?'...':''}</td>
+        <td>${escHtml(b.current_status||'new')}</td>
         <td>${stageBadge(b.stage)}</td>
         <td>${riskBadge(b.risk_level)}</td>
         <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="6" style="color:var(--text2)">Активних законів немає</td></tr>';
-  } catch(e) { console.error('Dashboard error:', e); }
+  } catch(e) {
+    console.error('Dashboard error:', e);
+    statsEl.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><p style="color:var(--red)">Помилка завантаження даних</p></div>';
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--red)">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
+  }
 }
 
 function daysSince(dateStr) {
@@ -494,6 +503,7 @@ function daysSince(dateStr) {
 
 // === BILLS ===
 let expandedBillId = null;
+let _pendingGoToBill = null;
 
 async function loadBills() {
   document.querySelector('#sec-bills .section-loading')?.remove();
@@ -520,27 +530,32 @@ async function loadBills() {
   try {
     const data = await api(url);
     billsTotal = data.total || 0;
-    document.getElementById('bills-count').textContent = `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}`;
-    tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" data-bill-id="${b.id}" onclick="toggleBillExpand(this,${b.id})">
-      <td><strong>${b.bill_number}</strong></td>
-      <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,70)}${b.title?.length>70?'...':''}</td>
-      <td>${b.current_status||'new'}</td>
+    document.getElementById('bills-count').textContent = billsTotal ? `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}` : 'Нічого не знайдено';
+    tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" data-bill-id="${b.id}">
+      <td><strong>${escHtml(b.bill_number)}</strong></td>
+      <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,70))}${(b.title||'').length>70?'...':''}</td>
+      <td>${escHtml(b.current_status||'new')}</td>
       <td>${stageBadge(b.stage)}</td>
-      <td style="font-size:12px;color:var(--text2)">${(b.committee||'').substring(0,40)}</td>
+      <td style="font-size:12px;color:var(--text2)">${escHtml((b.committee||'').substring(0,40))}</td>
       <td>${riskBadge(b.risk_level)}</td>
       <td style="font-size:12px"><span class="analysis-dot ${b.has_analysis ? 'analyzed' : 'not-analyzed'}" title="${b.has_analysis ? 'Проаналізовано LLM' : 'Не проаналізовано'}"></span>${formatDate(b.status_changed_at || b.updated_at)}</td>
     </tr>`).join('');
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">Помилка: ${e.message}</td></tr>`; console.error('Bills error:', e); }
+    // Auto-expand if goToBill was called while loading
+    if (_pendingGoToBill) {
+      const row = tbody.querySelector(`tr[data-bill-id="${_pendingGoToBill}"]`);
+      if (row) toggleBillExpand(row, _pendingGoToBill);
+      _pendingGoToBill = null;
+    }
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="7" style="color:var(--red)">Помилка: ${escHtml(e.message)}</td></tr>`; console.error('Bills error:', e); }
 }
 function billsPage(d) { billsOffset = Math.max(0, billsOffset + d * PAGE); loadBills(); }
 
 function goToBill(id) {
   showSection('bills');
-  // Find and expand the bill after a short delay to let the list load
-  setTimeout(() => {
-    const row = document.querySelector(`tr[data-bill-id="${id}"]`);
-    if (row) toggleBillExpand(row, id);
-  }, 500);
+  _pendingGoToBill = id;
+  // If bills already loaded, try to expand
+  const row = document.querySelector(`tr[data-bill-id="${id}"]`);
+  if (row) { toggleBillExpand(row, id); _pendingGoToBill = null; }
 }
 
 // === INLINE BILL EXPANSION ===
@@ -558,7 +573,7 @@ async function toggleBillExpand(row, id) {
   const expandRow = document.createElement('tr');
   expandRow.className = 'bill-expand-row';
   expandRow.dataset.billId = id;
-  expandRow.innerHTML = `<td colspan="7"><div class="bill-expand-content"><div class="loading"><div class="spinner"></div></div></div></td>`;
+  expandRow.innerHTML = '<td colspan="7"><div class="bill-expand-content"><div class="loading"><div class="spinner"></div></div></div></td>';
   row.after(expandRow);
 
   try {
@@ -574,7 +589,7 @@ async function toggleBillExpand(row, id) {
     if (risks?.json_data) {
       try {
         const parsed = JSON.parse(risks.json_data);
-        if (parsed.hasOwnProperty('has_risks')) {
+        if (Object.hasOwn(parsed, 'has_risks')) {
           riskLevel = parsed.risk_level || 'low';
           risksList = parsed.detailed_risks || [];
           analyzedChunks = parsed.analyzed_chunks || [];
@@ -585,32 +600,32 @@ async function toggleBillExpand(row, id) {
     const riskEmoji = {high:'🔴',medium:'🟠',low:'🟡'};
     const riskName = {high:'ВИСОКИЙ',medium:'СЕРЕДНІЙ',low:'НИЗЬКИЙ'};
 
-    let html = `<button class="bill-expand-close" onclick="closeBillExpand()">✕ Закрити</button>`;
-    html += `<h3 style="font-size:17px;margin-bottom:10px;line-height:1.3">#${b.bill_number} — ${b.title||''}</h3>`;
+    let html = '<button class="bill-expand-close" data-action="close-expand">✕ Закрити</button>';
+    html += `<h3 style="font-size:17px;margin-bottom:10px;line-height:1.3">#${escHtml(b.bill_number)} — ${escHtml(b.title||'')}</h3>`;
 
     // Info grid
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;font-size:13px;margin-bottom:12px">
-      <div><span style="color:var(--text2)">Статус:</span> <strong>${b.current_status||'new'}</strong></div>
-      <div><span style="color:var(--text2)">Комітет:</span> ${b.committee||'—'}</div>
+      <div><span style="color:var(--text2)">Статус:</span> <strong>${escHtml(b.current_status||'new')}</strong></div>
+      <div><span style="color:var(--text2)">Комітет:</span> ${escHtml(b.committee||'—')}</div>
       <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
       <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
-      ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${risks.model_used}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
-      ${b.url ? `<div><a href="${b.url}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
+      ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
+      ${b.url ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
     </div>`;
 
     // Re-analyze button
     html += `<div style="margin-bottom:12px">
-      <button onclick="reanalyzeBill(${id},'${b.bill_number}')" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">🔄 Переаналізувати (LLM)</button>
+      <button data-action="reanalyze" data-bill-id="${id}" data-bill-number="${attr(b.bill_number)}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">🔄 Переаналізувати (LLM)</button>
       <span id="reanalyze-status-${id}" style="margin-left:8px;font-size:12px;color:var(--text2)"></span>
     </div>`;
 
     // Tabs
-    html += `<div class="tabs" id="bill-tabs-${id}">
-      <button class="active" onclick="switchBillTab(${id},this,'analysis')">📊 Аналіз</button>
-      <button onclick="switchBillTab(${id},this,'chronology')">📅 Хронологія</button>
-      <button onclick="switchBillTab(${id},this,'documents')">📄 Документи (${docs.length})</button>
-      <button onclick="switchBillTab(${id},this,'versions')">🔄 Версії (${versions.length})</button>
-      <button onclick="switchBillTab(${id},this,'votes')">🗳 Голосування (${votes.length})</button>
+    html += `<div class="tabs" data-bill-id="${id}">
+      <button class="active" data-tab="analysis">📊 Аналіз</button>
+      <button data-tab="chronology">📅 Хронологія</button>
+      <button data-tab="documents">📄 Документи (${docs.length})</button>
+      <button data-tab="versions">🔄 Версії (${versions.length})</button>
+      <button data-tab="votes">🗳 Голосування (${votes.length})</button>
     </div>`;
 
     // === TAB: Аналіз ===
@@ -618,8 +633,8 @@ async function toggleBillExpand(row, id) {
     if (risks?.raw_analysis) {
       html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
         <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
-        <p style="font-size:13px;line-height:1.6;margin:0">${risks.raw_analysis}</p>
-        <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${risks.model_used||'?'} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
+        <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(risks.raw_analysis)}</p>
+        <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
       </div>`;
     }
     if (risksList.length) {
@@ -627,14 +642,14 @@ async function toggleBillExpand(row, id) {
       html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid ${lc[riskLevel]};border-radius:4px;margin-bottom:12px">
         <div style="font-size:12px;font-weight:600;margin-bottom:6px">${riskEmoji[riskLevel]||'🟡'} Ризики — ${riskName[riskLevel]} (${risksList.length})</div>
         ${analyzedChunks.length ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Проаналізовано чанків: ${analyzedChunks.join(', ')}</div>` : ''}
-        ${risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${r}</div>`).join('')}
+        ${risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('')}
       </div>`;
     } else if (risks) {
-      html += `<div style="padding:10px;color:var(--green);font-size:13px">✅ Ризиків не виявлено</div>`;
+      html += '<div style="padding:10px;color:var(--green);font-size:13px">✅ Ризиків не виявлено</div>';
     } else {
-      html += `<div style="padding:10px;color:var(--text2);font-size:13px">Аналіз LLM не проведено</div>`;
+      html += '<div style="padding:10px;color:var(--text2);font-size:13px">Аналіз LLM не проведено</div>';
     }
-    html += `</div>`;
+    html += '</div>';
 
     // === TAB: Хронологія ===
     html += `<div id="bill-tab-${id}-chronology" class="bill-expand-tab" style="display:none">`;
@@ -649,15 +664,15 @@ async function toggleBillExpand(row, id) {
           statusGroups[statusGroups.length - 1].entries.push(p);
         }
       }
-      html += `<div style="position:relative;padding-left:28px">`;
+      html += '<div style="position:relative;padding-left:28px">';
       statusGroups.forEach((group, gi) => {
         const isFirst = gi === 0;
         const isLast = gi === statusGroups.length - 1;
         const dotColor = isFirst ? 'var(--green)' : 'var(--blue)';
         html += `<div style="position:relative;padding-bottom:${group.entries.length > 1 || !isLast ? 8 : 0}px">
           <div style="position:absolute;left:-28px;top:2px;width:20px;height:20px;border-radius:50%;background:${dotColor};display:flex;align-items:center;justify-content:center;font-size:11px">${isFirst ? '📌' : '📋'}</div>
-          ${!isLast ? `<div style="position:absolute;left:-19px;top:22px;width:2px;height:calc(100% - 22px);background:var(--border)"></div>` : ''}
-          <div style="font-size:13px;font-weight:600;color:${isFirst ? 'var(--green)' : 'var(--text)'};margin-bottom:4px">${group.status || '—'}</div>
+          ${!isLast ? '<div style="position:absolute;left:-19px;top:22px;width:2px;height:calc(100% - 22px);background:var(--border)"></div>' : ''}
+          <div style="font-size:13px;font-weight:600;color:${isFirst ? 'var(--green)' : 'var(--text)'};margin-bottom:4px">${escHtml(group.status || '—')}</div>
         </div>`;
         const sorted = [...group.entries].sort((a, b) => (b.pass_date || '').localeCompare(a.pass_date || ''));
         sorted.forEach((p, ei) => {
@@ -666,55 +681,55 @@ async function toggleBillExpand(row, id) {
             <div style="position:absolute;left:-14px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--border)"></div>
             <div style="display:flex;gap:12px;align-items:baseline">
               <div style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:80px">${formatDate(p.pass_date)}</div>
-              <div style="font-size:13px;color:var(--text)">${p.title}</div>
+              <div style="font-size:13px;color:var(--text)">${escHtml(p.title)}</div>
             </div>
           </div>`;
         });
       });
-      html += `</div>`;
+      html += '</div>';
     } else {
-      html += `<p style="color:var(--text2)">Хронологія відсутня</p>`;
+      html += '<p style="color:var(--text2)">Хронологія відсутня</p>';
     }
-    html += `</div>`;
+    html += '</div>';
 
     // === TAB: Документи ===
     html += `<div id="bill-tab-${id}-documents" class="bill-expand-tab" style="display:none">`;
     if (docs.length) {
       const seen = new Set();
-      html += `<table style="width:100%;font-size:13px"><thead><tr><th>Тип</th><th>ID файлу</th><th>Посилання</th></tr></thead><tbody>`;
+      html += '<table style="width:100%;font-size:13px"><thead><tr><th>Тип</th><th>ID файлу</th><th>Посилання</th></tr></thead><tbody>';
       docs.forEach(d => {
         const key = `${d.file_id}-${d.doc_type}`;
         if (seen.has(key)) return;
         seen.add(key);
-        html += `<tr><td>${d.doc_type||'—'}</td><td style="font-size:12px;color:var(--text2)">${d.file_id}</td><td><a href="https://itd.rada.gov.ua/billInfo/Bills/pubFile/${d.file_id}" target="_blank" style="color:var(--blue)">Відкрити →</a></td></tr>`;
+        html += `<tr><td>${escHtml(d.doc_type||'—')}</td><td style="font-size:12px;color:var(--text2)">${escHtml(d.file_id)}</td><td><a href="https://itd.rada.gov.ua/billInfo/Bills/pubFile/${escHtml(d.file_id)}" target="_blank" style="color:var(--blue)">Відкрити →</a></td></tr>`;
       });
-      html += `</tbody></table>`;
+      html += '</tbody></table>';
     } else {
-      html += `<p style="color:var(--text2)">Документи відсутні</p>`;
+      html += '<p style="color:var(--text2)">Документи відсутні</p>';
     }
-    html += `</div>`;
+    html += '</div>';
 
     // === TAB: Версії ===
     html += `<div id="bill-tab-${id}-versions" class="bill-expand-tab" style="display:none">`;
     if (versions.length >= 2) {
       html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
         <label style="font-size:13px;color:var(--text2)">Порівняти:</label>
-        <select id="ver-old-${id}" onchange="showInlineDiff(${id})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
-          ${versions.slice(1).map((v,i) => `<option value="${i+1}">${v.status_at_moment||'v'+(i+1)} (${v.text_hash?.substring(0,8)||'?'})</option>`).join('')}
+        <select data-role="ver-old" data-bill-id="${id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
+          ${versions.slice(1).map((v,i) => `<option value="${i+1}">${escHtml(v.status_at_moment||'v'+(i+1))} (${escHtml((v.text_hash||'?').substring(0,8))})</option>`).join('')}
         </select>
         <span style="color:var(--text2)">←</span>
-        <select id="ver-new-${id}" onchange="showInlineDiff(${id})" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
-          ${versions.slice(0,-1).map((v,i) => `<option value="${i}" ${i===0?'selected':''}>${v.status_at_moment||'v'+(versions.length-i)} (${v.text_hash?.substring(0,8)||'?'})</option>`).join('')}
+        <select data-role="ver-new" data-bill-id="${id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
+          ${versions.slice(0,-1).map((v,i) => `<option value="${i}" ${i===0?'selected':''}>${escHtml(v.status_at_moment||'v'+(versions.length-i))} (${escHtml((v.text_hash||'?').substring(0,8))})</option>`).join('')}
         </select>
       </div>`;
-      html += `<div class="diff-container"><div><div class="diff-header">Стара версія</div><div class="diff-panel" id="diff-old-${id}"></div></div><div><div class="diff-header">Нова версія</div><div class="diff-panel" id="diff-new-${id}"></div></div></div>`;
+      html += '<div class="diff-container"><div><div class="diff-header">Стара версія</div><div class="diff-panel" id="diff-old-'+id+'"></div></div><div><div class="diff-header">Нова версія</div><div class="diff-panel" id="diff-new-'+id+'"></div></div></div>';
       window['_billVersions_' + id] = versions;
     } else if (versions.length === 1) {
       html += `<div style="padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;max-height:400px;overflow-y:auto;font-size:13px;white-space:pre-wrap">${escHtml(versions[0].plain_text||'')}</div>`;
     } else {
-      html += `<p style="color:var(--text2)">Версії відсутні</p>`;
+      html += '<p style="color:var(--text2)">Версії відсутні</p>';
     }
-    html += `</div>`;
+    html += '</div>';
 
     // === TAB: Голосування ===
     html += `<div id="bill-tab-${id}-votes" class="bill-expand-tab" style="display:none">`;
@@ -723,8 +738,8 @@ async function toggleBillExpand(row, id) {
         const total = (v.yes_count||0)+(v.no_count||0)+(v.abstain_count||0)+(v.not_present_count||0)+(v.absent_count||0) || 1;
         const barW = p => Math.max(0, Math.round(p/total*100));
         html += `<div class="vote-block" data-vi="${vi}">
-          <div class="vote-block-header" onclick="toggleVoteBlock(this)">
-            <div class="vote-block-title">${v.title||'Голосування'}</div>
+          <div class="vote-block-header">
+            <div class="vote-block-title">${escHtml(v.title||'Голосування')}</div>
             <div class="vote-block-summary">
               <span class="vc vc-za">✅ ${v.yes_count} За</span>
               <span class="vc vc-no">❌ ${v.no_count} Проти</span>
@@ -743,40 +758,41 @@ async function toggleBillExpand(row, id) {
           <div class="vote-factions-inner">`;
         if (v.deputies && v.deputies.length) {
           html += `<div class="deputies-filter">
-            <button class="filter-btn active" onclick="filterBillDeputies(this,'all')">Всі (${v.deputies.length})</button>
-            <button class="filter-btn" onclick="filterBillDeputies(this,'za')">За (${v.yes_count})</button>
-            <button class="filter-btn" onclick="filterBillDeputies(this,'no')">Проти (${v.no_count})</button>
-            <button class="filter-btn" onclick="filterBillDeputies(this,'ab')">Утримались (${v.abstain_count})</button>
-            <button class="filter-btn" onclick="filterBillDeputies(this,'np')">Відсутні (${(v.not_present_count||0)+(v.absent_count||0)})</button>
+            <button class="filter-btn active" data-filter="all">Всі (${v.deputies.length})</button>
+            <button class="filter-btn" data-filter="za">За (${v.yes_count})</button>
+            <button class="filter-btn" data-filter="no">Проти (${v.no_count})</button>
+            <button class="filter-btn" data-filter="ab">Утримались (${v.abstain_count})</button>
+            <button class="filter-btn" data-filter="np">Відсутні (${(v.not_present_count||0)+(v.absent_count||0)})</button>
           </div>`;
-          html += `<div class="deputies-list">`;
+          html += '<div class="deputies-list">';
           v.deputies.forEach(d => {
             const vc = d.vote_code === 'yes' ? 'za' : d.vote_code === 'no' ? 'no' : d.vote_code === 'abstain' ? 'ab' : 'np';
             const vlabel = d.vote_code === 'yes' ? '✅ За' : d.vote_code === 'no' ? '❌ Проти' : d.vote_code === 'abstain' ? '⏸️ Утримався' : '⬜ Відсутній';
             html += `<div class="deputy-row" data-vc="${vc}">
-              <span class="dep-name"><span class="vote-deputy-faction" style="background:${factionColor(d.mp_faction)}"></span>${d.mp_name}</span>
-              <span class="dep-faction">${d.mp_faction||''}</span>
+              <span class="dep-name"><span class="vote-deputy-faction" style="background:${factionColor(d.mp_faction)}"></span>${escHtml(d.mp_name)}</span>
+              <span class="dep-faction">${escHtml(d.mp_faction||'')}</span>
               <span class="dep-vote v-${vc}">${vlabel}</span>
             </div>`;
           });
-          html += `</div>`;
+          html += '</div>';
         }
-        html += `</div></div>`;
+        html += '</div></div>';
       });
     } else {
-      html += `<p style="color:var(--text2)">Голосувань поки немає</p>`;
+      html += '<p style="color:var(--text2)">Голосувань поки немає</p>';
     }
-    html += `</div>`;
+    html += '</div>';
 
     expandRow.querySelector('.bill-expand-content').innerHTML = html;
     if (versions.length >= 2) setTimeout(() => showInlineDiff(id), 100);
   } catch(e) {
-    expandRow.querySelector('.bill-expand-content').innerHTML = `<p style="color:var(--red)">Помилка: ${e.message}</p>`;
+    expandRow.querySelector('.bill-expand-content').innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`;
   }
 }
 
 function switchBillTab(id, btn, tab) {
-  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  const parent = btn.closest('.tabs');
+  parent.querySelectorAll('button').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll(`[id^="bill-tab-${id}-"]`).forEach(t => t.style.display = 'none');
   document.getElementById(`bill-tab-${id}-${tab}`).style.display = 'block';
@@ -785,8 +801,13 @@ function switchBillTab(id, btn, tab) {
 function showInlineDiff(id) {
   const versions = window['_billVersions_' + id];
   if (!versions || versions.length < 2) return;
-  const oldIdx = parseInt(document.getElementById(`ver-old-${id}`).value);
-  const newIdx = parseInt(document.getElementById(`ver-new-${id}`).value);
+  const expandContent = document.querySelector(`.bill-expand-row[data-bill-id="${id}"] .bill-expand-content`);
+  if (!expandContent) return;
+  const oldSel = expandContent.querySelector('[data-role="ver-old"]');
+  const newSel = expandContent.querySelector('[data-role="ver-new"]');
+  if (!oldSel || !newSel) return;
+  const oldIdx = parseInt(oldSel.value);
+  const newIdx = parseInt(newSel.value);
   const oldText = versions[oldIdx]?.plain_text || '';
   const newText = versions[newIdx]?.plain_text || '';
   document.getElementById(`diff-old-${id}`).innerHTML = inlineDiff(oldText, newText, true);
@@ -834,38 +855,40 @@ function filterBillDeputies(btn, type) {
   });
 }
 
-function reanalyzeBill(id, billNumber) {
+function reanalyzeBill(id) {
   const statusEl = document.getElementById(`reanalyze-status-${id}`);
-  statusEl.innerHTML = `<span style="color:var(--orange)">⏳ Запуск аналізу...</span>`;
+  statusEl.textContent = '⏳ Запуск аналізу...';
+  statusEl.style.color = 'var(--orange)';
 
-  fetch(`${API}/api/bills/${id}/analyze`, { method: 'POST' })
+  fetch(`/api/bills/${id}/analyze`, { method: 'POST' })
     .then(r => r.json())
     .then(d => {
-      statusEl.innerHTML = `<span style="color:var(--green)">✅ Аналіз запущено. Оновіть сторінку через 2-3 хв.</span>`;
-      // Poll for completion
+      statusEl.textContent = '✅ Аналіз запущено. Оновіть сторінку через 2-3 хв.';
+      statusEl.style.color = 'var(--green)';
       let attempts = 0;
       const poll = setInterval(() => {
         attempts++;
         if (attempts > 20) { clearInterval(poll); return; }
-        fetch(`${API}/api/bills/${id}/analyze`)
+        fetch(`/api/bills/${id}/analyze`)
           .then(r => r.json())
           .then(s => {
             if (s.status === 'done') {
               clearInterval(poll);
-              statusEl.innerHTML = `<span style="color:var(--green)">✅ Аналіз завершено! Оновіть сторінку.</span>`;
+              statusEl.textContent = '✅ Аналіз завершено! Оновіть сторінку.';
+              statusEl.style.color = 'var(--green)';
             } else if (s.status === 'error') {
               clearInterval(poll);
-              statusEl.innerHTML = `<span style="color:var(--red)">❌ Помилка аналізу</span>`;
+              statusEl.textContent = '❌ Помилка аналізу';
+              statusEl.style.color = 'var(--red)';
             }
           }).catch(() => {});
       }, 15000);
     })
     .catch(e => {
-      statusEl.innerHTML = `<span style="color:var(--red)">❌ Помилка: ${e.message}</span>`;
+      statusEl.textContent = '❌ Помилка: ' + e.message;
+      statusEl.style.color = 'var(--red)';
     });
 }
-
-function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -882,23 +905,20 @@ async function loadDeputies() {
   const search = document.getElementById('dep-search').value;
   const faction = document.getElementById('dep-faction').value;
   const sort = document.getElementById('dep-sort').value;
+  const tbody = document.querySelector('#deputies-table tbody');
+  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
   let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (faction) url += `&faction=${encodeURIComponent(faction)}`;
-  if (sort === 'py' || sort === 'pda' || sort === 'vkp') url += `&sort=name`;
+  // Pass sort to server; server handles py/pda/vkp/conversion/name
+  if (sort) url += `&sort=${sort}`;
   try {
     const data = await api(url);
     depsTotal = data.total || 0;
-    document.getElementById('deputies-count').textContent = `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}`;
-    let deps = data.deputies || [];
-    if (sort === 'py') deps.sort((a,b) => (b.py||0) - (a.py||0));
-    if (sort === 'pda') deps.sort((a,b) => (b.pda||0) - (a.pda||0));
-    if (sort === 'vkp') deps.sort((a,b) => (b.vkp||0) - (a.vkp||0));
-    if (sort === 'conversion') deps.sort((a,b) => (b.conversion||0) - (a.conversion||0));
-    const tbody = document.querySelector('#deputies-table tbody');
-    tbody.innerHTML = deps.map(d => `<tr class="clickable" onclick="showDeputy('${escAttr(d.name)}')">
-      <td><strong>${d.name}</strong></td>
-      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${d.faction||'—'}</td>
+    document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
+    tbody.innerHTML = (data.deputies||[]).map(d => `<tr class="clickable" data-deputy-name="${attr(d.name)}">
+      <td><strong>${escHtml(d.name)}</strong></td>
+      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
       <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
         ${d.totalBills||0}/${d.totalLaws||0}<br>
         <span style="font-size:11px">${d.conversion||0}%</span>
@@ -913,10 +933,12 @@ async function loadDeputies() {
       </td>
       <td>${d.total||0}</td>
     </tr>`).join('');
-  } catch(e) { console.error('Deputies error:', e); }
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);text-align:center">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
+    console.error('Deputies error:', e);
+  }
 }
 function depsPage(d) { depsOffset = Math.max(0, depsOffset + d * PAGE); loadDeputies(); }
-function escAttr(s) { return (s||'').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
 
 // === DEPUTY DETAIL ===
 async function showDeputy(name) {
@@ -931,8 +953,8 @@ async function showDeputy(name) {
 
     let html = `
       <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${d.name}</h2>
-        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${d.faction||'—'}</div></div>
+        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}</h2>
+        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
         <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
           <div class="stat-card">
@@ -954,18 +976,18 @@ async function showDeputy(name) {
     if (votes.length) {
       html += `<div class="card">
         <div class="card-header"><div class="card-title">Історія голосувань (${votes.length})</div></div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap" id="dep-votes-filters">
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--green)">
-            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="yes"> За
+            <input type="checkbox" checked data-filter="yes"> За
           </label>
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--red)">
-            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="no"> Проти
+            <input type="checkbox" checked data-filter="no"> Проти
           </label>
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--orange)">
-            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="abstain"> Утримався
+            <input type="checkbox" checked data-filter="abstain"> Утримався
           </label>
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--muted)">
-            <input type="checkbox" checked onchange="filterDepVotes(this)" data-filter="not_present"> Не був
+            <input type="checkbox" checked data-filter="not_present"> Не був
           </label>
         </div>
         <div class="table-wrap"><table id="dep-votes-table"><thead><tr><th>Дата</th><th>Закон</th><th>Фракція</th><th>Рішення</th><th>Результат</th></tr></thead><tbody>`;
@@ -973,11 +995,11 @@ async function showDeputy(name) {
         const label = v.vote_label || v.vote_code || '?';
         const color = v.vote_code === 'yes' ? 'var(--green)' : v.vote_code === 'no' ? 'var(--red)' : v.vote_code === 'abstain' ? 'var(--orange)' : 'var(--muted)';
         return `<tr data-vote="${v.vote_code}">
-          <td style="font-size:12px">${v.vote_date||''}</td>
-          <td>${v.bill_number ? '#'+v.bill_number : (v.vote_title||'').substring(0,50)}</td>
-          <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(v.mp_faction)}"></span>${v.mp_faction||'—'}</td>
-          <td style="color:${color};font-weight:600">${label}</td>
-          <td style="font-size:12px;color:var(--text2)">${v.vote_title||''}</td>
+          <td style="font-size:12px">${escHtml(v.vote_date||'')}</td>
+          <td>${v.bill_number ? '#'+escHtml(v.bill_number) : escHtml((v.vote_title||'').substring(0,50))}</td>
+          <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(v.mp_faction)}"></span>${escHtml(v.mp_faction||'—')}</td>
+          <td style="color:${color};font-weight:600">${escHtml(label)}</td>
+          <td style="font-size:12px;color:var(--text2)">${escHtml(v.vote_title||'')}</td>
         </tr>`;
       }).join('');
       html += `</tbody></table></div></div>`;
@@ -986,7 +1008,7 @@ async function showDeputy(name) {
     }
 
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${e.message}</p>`; }
+  } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }
 }
 
 function filterDepVotes(checkbox) {
@@ -1010,9 +1032,9 @@ async function loadSchedule() {
     } else {
       list.innerHTML = sessions.map(s => `
         <div class="schedule-item">
-          <div class="schedule-date">${s.date}</div>
+          <div class="schedule-date">${escHtml(s.date)}</div>
           <div class="schedule-info">
-            <div class="schedule-title">${(s.bills||[]).map(b => '#'+b.bill_number).join(', ') || '—'}</div>
+            <div class="schedule-title">${(s.bills||[]).map(b => escHtml('#')+b.bill_number).join(', ') || '—'}</div>
             <div class="schedule-meta">${(s.bills||[]).length} закон(ів)</div>
           </div>
         </div>`).join('');
@@ -1023,10 +1045,10 @@ async function loadSchedule() {
     const ub = document.getElementById('upcoming-bills');
     if (upcoming.bills?.length) {
       ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
-        <tr class="clickable" onclick="goToBill(${b.id})">
-          <td><strong>${b.bill_number}</strong></td>
-          <td title="${(b.title||'').replace(/"/g,'&quot;')}">${(b.title||'').substring(0,60)}</td>
-          <td>${b.current_status||''}</td>
+        <tr class="clickable" data-bill-id="${b.id}">
+          <td><strong>${escHtml(b.bill_number)}</strong></td>
+          <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}</td>
+          <td>${escHtml(b.current_status||'')}</td>
           <td style="font-size:12px;color:var(--text2)">${formatDate(b.registration_date)||''}</td>
         </tr>`).join('')}</tbody></table></div>`;
     } else {
@@ -1034,6 +1056,98 @@ async function loadSchedule() {
     }
   } catch(e) { console.error('Schedule error:', e); }
 }
+
+// === EVENT DELEGATION ===
+document.addEventListener('click', e => {
+  const target = e.target;
+
+  // Nav buttons
+  const navBtn = target.closest('nav button[data-section]');
+  if (navBtn) { showSection(navBtn.dataset.section); return; }
+
+  // Back button
+  const backBtn = target.closest('.back-btn[data-section]');
+  if (backBtn) { showSection(backBtn.dataset.section); return; }
+
+  // Pagination
+  const pageBtn = target.closest('.back-btn[data-page]');
+  if (pageBtn) {
+    const dir = parseInt(pageBtn.dataset.page);
+    if (pageBtn.dataset.list === 'deputies') {
+      depsPage(dir);
+    } else {
+      billsPage(dir);
+    }
+    return;
+  }
+
+  // Bill rows (threats + bills + upcoming)
+  const billRow = target.closest('tr[data-bill-id].clickable');
+  if (billRow) {
+    const id = parseInt(billRow.dataset.billId);
+    toggleBillExpand(billRow, id);
+    return;
+  }
+
+  // Deputy rows
+  const depRow = target.closest('tr[data-deputy-name].clickable');
+  if (depRow) {
+    showDeputy(depRow.dataset.deputyName);
+    return;
+  }
+
+  // Bill expand close
+  if (target.closest('[data-action="close-expand"]')) {
+    closeBillExpand();
+    return;
+  }
+
+  // Re-analyze button
+  const reanalyzeBtn = target.closest('[data-action="reanalyze"]');
+  if (reanalyzeBtn) {
+    reanalyzeBill(parseInt(reanalyzeBtn.dataset.billId));
+    return;
+  }
+
+  // Tab buttons in bill expand
+  const tabBtn = target.closest('.tabs button[data-tab]');
+  if (tabBtn) {
+    const tabs = tabBtn.closest('.tabs');
+    const id = parseInt(tabs.dataset.billId);
+    switchBillTab(id, tabBtn, tabBtn.dataset.tab);
+    return;
+  }
+
+  // Vote block header
+  const voteHeader = target.closest('.vote-block-header');
+  if (voteHeader) {
+    toggleVoteBlock(voteHeader);
+    return;
+  }
+
+  // Filter buttons in vote deputies
+  const filterBtn = target.closest('.vote-factions-inner .filter-btn');
+  if (filterBtn) {
+    filterBillDeputies(filterBtn, filterBtn.dataset.filter);
+    return;
+  }
+});
+
+// Version select change delegation
+document.addEventListener('change', e => {
+  const verSel = e.target.closest('[data-role="ver-old"], [data-role="ver-new"]');
+  if (verSel) {
+    const id = parseInt(verSel.dataset.billId);
+    showInlineDiff(id);
+    return;
+  }
+});
+
+// Deputy vote filter checkboxes
+document.addEventListener('change', e => {
+  const cb = e.target.closest('#dep-votes-filters input[type="checkbox"]');
+  if (cb) { filterDepVotes(cb); }
+});
 
 // === INIT ===
 async function loadHeaderStats() {
@@ -1050,42 +1164,58 @@ async function loadHeaderStats() {
     `;
   } catch(e) { console.error('Header stats error:', e); }
 }
-loadHeaderStats();
-loadDashboard();
 
-// Load statuses for filter
-api('/api/statuses').then(d => {
-  const sel = document.getElementById('bill-status');
-  // Добавляем "Всі закони" первым
-  const allOpt = document.createElement('option');
-  allOpt.value = '';
-  allOpt.textContent = 'Всі закони';
-  sel.appendChild(allOpt);
-  (d.statuses||[]).forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.current_status;
-    opt.textContent = `${s.current_status} (${s.count})`;
-    sel.appendChild(opt);
-  });
-}).catch(()=>{});
+function init() {
+  // Bind filter inputs
+  document.getElementById('bill-search').addEventListener('input', debouncedLoadBills);
+  document.getElementById('bill-stage').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-status').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-analyzed').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-threats').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-procedural').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-date-from').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('dep-search').addEventListener('input', debouncedLoadDeputies);
+  document.getElementById('dep-faction').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
+  document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
+  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
-// Load factions for filter
-api('/api/factions').then(d => {
-  const sel = document.getElementById('dep-faction');
-  // Добавляем "Всі депутати" первым
-  const allOpt = document.createElement('option');
-  allOpt.value = '';
-  allOpt.textContent = 'Всі депутати';
-  sel.appendChild(allOpt);
-  (d.factions||[]).forEach(f => {
-    const opt = document.createElement('option');
-    opt.value = f;
-    opt.textContent = `${f}`;
-    opt.style.borderLeft = `4px solid ${factionColor(f)}`;
-    opt.style.paddingLeft = '8px';
-    sel.appendChild(opt);
-  });
-}).catch(()=>{});
+  // Load initial data
+  loadHeaderStats();
+  loadDashboard();
+
+  // Load statuses for filter
+  api('/api/statuses').then(d => {
+    const sel = document.getElementById('bill-status');
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Всі закони';
+    sel.appendChild(allOpt);
+    (d.statuses||[]).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.current_status;
+      opt.textContent = `${s.current_status} (${s.count})`;
+      sel.appendChild(opt);
+    });
+  }).catch(()=>{});
+
+  // Load factions for filter
+  api('/api/factions').then(d => {
+    const sel = document.getElementById('dep-faction');
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'Всі депутати';
+    sel.appendChild(allOpt);
+    (d.factions||[]).forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f;
+      opt.textContent = `${f}`;
+      opt.style.borderLeft = `4px solid ${factionColor(f)}`;
+      opt.style.paddingLeft = '8px';
+      sel.appendChild(opt);
+    });
+  }).catch(()=>{});
+}
 
 // === THEME ===
 function applyTheme(dark) {
@@ -1096,9 +1226,15 @@ function toggleTheme() {
   const isDark = document.documentElement.classList.contains('dark');
   applyTheme(!isDark);
 }
-// Apply saved theme or default to light
+// Apply saved theme or respect system preference
 const savedTheme = localStorage.getItem('theme');
-applyTheme(savedTheme ? savedTheme === 'dark' : false);
+if (savedTheme) {
+  applyTheme(savedTheme === 'dark');
+} else {
+  applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
