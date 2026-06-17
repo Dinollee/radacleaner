@@ -149,12 +149,12 @@ export default {
 				}
 
 				if (useFts) {
-					let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, ra.has_analysis,
-						CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
-						     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
-						     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
-						     ELSE NULL END as risk_level
-						FROM bills_fts fts
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis,
+					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
+					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
+					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
+					     ELSE NULL END as risk_level
+					FROM bills_fts fts
 						JOIN bills b ON b.id = fts.rowid
 						LEFT JOIN (SELECT bill_id, 1 as has_analysis, json_data FROM risk_assessments) ra ON ra.bill_id = b.id
 						WHERE bills_fts MATCH ?`;
@@ -190,7 +190,7 @@ export default {
 				}
 
 				// Non-search query
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, ra.has_analysis,
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis,
 					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
 					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
 					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
