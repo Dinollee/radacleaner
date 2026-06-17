@@ -8,7 +8,7 @@ import urllib.request
 from datetime import datetime
 
 from .config import log
-from .d1_client import d1_query, d1_exec
+from .d1_client import d1_query, d1_exec, refresh_stats_cache
 
 FILES = {
     "billinfo_list": {
@@ -351,6 +351,10 @@ def main() -> None:
     }
     for row in stage_rows:
         log.info("  Stage %d - %s: %d", row["stage"], stage_names.get(row["stage"], "?"), row["cnt"])
+
+    # Оновлюємо кеш статистики
+    refresh_stats_cache()
+    log.info("Stats cache refreshed")
 
 
 if __name__ == "__main__":

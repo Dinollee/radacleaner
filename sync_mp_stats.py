@@ -5,7 +5,7 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.d1_client import d1_query, d1_exec
+from src.d1_client import d1_query, d1_exec, refresh_stats_cache
 from src.config import log
 
 # Ваги голосувань для ВКП
@@ -114,6 +114,7 @@ def calculate_stats():
             log.info("  Progress: %d/%d deputies", updated, len(deputies))
 
     log.info("=== Updated %d deputies ===", updated)
+    refresh_stats_cache()
 
 
 if __name__ == "__main__":

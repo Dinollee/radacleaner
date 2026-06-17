@@ -52,43 +52,32 @@ export default {
 				return json({ data: results }, 200, 300);
 			}
 
-			// --- STATS ---
+			// --- STATS (from cache — 1 query, ~1 row read) ---
 			if (method === 'GET' && pathname === '/api/stats') {
-				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount, threatHigh, threatMedium, proceduralCount, newBills24h, statusChanges24h, activeMps30d] =
-					await Promise.all([
-						db(env, 'SELECT COUNT(*) as count FROM bills'),
-						db(env, 'SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage'),
-						db(env, "SELECT COUNT(*) as count FROM risk_assessments WHERE overall_score >= 50"),
-						db(env, "SELECT COUNT(*) as count FROM change_log WHERE created_at > datetime('now', '-7 days')"),
-						db(env, 'SELECT COUNT(*) as count FROM votes'),
-						db(env, 'SELECT COUNT(*) as count FROM mps'),
-						db(env, "SELECT COUNT(*) as count FROM mps WHERE end_date IS NULL OR end_date = ''"),
-						db(env, 'SELECT * FROM sync_state ORDER BY last_checked DESC LIMIT 1', 'first'),
-						db(env, 'SELECT COUNT(DISTINCT bill_id) as count FROM risk_assessments'),
-						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE ra.json_data LIKE '%\"risk_level\": \"high\"%' OR ra.overall_score >= 70"),
-						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE (ra.json_data LIKE '%\"risk_level\": \"medium\"%' OR (ra.overall_score >= 40 AND ra.overall_score < 70))"),
-						db(env, "SELECT COUNT(*) as c FROM bills WHERE is_procedural = 1 OR (is_procedural IS NULL AND agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)'))"),
-						db(env, "SELECT COUNT(*) as count FROM bills WHERE registration_date >= date('now', '-1 day')"),
-						db(env, "SELECT COUNT(*) as count FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')"),
-						db(env, "SELECT COUNT(DISTINCT mp_name) as cnt FROM mp_votes WHERE vote_id IN (SELECT vote_id FROM votes WHERE vote_date >= date('now', '-30 days'))"),
-					]);
+				const { results } = await env.radacleaner_db.prepare(
+					'SELECT key, value FROM stats_cache'
+				).all();
+				const cache = {};
+				for (const r of results) cache[r.key] = r.value;
+
+				const byStage = JSON.parse(cache.by_stage || '[]');
 
 				return json({
-					totalBills: totalBills?.[0]?.count || 0,
-					byStage: byStage || [],
-					highRiskBills: threatHigh?.[0]?.c || highRisk?.[0]?.count || 0,
-					mediumRiskBills: threatMedium?.[0]?.c || 0,
-					recentChanges: recentChanges?.[0]?.count || 0,
-					totalVotes: totalVotes?.[0]?.count || 0,
-					totalMps: totalMps?.[0]?.count || 0,
-					activeMps: activeMps?.[0]?.count || 0,
-					lastSync: recentSync?.last_checked || null,
-					analyzedBills: analyzedCount?.[0]?.count || 0,
-					proceduralBills: proceduralCount?.[0]?.c || 0,
-					newBills24h: newBills24h?.[0]?.count || 0,
-					statusChanges24h: statusChanges24h?.[0]?.count || 0,
-					activeMps30d: activeMps30d?.[0]?.cnt || 0,
-				});
+					totalBills: Number(cache.total_bills) || 0,
+					byStage,
+					highRiskBills: Number(cache.high_risk) || 0,
+					mediumRiskBills: Number(cache.medium_risk) || 0,
+					recentChanges: Number(cache.recent_changes) || 0,
+					totalVotes: Number(cache.total_votes) || 0,
+					totalMps: Number(cache.total_mps) || 0,
+					activeMps: Number(cache.total_mps) || 0,
+					lastSync: cache.last_updated || null,
+					analyzedBills: Number(cache.analyzed_bills) || 0,
+					proceduralBills: Number(cache.procedural_bills) || 0,
+					newBills24h: Number(cache.new_bills_24h) || 0,
+					statusChanges24h: Number(cache.status_changes_24h) || 0,
+					activeMps30d: Number(cache.active_mps_30d) || 0,
+				}, 200, 30);
 			}
 
 			// --- BILLS LIST ---
@@ -128,9 +117,9 @@ export default {
 
 				let threatSql = '';
 				if (threats === '1') {
-					threatSql = ` AND EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.json_data LIKE '%"risk_level": "high"%' OR ra2.overall_score >= 70))`;
+					threatSql = ` AND EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.risk_level = 'high' OR ra2.overall_score >= 70))`;
 				} else if (threats === '2') {
-					threatSql = ` AND EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.json_data LIKE '%"risk_level": "high"%' OR ra2.json_data LIKE '%"risk_level": "medium"%' OR ra2.overall_score >= 40))`;
+					threatSql = ` AND EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.risk_level IN ('high','medium') OR ra2.overall_score >= 40))`;
 				}
 
 				// FTS5 search
@@ -149,14 +138,10 @@ export default {
 				}
 
 				if (useFts) {
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis,
-					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
-					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
-					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
-					     ELSE NULL END as risk_level
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
 					FROM bills_fts fts
 						JOIN bills b ON b.id = fts.rowid
-						LEFT JOIN (SELECT bill_id, 1 as has_analysis, json_data FROM risk_assessments) ra ON ra.bill_id = b.id
+						LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
 						WHERE bills_fts MATCH ?`;
 					params.push(ftsQuery);
 
@@ -186,16 +171,12 @@ export default {
 					countQuery += threatSql;
 					const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
-					return json({ bills: results, limit, offset, total: countResult?.total || 0, search_engine: 'fts5' });
+					return json({ bills: results, limit, offset, total: countResult?.total || 0, search_engine: 'fts5' }, 200, 60);
 				}
 
 				// Non-search query
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis,
-					CASE WHEN ra.json_data LIKE '%"risk_level": "high"%' THEN 'high'
-					     WHEN ra.json_data LIKE '%"risk_level": "medium"%' THEN 'medium'
-					     WHEN ra.json_data LIKE '%"risk_level": "low"%' THEN 'low'
-					     ELSE NULL END as risk_level
-					FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, json_data FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1`;
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+					FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1`;
 
 				if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
 				if (status) { query += ' AND b.current_status = ?'; params.push(status); }
@@ -223,7 +204,7 @@ export default {
 				countQuery += threatSql;
 				const countResult = await env.radacleaner_db.prepare(countQuery).bind(...countParams).first();
 
-				return json({ bills: results, limit, offset, total: countResult?.total || 0 });
+				return json({ bills: results, limit, offset, total: countResult?.total || 0 }, 200, 60);
 			}
 
 			// --- ANALYZE BILL (trigger LLM re-analysis) ---
@@ -667,16 +648,23 @@ export default {
 							data.confidence_level||5, data.insufficient_text?1:0,
 						).run();
 
-						// Оновлюємо bills.is_procedural з json_data
-						try {
-							const jsonStr = data.json_data || '{}';
-							const parsed = JSON.parse(jsonStr);
-							if (parsed.is_procedural !== undefined) {
-								await env.radacleaner_db.prepare(
-									'UPDATE bills SET is_procedural = ? WHERE id = ?'
-								).bind(parsed.is_procedural ? 1 : 0, billId).run();
-							}
-						} catch (_) {}
+					// Оновлюємо bills.is_procedural та risk_level з json_data
+					try {
+						const jsonStr = data.json_data || '{}';
+						const parsed = JSON.parse(jsonStr);
+						if (parsed.is_procedural !== undefined) {
+							await env.radacleaner_db.prepare(
+								'UPDATE bills SET is_procedural = ? WHERE id = ?'
+							).bind(parsed.is_procedural ? 1 : 0, billId).run();
+						}
+						// Оновлюємо risk_level колонку
+						const rl = parsed.risk_level || null;
+						if (rl) {
+							await env.radacleaner_db.prepare(
+								'UPDATE risk_assessments SET risk_level = ? WHERE bill_id = ?'
+							).bind(rl, billId).run();
+						}
+					} catch (_) {}
 
 						return json({ success: true });
 					}
@@ -711,6 +699,11 @@ export default {
 						return json({ success: true });
 					}
 
+					case 'refresh_stats': {
+						await refreshStatsCache(env);
+						return json({ success: true });
+					}
+
 					default: return error(`Unknown type: ${type}`, 400);
 				}
 			}
@@ -728,4 +721,48 @@ async function db(env, sql, mode) {
 	if (mode === 'first') return await stmt.first();
 	const { results } = await stmt.all();
 	return results;
+}
+
+// Оновлення кешу статистики (викликається після sync)
+async function refreshStatsCache(env) {
+	const db = env.radacleaner_db;
+
+	const [totalBills, byStage, highRisk, mediumRisk, analyzed, procedural, totalVotes, totalMps, newBills24h, statusChanges24h, recentChanges, activeMps30d] =
+		await Promise.all([
+			db.prepare('SELECT COUNT(*) as c FROM bills').first(),
+			db.prepare('SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage').all(),
+			db.prepare("SELECT COUNT(*) as c FROM risk_assessments WHERE risk_level = 'high' OR overall_score >= 70").first(),
+			db.prepare("SELECT COUNT(*) as c FROM risk_assessments WHERE risk_level = 'medium' OR (overall_score >= 40 AND overall_score < 70)").first(),
+			db.prepare('SELECT COUNT(DISTINCT bill_id) as c FROM risk_assessments').first(),
+			db.prepare("SELECT COUNT(*) as c FROM bills WHERE is_procedural = 1 OR (is_procedural IS NULL AND agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)'))").first(),
+			db.prepare('SELECT COUNT(*) as c FROM votes').first(),
+			db.prepare('SELECT COUNT(*) as c FROM mps').first(),
+			db.prepare("SELECT COUNT(*) as c FROM bills WHERE registration_date >= date('now', '-1 day')").first(),
+			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')").first(),
+			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE created_at > datetime('now', '-7 days')").first(),
+			db.prepare("SELECT COUNT(DISTINCT mp_name) as c FROM mp_votes WHERE vote_id IN (SELECT vote_id FROM votes WHERE vote_date >= date('now', '-30 days'))").first(),
+		]);
+
+	const now = new Date().toISOString();
+	const entries = [
+		['total_bills', String(totalBills?.c || 0)],
+		['by_stage', JSON.stringify(byStage?.results || [])],
+		['high_risk', String(highRisk?.c || 0)],
+		['medium_risk', String(mediumRisk?.c || 0)],
+		['analyzed_bills', String(analyzed?.c || 0)],
+		['procedural_bills', String(procedural?.c || 0)],
+		['total_votes', String(totalVotes?.c || 0)],
+		['total_mps', String(totalMps?.c || 0)],
+		['new_bills_24h', String(newBills24h?.c || 0)],
+		['status_changes_24h', String(statusChanges24h?.c || 0)],
+		['recent_changes', String(recentChanges?.c || 0)],
+		['active_mps_30d', String(activeMps30d?.c || 0)],
+		['last_updated', now],
+	];
+
+	for (const [key, value] of entries) {
+		await db.prepare(
+			'INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at'
+		).bind(key, value, now).run();
+	}
 }

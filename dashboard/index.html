@@ -494,6 +494,7 @@ function factionColor(faction) {
 async function loadDashboard() {
   document.querySelector('#sec-dashboard .section-loading')?.remove();
   const statsEl = document.getElementById('dashboard-stats');
+  const headerEl = document.getElementById('header-stats');
   const tbody = document.querySelector('#threats-table tbody');
   try {
     const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
@@ -503,6 +504,19 @@ async function loadDashboard() {
       api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}`),
     ]);
 
+    // Оновлюємо хедер (завжди видимий)
+    if (headerEl) {
+      headerEl.innerHTML = `
+        <div class="header-stat"><div class="header-stat-value">${(stats.totalBills||0).toLocaleString()}</div><div class="header-stat-label">Законів</div></div>
+        <div class="header-stat"><div class="header-stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div><div class="header-stat-label">🔴 Загрози</div></div>
+        <div class="header-stat"><div class="header-stat-value" style="color:var(--orange)">${stats.mediumRiskBills||0}</div><div class="header-stat-label">🟠 Середній</div></div>
+        <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${stats.activeMps30d||0}</div><div class="header-stat-label">Депутатів</div></div>
+        <div class="header-stat"><div class="header-stat-value">${(stats.totalVotes||0).toLocaleString()}</div><div class="header-stat-label">Голосувань</div></div>
+        <div class="header-stat"><div class="header-stat-value" style="color:var(--blue)">${stats.analyzedBills||0}</div><div class="header-stat-label">LLM</div></div>
+      `;
+    }
+
+    // Оновлюємо секцію dashboard
     statsEl.innerHTML = `
       <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${stats.totalBills||0}</div><div class="stat-daily"><span class="stat-badge new${(stats.newBills24h||0)===0?' zero':''}">+${stats.newBills24h||0} new</span><span class="stat-badge changed${(stats.statusChanges24h||0)===0?' zero':''}">~${stats.statusChanges24h||0} змін</span></div></div>
       <div class="stat-card"><div class="stat-label">Активні (120 днів)</div><div class="stat-value" style="color:var(--blue)">${threats.total||0}</div></div>
@@ -1186,21 +1200,6 @@ document.addEventListener('change', e => {
 });
 
 // === INIT ===
-async function loadHeaderStats() {
-  try {
-    const data = await api('/api/stats');
-    const el = document.getElementById('header-stats');
-    el.innerHTML = `
-      <div class="header-stat"><div class="header-stat-value">${(data.totalBills||0).toLocaleString()}</div><div class="header-stat-label">Законів</div></div>
-      <div class="header-stat"><div class="header-stat-value" style="color:var(--red)">${data.highRiskBills||0}</div><div class="header-stat-label">🔴 Загрози</div></div>
-      <div class="header-stat"><div class="header-stat-value" style="color:var(--orange)">${data.mediumRiskBills||0}</div><div class="header-stat-label">🟠 Середній</div></div>
-      <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${data.activeMps30d||0}</div><div class="header-stat-label">Депутатів</div></div>
-      <div class="header-stat"><div class="header-stat-value">${(data.totalVotes||0).toLocaleString()}</div><div class="header-stat-label">Голосувань</div></div>
-      <div class="header-stat"><div class="header-stat-value" style="color:var(--blue)">${data.analyzedBills||0}</div><div class="header-stat-label">LLM</div></div>
-    `;
-  } catch(e) { console.error('Header stats error:', e); }
-}
-
 function init() {
   // Bind filter inputs
   document.getElementById('bill-search').addEventListener('input', debouncedLoadBills);
@@ -1217,7 +1216,6 @@ function init() {
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
   // Load initial data
-  loadHeaderStats();
   loadDashboard();
 
   // Load statuses for filter

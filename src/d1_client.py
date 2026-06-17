@@ -130,3 +130,8 @@ def d1_exec_sql(sql: str, params: list | None = None) -> bool:
     """
     log.warning("d1_exec_sql не підтримується — використовуйте d1_exec()")
     return False
+
+
+def refresh_stats_cache() -> bool:
+    """Оновлює кеш статистики дашборду в D1."""
+    return d1_exec("refresh_stats", {})
