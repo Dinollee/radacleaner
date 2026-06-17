@@ -54,7 +54,7 @@ export default {
 
 			// --- STATS ---
 			if (method === 'GET' && pathname === '/api/stats') {
-				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount, threatHigh, threatMedium, proceduralCount] =
+				const [totalBills, byStage, highRisk, recentChanges, totalVotes, totalMps, activeMps, recentSync, analyzedCount, threatHigh, threatMedium, proceduralCount, newBills24h, statusChanges24h, activeMps30d] =
 					await Promise.all([
 						db(env, 'SELECT COUNT(*) as count FROM bills'),
 						db(env, 'SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage'),
@@ -68,6 +68,9 @@ export default {
 						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE ra.json_data LIKE '%\"risk_level\": \"high\"%' OR ra.overall_score >= 70"),
 						db(env, "SELECT COUNT(*) as c FROM bills b JOIN risk_assessments ra ON ra.bill_id=b.id WHERE (ra.json_data LIKE '%\"risk_level\": \"medium\"%' OR (ra.overall_score >= 40 AND ra.overall_score < 70))"),
 						db(env, "SELECT COUNT(*) as c FROM bills WHERE agenda_category IN ('Організаційні питання', 'Інші (заяви, звернення ВРУ)')"),
+						db(env, "SELECT COUNT(*) as count FROM bills WHERE registration_date >= date('now', '-1 day')"),
+						db(env, "SELECT COUNT(*) as count FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')"),
+						db(env, "SELECT COUNT(DISTINCT mp_name) as cnt FROM mp_votes WHERE vote_id IN (SELECT vote_id FROM votes WHERE vote_date >= date('now', '-30 days'))"),
 					]);
 
 				return json({
@@ -82,6 +85,9 @@ export default {
 					lastSync: recentSync?.last_checked || null,
 					analyzedBills: analyzedCount?.[0]?.count || 0,
 					proceduralBills: proceduralCount?.[0]?.c || 0,
+					newBills24h: newBills24h?.[0]?.count || 0,
+					statusChanges24h: statusChanges24h?.[0]?.count || 0,
+					activeMps30d: activeMps30d?.[0]?.cnt || 0,
 				});
 			}
 
@@ -285,7 +291,7 @@ export default {
 
 				for (const vote of votes) {
 					const { results: deputies } = await env.radacleaner_db.prepare(
-						'SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id WHERE mv.vote_id = ? ORDER BY mv.mp_faction, mv.mp_name'
+						'SELECT mv.mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.name = mv.mp_name WHERE mv.vote_id = ? ORDER BY mp_faction, mv.mp_name'
 					).bind(vote.vote_id).all();
 					vote.deputies = deputies;
 				}

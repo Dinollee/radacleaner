@@ -38,7 +38,7 @@ def main():
     }
 
     if force:
-        # Видаляємо старий аналіз
+        # Видаляємо старий аналіз + скидаємо кеш хешів
         from src.d1_client import d1_exec
         d1_exec("raw_sql", {
             "sql": f"DELETE FROM risk_assessments WHERE bill_id={bill['id']}",
@@ -46,7 +46,10 @@ def main():
         d1_exec("raw_sql", {
             "sql": f"DELETE FROM rag_documents WHERE bill_id={bill['id']}",
         })
-        print(f"Cleared old analysis for #{bill_number}")
+        d1_exec("raw_sql", {
+            "sql": f"UPDATE bills SET text_hash=NULL, plain_text=NULL WHERE id={bill['id']}",
+        })
+        print(f"Cleared old analysis + cache for #{bill_number}")
 
     print(f"Analyzing #{bill_number} — {info['title'][:60]}...")
     info_result, data = process_bill(info, test_mode=True)

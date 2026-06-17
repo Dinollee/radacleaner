@@ -126,7 +126,13 @@ def check_and_download(url: str, local_path: str, filename: str):
 
 
 def log_change(bill_id: int, change_type: str, old_value=None, new_value=None) -> None:
-    """Записує зміну в change_log (D1)."""
+    """Записує зміну в change_log (D1), якщо такої зміни ще немає."""
+    existing = d1_query(
+        "SELECT 1 FROM change_log WHERE bill_id=? AND change_type=? AND old_value IS ? AND new_value IS ? LIMIT 1",
+        [bill_id, change_type, old_value, new_value],
+    )
+    if existing:
+        return
     d1_exec("change_log", {
         "bill_id": bill_id,
         "change_type": change_type,
@@ -187,14 +193,30 @@ def sync_billinfo_list(data: bytes) -> int:
     return added
 
 
+def queue_for_analysis(bill_id: int, bill_number: str, reason: str) -> None:
+    """Додає закон в чергу LLM-аналізу, якщо він ще не в черзі і не проаналізований."""
+    existing = d1_query(
+        "SELECT 1 FROM pending_analysis WHERE bill_id=? AND status IN ('pending','running','done')",
+        [bill_id],
+    )
+    if existing:
+        return
+    analyzed = d1_query("SELECT 1 FROM risk_assessments WHERE bill_id=?", [bill_id])
+    if analyzed:
+        return
+    d1_exec("raw_sql", {
+        "sql": "INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES (?, ?, ?)",
+        "params": [bill_id, bill_number, "pending"],
+    })
+    log.info("Queued for LLM: %s (reason: %s)", bill_number, reason)
+
+
 def process_full_data(data: bytes) -> int:
     """Обробляє повні дані про законопроекти (billinfo_full) → D1.
 
-    3-phase підхід для мінімізації D1 writes:
-    Phase 1: Parse JSON + зібрати зміни (без D1 writes)
-    Phase 2: Batch status updates
-    Phase 3: Batch document inserts (BATCH_DOCS за прохід)
-    Passings/status_changed_at — sync_bill_passings.py
+    В чергу LLM-аналізу потрапляють ТІЛЬКИ:
+    - закони зі зміною статусу
+    - закони з новими документами
     """
     BATCH_DOCS = 5000
 
@@ -209,14 +231,9 @@ def process_full_data(data: bytes) -> int:
     docs_rows = d1_query("SELECT DISTINCT bill_id FROM bill_documents")
     bills_with_docs = {r["bill_id"] for r in docs_rows}
 
-    ra_rows = d1_query("SELECT bill_id FROM risk_assessments")
-    bills_analyzed = {r["bill_id"] for r in ra_rows}
-
-    pending_rows = d1_query("SELECT bill_id FROM pending_analysis WHERE status IN ('pending','running')")
-    bills_pending = {r["bill_id"] for r in pending_rows}
-
     status_updates = []
     doc_updates = []
+    bills_with_status_change = set()
 
     for b in bills:
         bn = str(b.get("registrationNumber", "")).strip()
@@ -232,6 +249,7 @@ def process_full_data(data: bytes) -> int:
             new_act = (b.get("actNumber") or "").strip() or None
             new_act_date = b.get("actDate", "")[:10] if b.get("actDate") else None
             status_updates.append((bn, new_status, new_act, new_act_date, db_id, row["current_status"]))
+            bills_with_status_change.add(db_id)
 
         new_rubric = b.get("rubric", "").strip()
         if new_rubric and new_rubric != row.get("agenda_category"):
@@ -265,9 +283,9 @@ def process_full_data(data: bytes) -> int:
             "act_number": new_act, "act_date": new_act_date,
         })
         log_change(db_id, "status_change", old_status, new_status)
+        queue_for_analysis(db_id, bn, "status_change")
 
     doc_count = 0
-    queued = 0
     for db_id, file_id, dtype, bn in doc_updates[:BATCH_DOCS]:
         d1_exec("raw_sql", {
             "sql": "INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?)",
@@ -275,16 +293,10 @@ def process_full_data(data: bytes) -> int:
         })
         doc_count += 1
         bills_with_docs.add(db_id)
-        if db_id not in bills_analyzed and db_id not in bills_pending:
-            d1_exec("raw_sql", {
-                "sql": "INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES (?, ?, ?)",
-                "params": [db_id, bn, "pending"],
-            })
-            bills_pending.add(db_id)
-            queued += 1
+        queue_for_analysis(db_id, bn, "new_documents")
 
-    log.info("Status changes: %d, Documents indexed: %d/%d, Queued for LLM: %d",
-             len(status_updates), doc_count, len(doc_updates), queued)
+    log.info("Status changes: %d, Documents indexed: %d/%d",
+             len(status_updates), doc_count, len(doc_updates))
     return len(status_updates)
 
 

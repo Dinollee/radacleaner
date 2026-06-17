@@ -25,6 +25,7 @@ sys.path.insert(0, __import__("os").path.dirname(__file__))
 
 from src.d1_client import d1_query, d1_exec
 from src.config import log
+from src.bill_sync import queue_for_analysis
 
 
 def fetch_bill_card(api_id: str) -> dict | None:
@@ -143,6 +144,7 @@ def sync_active_bills(days: int = 30, dry_run: bool = False):
                     "old_value": bill["current_status"],
                     "new_value": new_status,
                 })
+                queue_for_analysis(bill["id"], bill["bill_number"], "status_change_live")
             updated += 1
 
         # Documents (only if bill has none)
@@ -160,6 +162,8 @@ def sync_active_bills(days: int = 30, dry_run: bool = False):
                             "params": [bill["id"], doc["file_id"], doc["name"]],
                         })
                 docs_added += 1
+                if not dry_run:
+                    queue_for_analysis(bill["id"], bill["bill_number"], "new_documents_live")
                 log.info("Docs: %s — %d documents", bill["bill_number"], len(data["documents"]))
 
         # Passings (only if bill has none)
