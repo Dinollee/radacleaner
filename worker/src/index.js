@@ -475,6 +475,69 @@ export default {
 				return json({ sessions });
 			}
 
+			// --- SCHEDULE (RADA calendar) ---
+			if (method === 'GET' && pathname === '/api/schedule') {
+				const month = url.searchParams.get('month'); // YYYY-MM
+				const year = url.searchParams.get('year');   // YYYY
+				const event_type = url.searchParams.get('type'); // filter by type
+
+				let query = 'SELECT * FROM rada_schedule WHERE 1=1';
+				const params = [];
+
+				if (month) {
+					query += ' AND date LIKE ?';
+					params.push(month + '%');
+				} else if (year) {
+					query += ' AND date LIKE ?';
+					params.push(year + '%');
+				} else {
+					// Default: current month and next month
+					const now = new Date();
+					const y = now.getFullYear();
+					const m = String(now.getMonth() + 1).padStart(2, '0');
+					const m2 = String(now.getMonth() + 2).padStart(2, '0');
+					const y2 = now.getMonth() === 11 ? y + 1 : y;
+					query += ' AND ((date LIKE ?) OR (date LIKE ?))';
+					params.push(`${y}-${m}%`, `${y2}-${m2}%`);
+				}
+
+				if (event_type) {
+					query += ' AND event_type = ?';
+					params.push(event_type);
+				}
+
+				query += ' ORDER BY date ASC';
+
+				const { results } = params.length
+					? await env.radacleaner_db.prepare(query).bind(...params).all()
+					: await env.radacleaner_db.prepare(query).all();
+
+				// Also get committee schedules
+				let committeeQuery = 'SELECT * FROM rada_committee_schedule WHERE 1=1';
+				const cParams = [];
+				if (month) {
+					committeeQuery += ' AND meeting_date LIKE ?';
+					cParams.push(month + '%');
+				}
+				committeeQuery += ' ORDER BY meeting_date ASC LIMIT 100';
+
+				const { results: committeeSchedule } = cParams.length
+					? await env.radacleaner_db.prepare(committeeQuery).bind(...cParams).all()
+					: await env.radacleaner_db.prepare(committeeQuery).all();
+
+				return json({
+					schedule: results || [],
+					committees: committeeSchedule || [],
+					session: {
+						number: 15,
+						name: "П'ятнадцята сесія",
+						convocation: 'IX скликання',
+						start: '2026-02-01',
+						end: '2026-07-31'
+					}
+				}, 200, 300);
+			}
+
 			// --- GET /api/query (для Python-скриптів) ---
 			if (method === 'GET' && pathname === '/api/query') {
 				const auth = request.headers.get('Authorization') || '';

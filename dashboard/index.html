@@ -112,6 +112,7 @@ tr.clickable { cursor: pointer; }
 .risk-dot.r-low { background: var(--yellow); }
 .risk-dot.r-none { background: var(--green); box-shadow: 0 0 6px rgba(46,204,113,0.5); }
 .risk-dot.r-unknown { background: var(--text2); }
+.sch-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 
 /* Progress bar */
 .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
@@ -367,8 +368,28 @@ tr.clickable { cursor: pointer; }
   <!-- SCHEDULE -->
   <div id="sec-schedule" class="section">
     <div class="card">
-      <div class="card-header"><div class="card-title">Пленарні засідання ВРУ</div></div>
-      <div id="schedule-list"></div>
+      <div class="card-header">
+        <div class="card-title">Графік роботи Верховної Ради</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" onclick="scheduleMonth(-1)">← Назад</button>
+          <span id="schedule-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
+          <button class="btn btn-sm" onclick="scheduleMonth(1)">Далі →</button>
+        </div>
+      </div>
+      <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарні</span>
+        <span><span class="sch-dot" style="background:#9b59b6"></span> Погоджувальні ради</span>
+        <span><span class="sch-dot" style="background:#27ae60"></span> Комітети</span>
+        <span><span class="sch-dot" style="background:#3498db"></span> Робота з виборцями</span>
+        <span><span class="sch-dot" style="background:#e67e22"></span> Позачергові</span>
+        <span><span class="sch-dot" style="background:#e74c3c"></span> Запитання до Уряду</span>
+        <span><span class="sch-dot" style="background:#95a5a6"></span> Свята</span>
+      </div>
+      <div id="schedule-calendar" style="padding:8px 16px"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Засідання комітетів (тижневий графік)</div></div>
+      <div id="schedule-committees"></div>
     </div>
     <div class="card">
       <div class="card-header"><div class="card-title">Закони на голосування</div></div>
@@ -1087,25 +1108,51 @@ function filterDepVotes(checkbox) {
 }
 
 // === SCHEDULE ===
-async function loadSchedule() {
-  try {
-    const data = await api('/api/plenary-sessions');
-    const sessions = data.sessions || [];
-    const list = document.getElementById('schedule-list');
-    if (!sessions.length) {
-      list.innerHTML = '<p style="color:var(--text2)">Дані про засідання поки відсутні</p>';
-    } else {
-      list.innerHTML = sessions.map(s => `
-        <div class="schedule-item">
-          <div class="schedule-date">${escHtml(s.date)}</div>
-          <div class="schedule-info">
-            <div class="schedule-title">${(s.bills||[]).map(b => escHtml('#')+b.bill_number).join(', ') || '—'}</div>
-            <div class="schedule-meta">${(s.bills||[]).length} закон(ів)</div>
-          </div>
-        </div>`).join('');
-    }
+// === SCHEDULE ===
+let scheduleYear, scheduleMonthNum;
+(function initScheduleDate() {
+  const now = new Date();
+  scheduleYear = now.getFullYear();
+  scheduleMonthNum = now.getMonth() + 1;
+})();
 
-    // Bills for voting
+const MONTH_NAMES = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтня','Листопад','Грудень'];
+const DAY_NAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
+
+const SCH_COLORS = {
+  plenary: '#f1c40f', coordination: '#9b59b6', committee: '#27ae60',
+  voter_work: '#3498db', extraordinary: '#e67e22', question_day: '#e74c3c', holiday: '#95a5a6'
+};
+const SCH_LABELS = {
+  plenary: 'Пленарне', coordination: 'Погоджувальна', committee: 'Комітет',
+  voter_work: 'Виборці', extraordinary: 'Позачергове', question_day: 'Запитання', holiday: 'Свято'
+};
+
+function scheduleMonth(dir) {
+  scheduleMonthNum += dir;
+  if (scheduleMonthNum > 12) { scheduleMonthNum = 1; scheduleYear++; }
+  if (scheduleMonthNum < 1) { scheduleMonthNum = 12; scheduleYear--; }
+  loadSchedule();
+}
+
+async function loadSchedule() {
+  const label = document.getElementById('schedule-month-label');
+  if (label) label.textContent = MONTH_NAMES[scheduleMonthNum - 1] + ' ' + scheduleYear;
+
+  const mm = String(scheduleMonthNum).padStart(2, '0');
+  const monthParam = scheduleYear + '-' + mm;
+
+  try {
+    const data = await api('/api/schedule?month=' + monthParam);
+    renderCalendar(data.schedule || []);
+    renderCommittees(data.committees || []);
+  } catch(e) {
+    console.error('Schedule error:', e);
+    document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
+  }
+
+  // Bills for voting (same as before)
+  try {
     const upcoming = await api('/api/bills?limit=10&stage=2&sort=registration_date&order=DESC');
     const ub = document.getElementById('upcoming-bills');
     if (upcoming.bills?.length) {
@@ -1119,7 +1166,68 @@ async function loadSchedule() {
     } else {
       ub.innerHTML = '<p style="color:var(--text2)">Закони на голосування поки відсутні</p>';
     }
-  } catch(e) { console.error('Schedule error:', e); }
+  } catch(e) {}
+}
+
+function renderCalendar(events) {
+  const cal = document.getElementById('schedule-calendar');
+  const firstDay = new Date(scheduleYear, scheduleMonthNum - 1, 1);
+  const lastDay = new Date(scheduleYear, scheduleMonthNum, 0);
+  const daysInMonth = lastDay.getDate();
+  let startDow = firstDay.getDay() - 1; // Mon=0
+  if (startDow < 0) startDow = 6;
+
+  // Group events by date
+  const byDate = {};
+  events.forEach(ev => {
+    if (!byDate[ev.date]) byDate[ev.date] = [];
+    byDate[ev.date].push(ev);
+  });
+
+  let html = '<table style="width:100%;border-collapse:collapse;text-align:center">';
+  html += '<tr>' + DAY_NAMES.map(d => `<th style="padding:6px;font-size:13px;color:var(--text2)">${d}</th>`).join('') + '</tr>';
+
+  let day = 1;
+  for (let row = 0; row < 6; row++) {
+    if (day > daysInMonth) break;
+    html += '<tr>';
+    for (let col = 0; col < 7; col++) {
+      if (row === 0 && col < startDow || day > daysInMonth) {
+        html += '<td style="padding:4px;height:60px"></td>';
+      } else {
+        const dateStr = scheduleYear + '-' + String(scheduleMonthNum).padStart(2,'0') + '-' + String(day).padStart(2,'0');
+        const dayEvents = byDate[dateStr] || [];
+        const isToday = new Date().toISOString().slice(0,10) === dateStr;
+        const todayStyle = isToday ? 'font-weight:bold;color:#fff;background:#1a73e8;border-radius:4px;' : '';
+        const dots = dayEvents.map(ev => {
+          const c = SCH_COLORS[ev.event_type] || '#888';
+          return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
+        }).join('');
+        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}">
+          <div style="font-size:13px;${todayStyle}">${day}</div>
+          <div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${dots}</div>
+        </td>`;
+        day++;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  cal.innerHTML = html;
+}
+
+function renderCommittees(committees) {
+  const el = document.getElementById('schedule-committees');
+  if (!committees.length) {
+    el.innerHTML = '<p style="color:var(--text2);padding:12px">Графік засідань комітетів на цей місяць відсутній</p>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Дата</th><th>Комітет</th><th>Питання</th></tr></thead><tbody>${committees.map(c => `
+    <tr>
+      <td style="white-space:nowrap">${escHtml(c.meeting_date)}</td>
+      <td>${escHtml(c.committee_name)}</td>
+      <td style="font-size:13px">${escHtml((c.topic||'').substring(0,100))}</td>
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 // === EVENT DELEGATION ===
