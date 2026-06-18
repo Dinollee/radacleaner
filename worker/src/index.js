@@ -355,19 +355,29 @@ export default {
 				const vkp = deputy.vkp || 0;
 				const dataSufficient = deputy.data_sufficient || false;
 
-				// Only query last 50 votes (the expensive part) — uses denormalized vote_date
-				const { results: votes } = await env.radacleaner_db.prepare(`
-					SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label,
-						v.title as vote_title, mv.vote_date, b.bill_number
-					FROM mp_votes mv
-					JOIN vote_statuses vs ON mv.status_id=vs.id
-					JOIN votes v ON mv.vote_id=v.vote_id
-					LEFT JOIN bills b ON v.bill_id=b.id
-					WHERE mv.mp_name=?
-					ORDER BY mv.vote_date DESC LIMIT 50
-				`).bind(deputy.name).all();
+				// Pagination for votes
+				const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 200);
+				const offset = Number(url.searchParams.get('offset')) || 0;
 
-				return json({ deputy, votes, stats: { total, attended: total, py, pda, vkp, dataSufficient } });
+				const [{ results: votes }, countResult] = await Promise.all([
+					env.radacleaner_db.prepare(`
+						SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label,
+							v.title as vote_title, mv.vote_date, b.bill_number
+						FROM mp_votes mv
+						JOIN vote_statuses vs ON mv.status_id=vs.id
+						JOIN votes v ON mv.vote_id=v.vote_id
+						LEFT JOIN bills b ON v.bill_id=b.id
+						WHERE mv.mp_name=?
+						ORDER BY mv.vote_date DESC LIMIT ? OFFSET ?
+					`).bind(deputy.name, limit, offset).all(),
+					env.radacleaner_db.prepare(`
+						SELECT COUNT(*) as total FROM mp_votes mv WHERE mv.mp_name=?
+					`).bind(deputy.name).first(),
+				]);
+
+				const votesTotal = countResult?.total || 0;
+
+				return json({ deputy, votes, votesTotal, votesLimit: limit, votesOffset: offset, stats: { total, attended: total, py, pda, vkp, dataSufficient } });
 			}
 
 			// --- DEPUTIES LIST ---

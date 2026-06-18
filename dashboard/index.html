@@ -991,14 +991,17 @@ async function loadDeputies() {
 function depsPage(d) { depsOffset = Math.max(0, depsOffset + d * PAGE); loadDeputies(); }
 
 // === DEPUTY DETAIL ===
-async function showDeputy(name) {
+async function showDeputy(name, votesOffset) {
   showSection('deputy-detail');
   const el = document.getElementById('deputy-detail-content');
   el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
   try {
-    const data = await api(`/api/deputies/${encodeURIComponent(name)}`);
+    votesOffset = votesOffset || 0;
+    const votesLimit = 50;
+    const data = await api(`/api/deputies/${encodeURIComponent(name)}?limit=${votesLimit}&offset=${votesOffset}`);
     const d = data.deputy;
     const votes = data.votes || [];
+    const votesTotal = data.votesTotal || 0;
     const stats = data.stats || {};
 
     let html = `
@@ -1023,9 +1026,9 @@ async function showDeputy(name) {
       </div>`;
 
     // Voting history with filters
-    if (votes.length) {
+    if (votesTotal > 0) {
       html += `<div class="card">
-        <div class="card-header"><div class="card-title">Історія голосувань (${votes.length})</div></div>
+        <div class="card-header"><div class="card-title">Історія голосувань (${votesTotal})</div></div>
         <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap" id="dep-votes-filters">
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--green)">
             <input type="checkbox" checked data-filter="yes"> За
@@ -1052,7 +1055,19 @@ async function showDeputy(name) {
           <td style="font-size:12px;color:var(--text2)">${escHtml(v.vote_title||'')}</td>
         </tr>`;
       }).join('');
-      html += `</tbody></table></div></div>`;
+      html += `</tbody></table></div>`;
+
+      // Pagination
+      const totalPages = Math.ceil(votesTotal / votesLimit);
+      const currentPage = Math.floor(votesOffset / votesLimit) + 1;
+      if (totalPages > 1) {
+        html += `<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font-size:13px">
+          ${currentPage > 1 ? `<button onclick="showDeputy('${escHtml(name)}',${(currentPage-2)*votesLimit})" style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer">← Назад</button>` : ''}
+          <span style="color:var(--text2)">Сторінка ${currentPage} з ${totalPages}</span>
+          ${currentPage < totalPages ? `<button onclick="showDeputy('${escHtml(name)}',${currentPage*votesLimit})" style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer">Далі →</button>` : ''}
+        </div>`;
+      }
+      html += `</div>`;
     } else {
       html += `<div class="card"><p style="color:var(--text2)">Даних про голосування поки немає</p></div>`;
     }
