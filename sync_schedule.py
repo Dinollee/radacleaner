@@ -8,7 +8,7 @@ import urllib.request
 from datetime import datetime, timedelta
 
 from src.config import log
-from src.d1_client import d1_query
+from src.d1_client import d1_exec
 
 logger = logging.getLogger('sync_schedule')
 
@@ -98,21 +98,19 @@ def parse_calendar_plan(html):
 
     # Extract holidays
     holiday_pattern = re.findall(
-        r'<td\s+class="holiday"[^>]*title="([^"]*)"[^>]*>\s*<span\s+data-cal="(\d{8})"',
+        r'<td\s+class="holiday"[^>]*>\s*<span\s+data-cal="(\d{8})"',
         html
     )
-    for title_html, date_str in holiday_pattern:
+    for date_str in holiday_pattern:
         try:
             date = f'{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}'
         except (IndexError, ValueError):
             continue
-        # Clean HTML from title
-        title = re.sub(r'<[^>]+>', '', title_html).strip()
         events.append({
             'date': date,
             'event_type': 'holiday',
-            'title': title or 'Свято',
-            'description': title,
+            'title': 'Свято / вихідний',
+            'description': None,
             'url': None,
         })
 
@@ -159,13 +157,13 @@ def sync_calendar_plan():
     for event in events:
         try:
             # Upsert: delete existing event for this date+type, then insert
-            d1_query(
-                'DELETE FROM rada_schedule WHERE date = ? AND event_type = ?',
-                [event['date'], event['event_type']]
-            )
-            d1_query(
-                'INSERT INTO rada_schedule (date, event_type, title, description, url, session) VALUES (?, ?, ?, ?, ?, ?)',
-                [
+            d1_exec('raw_sql', {
+                'sql': 'DELETE FROM rada_schedule WHERE date = ? AND event_type = ?',
+                'params': [event['date'], event['event_type']]
+            })
+            d1_exec('raw_sql', {
+                'sql': 'INSERT INTO rada_schedule (date, event_type, title, description, url, session) VALUES (?, ?, ?, ?, ?, ?)',
+                'params': [
                     event['date'],
                     event['event_type'],
                     event['title'],
@@ -173,7 +171,7 @@ def sync_calendar_plan():
                     event['url'],
                     f"{SESSION_INFO['name']} {SESSION_INFO['convocation']}",
                 ]
-            )
+            })
             count += 1
         except Exception as e:
             logger.error('Failed to insert schedule event: %s', e)
@@ -261,10 +259,10 @@ def parse_weekly_committee(html, filename):
                 meeting_date = f'{year_num}-{month_num}-{day_num}'
 
                 try:
-                    d1_query(
-                        'INSERT INTO rada_committee_schedule (week_start, committee_name, meeting_date, topic, url) VALUES (?, ?, ?, ?, ?)',
-                        [week_start, current_committee, meeting_date, topic, f'http://static.rada.gov.ua/zakon/new/RK/{filename}']
-                    )
+                    d1_exec('raw_sql', {
+                        'sql': 'INSERT INTO rada_committee_schedule (week_start, committee_name, meeting_date, topic, url) VALUES (?, ?, ?, ?, ?)',
+                        'params': [week_start, current_committee, meeting_date, topic, f'http://static.rada.gov.ua/zakon/new/RK/{filename}']
+                    })
                     count += 1
                 except Exception as e:
                     logger.debug('Failed to insert committee entry: %s', e)
