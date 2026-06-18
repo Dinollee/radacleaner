@@ -344,70 +344,30 @@ export default {
 				const param = decodeURIComponent(deputyMatch[1]);
 				const isNum = /^\d+$/.test(param);
 				const deputy = isNum
-					? await env.radacleaner_db.prepare('SELECT id, name, faction, start_date FROM mps WHERE id = ?').bind(Number(param)).first()
-					: await env.radacleaner_db.prepare('SELECT id, name, faction, start_date FROM mps WHERE name = ?').bind(param).first();
+					? await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, data_sufficient, total_votes, total_bills, total_laws FROM mps WHERE id = ?').bind(Number(param)).first()
+					: await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, data_sufficient, total_votes, total_bills, total_laws FROM mps WHERE name = ?').bind(param).first();
 				if (!deputy) return error('Deputy not found', 404);
 
+				// Use cached stats from mps table (updated daily by sync_mp_stats.py)
+				const total = deputy.total_votes || 0;
+				const py = deputy.py || 0;
+				const pda = deputy.pda || 0;
+				const vkp = deputy.vkp || 0;
+				const dataSufficient = deputy.data_sufficient || false;
+
+				// Only query last 50 votes (the expensive part) — uses denormalized vote_date
 				const { results: votes } = await env.radacleaner_db.prepare(`
 					SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label,
-						v.title as vote_title, v.vote_date, b.bill_number
+						v.title as vote_title, mv.vote_date, b.bill_number
 					FROM mp_votes mv
 					JOIN vote_statuses vs ON mv.status_id=vs.id
 					JOIN votes v ON mv.vote_id=v.vote_id
 					LEFT JOIN bills b ON v.bill_id=b.id
 					WHERE mv.mp_name=?
-					ORDER BY v.vote_date DESC LIMIT 50
+					ORDER BY mv.vote_date DESC LIMIT 50
 				`).bind(deputy.name).all();
-				
-				const { results: voteStats } = await env.radacleaner_db.prepare(`
-					SELECT COUNT(*) as total,
-						SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END) as attended,
-						SUM(CASE WHEN vs.code IN ('yes','no') THEN 1 ELSE 0 END) as voted
-					FROM mp_votes mv
-					JOIN vote_statuses vs ON mv.status_id = vs.id
-					JOIN votes v ON mv.vote_id = v.vote_id
-					WHERE mv.mp_name = ?
-					AND (? IS NULL OR v.vote_date >= ?)
-				`).bind(deputy.name, deputy.start_date || null, deputy.start_date || null).all();
-				
-				const total = voteStats[0]?.total || 0;
-				const attended = voteStats[0]?.attended || 0;
-				const voted = voteStats[0]?.voted || 0;
-				
-				const MIN_VOTES = 5;
-				const dataSufficient = total >= MIN_VOTES;
-				const py = total > 0 ? Math.round((attended / total) * 100) : 0;
-				const pda = attended > 0 ? Math.round((voted / attended) * 100) : 0;
-				
-				const { results: weightedVotes } = await env.radacleaner_db.prepare(`
-					SELECT v.title,
-						CASE 
-							WHEN v.title LIKE '%процедурн%' THEN 1
-							WHEN v.title LIKE '%друге читання%' THEN 2
-							WHEN v.title LIKE '%прийняття%' OR v.title LIKE '%останнє%' THEN 3
-							ELSE 1
-						END as weight,
-						CASE 
-							WHEN vs.code IN ('yes','no') THEN 1.0
-							WHEN vs.code = 'abstain' THEN 0.5
-							ELSE 0.0
-						END as action
-					FROM mp_votes mv
-					JOIN vote_statuses vs ON mv.status_id = vs.id
-					JOIN votes v ON mv.vote_id = v.vote_id
-					WHERE mv.mp_name = ?
-					AND (? IS NULL OR v.vote_date >= ?)
-				`).bind(deputy.name, deputy.start_date || null, deputy.start_date || null).all();
-				
-				let weightedSum = 0;
-				let weightTotal = 0;
-				for (const wv of weightedVotes) {
-					weightedSum += wv.weight * wv.action;
-					weightTotal += wv.weight;
-				}
-				const vkp = weightTotal > 0 ? Math.round((weightedSum / weightTotal) * 100) : 0;
-				
-				return json({ deputy, votes, stats: { total, attended, py, pda, vkp, dataSufficient } });
+
+				return json({ deputy, votes, stats: { total, attended: total, py, pda, vkp, dataSufficient } });
 			}
 
 			// --- DEPUTIES LIST ---

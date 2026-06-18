@@ -201,21 +201,21 @@ def save_vote(vote_data, bill_number=None):
             except Exception as e:
                 log.warning("mps batch insert failed: %s", str(e)[:100])
 
-    # Insert mp_votes table (4 cols) — 20 rows at a time
+    # Insert mp_votes table (5 cols) — 20 rows at a time
     for i in range(0, len(valid_mps), 20):
         batch = valid_mps[i:i+20]
         values = []
         params = []
         for name, faction, status_id in batch:
-            values.append("(?, ?, ?, ?)")
-            params.extend([vote_data["g_id"], name, faction, status_id])
+            values.append("(?, ?, ?, ?, ?)")
+            params.extend([vote_data["g_id"], name, faction, status_id, vote_data.get("vote_date")])
         if values:
             try:
                 d1_exec("raw_sql", {
-                    "sql": f"""INSERT INTO mp_votes (vote_id, mp_name, mp_faction, status_id)
+                    "sql": f"""INSERT INTO mp_votes (vote_id, mp_name, mp_faction, status_id, vote_date)
                               VALUES {','.join(values)}
                               ON CONFLICT(vote_id, mp_name) DO UPDATE SET
-                                mp_faction=excluded.mp_faction, status_id=excluded.status_id""",
+                                mp_faction=excluded.mp_faction, status_id=excluded.status_id, vote_date=excluded.vote_date""",
                     "params": params,
                 })
             except Exception as e:
