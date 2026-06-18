@@ -122,22 +122,103 @@ def format_our_data_for_llm(data):
 def search_news():
     news_items = []
     import urllib.request
-    sources = [('Ukrainska Pravda', 'https://www.pravda.com.ua/news/'), ('European Pravda', 'https://www.eurointegration.com.ua/news/'), ('RADA', 'https://www.rada.gov.ua/news/')]
-    for name, url in sources:
+
+    new_bills = []
+    committee_news = []
+
+    # --- RADA news (main source for bill-related news) ---
+    try:
+        req = urllib.request.Request('https://www.rada.gov.ua/news', headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode('utf-8', errors='ignore')
+
+        # Extract new bill registrations: <a href="https://itd.rada.gov.ua/billInfo/Bills/Card/NNNNN">...</a>
+        bill_pattern = re.findall(
+            r'<a\s+href="(https?://itd\.rada\.gov\.ua/billInfo/Bills/Card/\d+)"[^>]*>\s*'
+            r'Новий законопроєкт\s*\((№\s*[\d\-]+)\)[^<]*</a>\s*'
+            r'(?:</div>\s*(?:<div[^>]*>)?\s*<p>([^<]*)</p>)?',
+            html, re.DOTALL
+        )
+        for url, bill_num, desc in bill_pattern:
+            bill_num = bill_num.strip()
+            desc = (desc or '').strip()[:120]
+            new_bills.append((bill_num, desc, url))
+
+        # Extract committee/fraction news: links with /news/news_kom/ or /news/news_fr/
+        kom_pattern = re.findall(
+            r'<a\s+href="(/news/(?:news_kom|news_fr|Top-novyna)/\d+\.html)"[^>]*>\s*'
+            r'([^<]+)</a>',
+            html
+        )
+        for path, title in kom_pattern:
+            title = title.strip()
+            if len(title) > 20:
+                committee_news.append((title, 'https://www.rada.gov.ua' + path))
+
+        # Extract bill numbers from committee news titles
+        def extract_bill_num(text):
+            m = re.search(r'[№#]\s*(\d[\d\-]*)', text)
+            return m.group(1) if m else None
+
+        if new_bills:
+            news_items.append('Нові законопроєкти на сайті ВРУ:')
+            for num, desc, url in new_bills[:5]:
+                line = '  - ' + num
+                if desc:
+                    line += ': ' + desc[:80]
+                news_items.append(line)
+            news_items.append('')
+
+        if committee_news:
+            news_items.append('Новини комітетів/фракцій:')
+            seen = set()
+            for title, url in committee_news[:8]:
+                if title in seen:
+                    continue
+                seen.add(title)
+                bill = extract_bill_num(title)
+                prefix = '[#' + bill + '] ' if bill else ''
+                news_items.append('  - ' + prefix + title[:90])
+            news_items.append('')
+
+    except Exception as e:
+        logger.warning('Failed to fetch RADA news: %s', e)
+
+    # --- RADA RSS feed (structured committee/fraction news) ---
+    if not committee_news:
+        try:
+            req = urllib.request.Request('https://www.rada.gov.ua/rss', headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                rss = resp.read().decode('utf-8', errors='ignore')
+            items = re.findall(r'<item>\s*<title>([^<]+)</title>\s*<link>([^<]+)</link>', rss)
+            for title, link in items[:10]:
+                title = title.strip()
+                if len(title) > 20:
+                    committee_news.append((title, link))
+        except Exception as e:
+            logger.warning('Failed to fetch RADA RSS: %s', e)
+
+    # --- Other Ukrainian news sources ---
+    other_sources = [
+        ('Українська правда', 'https://www.pravda.com.ua/news/'),
+        ('Європейська правда', 'https://www.eurointegration.com.ua/news/'),
+    ]
+    for name, url in other_sources:
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=10) as resp:
                 html = resp.read().decode('utf-8', errors='ignore')
-                titles = re.findall(r'<h[23][^>]*>([^<]+)</h[23]>', html)
-                titles = [t.strip() for t in titles if len(t.strip()) > 20][:5]
-                if titles:
-                    news_items.append('News from ' + name + ':')
-                    for t in titles:
-                        news_items.append('  - ' + t[:100])
-                    news_items.append('')
+            titles = re.findall(r'<h[23][^>]*>([^<]+)</h[23]>', html)
+            titles = [t.strip() for t in titles if len(t.strip()) > 20][:3]
+            if titles:
+                news_items.append('Новини ' + name + ':')
+                for t in titles:
+                    news_items.append('  - ' + t[:100])
+                news_items.append('')
         except Exception as e:
             logger.warning('Failed to fetch news from %s: %s', name, e)
-    return NL.join(news_items) if news_items else 'No news found'
+
+    return NL.join(news_items) if news_items else 'Новини недоступні'
 
 def call_llm(our_data_str, news_str):
     # Use raw API call to get text directly (groq_completion expects JSON)
