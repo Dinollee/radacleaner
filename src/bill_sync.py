@@ -286,13 +286,19 @@ def process_full_data(data: bytes) -> int:
         queue_for_analysis(db_id, bn, "status_change")
 
     doc_count = 0
+    new_doc_bills = {}  # {bill_id: bill_number} — закони які вже мали документи
     for db_id, file_id, dtype, bn in doc_updates[:BATCH_DOCS]:
         d1_exec("raw_sql", {
             "sql": "INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?)",
             "params": [db_id, file_id, dtype],
         })
         doc_count += 1
+        if db_id in bills_with_docs:
+            # Закон вже мав документи — це НОВІ документи (зміна)
+            new_doc_bills[db_id] = bn
         bills_with_docs.add(db_id)
+
+    for db_id, bn in new_doc_bills.items():
         queue_for_analysis(db_id, bn, "new_documents")
 
     log.info("Status changes: %d, Documents indexed: %d/%d",
