@@ -1699,6 +1699,194 @@ function renderEUTrend(trend) {
     return;
   }
 
+  // Get current data from the overall alignment
+  const signedScore = euOverallData?.signed?.score || 25.7;
+  const inProcessScore = euOverallData?.inProcess?.score || 26.7;
+  const signedBills = euOverallData?.signed?.bills || 4849;
+  const inProcessBills = euOverallData?.inProcess?.bills || 4558;
+
+  const w = 700, h = 320, padL = 55, padR = 30, padT = 30, padB = 80;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+
+  // Build data points from trend (deduplicate by score)
+  let dataPoints = [];
+  let seen = new Set();
+  for (let i = trend.length - 1; i >= 0; i--) {
+    const t = trend[i];
+    const key = `${t.weighted_score?.toFixed(1)}-${t.signed_bills}-${t.in_process_bills}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
+      dataPoints.unshift({
+        totalBills,
+        signedBills: t.signed_bills || 0,
+        inProcessBills: t.in_process_bills || 0,
+        score: t.weighted_score || 0,
+        signedScore: t.signed_score || 0,
+        inProcessScore: t.in_process_score || 0
+      });
+    }
+  }
+  if (dataPoints.length < 2) {
+    dataPoints = trend.slice().reverse().map(t => {
+      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
+      return {
+        totalBills,
+        signedBills: t.signed_bills || 0,
+        inProcessBills: t.in_process_bills || 0,
+        score: t.weighted_score || 0,
+        signedScore: t.signed_score || 0,
+        inProcessScore: t.in_process_score || 0
+      };
+    });
+  }
+
+  // X-axis = total bills, Y-axis = percentage
+  const maxBills = Math.max(...dataPoints.map(d => d.totalBills), signedBills + inProcessBills);
+  const minBills = Math.min(...dataPoints.map(d => d.totalBills));
+  const billsRange = maxBills - minBills || 1;
+
+  // Colors
+  const greenColor = '#22c55e';
+  const blueColor = '#3b82f6';
+  const orangeColor = '#f59e0b';
+  const redColor = '#ef4444';
+
+  // Grid lines (Y-axis = percentages)
+  let gridLines = '';
+  for (let pct = 0; pct <= 100; pct += 20) {
+    const y = padT + chartH - (pct / 100) * chartH;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
+    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text2)">${pct}%</text>`;
+  }
+
+  // Map data points to X positions
+  let signedPoints = [];
+  let inProcessPoints = [];
+  for (let i = 0; i < dataPoints.length; i++) {
+    const d = dataPoints[i];
+    const x = padL + ((d.totalBills - minBills) / billsRange) * chartW;
+    const ySigned = padT + chartH - (d.signedScore / 100) * chartH;
+    const yInProcess = padT + chartH - (d.inProcessScore / 100) * chartH;
+    signedPoints.push({ x, y: ySigned, score: d.signedScore, bills: d.totalBills });
+    inProcessPoints.push({ x, y: yInProcess, score: d.inProcessScore, bills: d.totalBills });
+  }
+
+  // Ensure current point is included (at maxBills)
+  const currentTotalBills = signedBills + inProcessBills;
+  const lastSigned = signedPoints[signedPoints.length - 1];
+  if (lastSigned && lastSigned.bills < currentTotalBills) {
+    const x = padL + chartW;
+    signedPoints.push({ x, y: padT + chartH - (signedScore / 100) * chartH, score: signedScore, bills: currentTotalBills });
+    inProcessPoints.push({ x, y: padT + chartH - (inProcessScore / 100) * chartH, score: inProcessScore, bills: currentTotalBills });
+  }
+
+  // Build SVG paths
+  const signedPath = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  const inProcessPath = inProcessPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+
+  // Area between lines (potential zone)
+  const areaBetween = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') +
+    ' ' + inProcessPoints.slice().reverse().map(p => `L${p.x},${p.y}`).join(' ') + ' Z';
+
+  // Area under signed line
+  const areaUnderSigned = signedPath + ` L${signedPoints[signedPoints.length-1].x},${padT + chartH} L${signedPoints[0].x},${padT + chartH} Z`;
+
+  // Dots
+  let signedDots = '';
+  let inProcessDots = '';
+  for (let i = 0; i < signedPoints.length; i++) {
+    const sp = signedPoints[i];
+    const ip = inProcessPoints[i];
+    if (i === 0 || i === signedPoints.length - 1 || signedPoints.length <= 8) {
+      signedDots += `<circle cx="${sp.x}" cy="${sp.y}" r="5" fill="${greenColor}" stroke="var(--bg)" stroke-width="2"/>`;
+      signedDots += `<text x="${sp.x}" y="${sp.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${greenColor}">${sp.score.toFixed(1)}%</text>`;
+      inProcessDots += `<circle cx="${ip.x}" cy="${ip.y}" r="5" fill="${blueColor}" stroke="var(--bg)" stroke-width="2"/>`;
+      inProcessDots += `<text x="${ip.x}" y="${ip.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${blueColor}">${ip.score.toFixed(1)}%</text>`;
+    }
+  }
+
+  // X-axis bill count labels
+  let billLabels = '';
+  const numLabels = 5;
+  for (let i = 0; i <= numLabels; i++) {
+    const bills = Math.round(minBills + (billsRange * i / numLabels));
+    const x = padL + (i / numLabels) * chartW;
+    billLabels += `<text x="${x}" y="${h - padB + 20}" text-anchor="middle" font-size="9" fill="var(--text2)">${bills.toLocaleString()}</text>`;
+  }
+  billLabels += `<text x="${padL + chartW / 2}" y="${h - 8}" text-anchor="middle" font-size="10" fill="var(--text2)">Кількість законів</text>`;
+
+  // Metric cards
+  const gapPct = (inProcessScore - signedScore).toFixed(1);
+  const isPositive = inProcessScore >= signedScore;
+
+  document.getElementById('eu-trend-chart').innerHTML = `
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${greenColor}">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📗 Прийняті закони</div>
+        <div style="font-size:18px;font-weight:700;color:${greenColor}">${signedScore.toFixed(1)}%</div>
+        <div style="font-size:11px;color:var(--text2)">${signedBills.toLocaleString()} законів</div>
+      </div>
+      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${blueColor}">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📘 В процесі</div>
+        <div style="font-size:18px;font-weight:700;color:${blueColor}">${inProcessScore.toFixed(1)}%</div>
+        <div style="font-size:11px;color:var(--text2)">${inProcessBills.toLocaleString()} законів</div>
+      </div>
+      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${isPositive ? orangeColor : redColor}">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">⚡ Потенціал</div>
+        <div style="font-size:18px;font-weight:700;color:${isPositive ? orangeColor : redColor}">${isPositive ? '+' : ''}${gapPct}%</div>
+        <div style="font-size:11px;color:var(--text2)">${isPositive ? 'очікується додати' : 'втрачається'}</div>
+      </div>
+    </div>
+
+    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;display:block">
+      <defs>
+        <linearGradient id="euGradGreen" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${greenColor}" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="${greenColor}" stop-opacity="0.02"/>
+        </linearGradient>
+        <linearGradient id="euGradBlue" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${blueColor}" stop-opacity="0.15"/>
+          <stop offset="100%" stop-color="${blueColor}" stop-opacity="0.02"/>
+        </linearGradient>
+        <linearGradient id="euGradPotential" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${orangeColor}" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="${orangeColor}" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+
+      ${gridLines}
+
+      <!-- Potential zone -->
+      <path d="${areaBetween}" fill="url(#euGradPotential)" opacity="0.6"/>
+
+      <!-- Area under in-process -->
+      <path d="${inProcessPath} L${inProcessPoints[inProcessPoints.length-1].x},${padT + chartH} L${inProcessPoints[0].x},${padT + chartH} Z" fill="url(#euGradBlue)" opacity="0.4"/>
+
+      <!-- Area under signed -->
+      <path d="${areaUnderSigned}" fill="url(#euGradGreen)"/>
+
+      <!-- In-process line (dashed) -->
+      <polyline points="${inProcessPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${blueColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8,4" opacity="0.8"/>
+
+      <!-- Signed line (solid) -->
+      <polyline points="${signedPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${greenColor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+
+      ${signedDots}
+      ${inProcessDots}
+
+      <!-- Legend -->
+      <line x1="${padL}" y1="${h - 30}" x2="${padL + 20}" y2="${h - 30}" stroke="${greenColor}" stroke-width="3"/>
+      <text x="${padL + 25}" y="${h - 26}" font-size="10" fill="var(--text2)">Прийняті</text>
+      <line x1="${padL + 90}" y1="${h - 30}" x2="${padL + 110}" y2="${h - 30}" stroke="${blueColor}" stroke-width="2.5" stroke-dasharray="8,4"/>
+      <text x="${padL + 115}" y="${h - 26}" font-size="10" fill="var(--text2)">В процесі</text>
+
+      ${billLabels}
+    </svg>
+  `;
+}
+
   // Get signed/inProcess data from the overall alignment data
   const signedScore = euOverallData?.signed?.score || 25.7;
   const inProcessScore = euOverallData?.inProcess?.score || 26.7;

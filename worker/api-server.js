@@ -1,0 +1,427 @@
+const express = require('express');
+const cors = require('cors');
+const { Pool } = require('pg');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Simple rate limiter: 100 req/min per IP
+const rateLimit = {};
+setInterval(() => { for (const k in rateLimit) delete rateLimit[k]; }, 60000);
+app.use((req, res, next) => {
+  const ip = req.ip;
+  rateLimit[ip] = (rateLimit[ip] || 0) + 1;
+  if (rateLimit[ip] > 100) return res.status(429).json({ error: 'Rate limit' });
+  next();
+});
+
+const pool = new Pool({
+  host: process.env.PG_HOST || '192.168.1.244',
+  database: process.env.PG_DB || 'radacleaner',
+  user: process.env.PG_USER || 'postgres',
+  password: process.env.PG_PASS || '164352',
+  max: 20,
+  idleTimeoutMillis: 30000,
+});
+
+const API_KEY = process.env.API_KEY || '';
+
+async function q(sql, params) {
+  const { rows } = await pool.query(sql, params);
+  return rows;
+}
+
+function json(res, data, status = 200, cacheSeconds) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (cacheSeconds) headers['Cache-Control'] = `public, max-age=${cacheSeconds}`;
+  res.status(status).set(headers).json(data);
+}
+
+function error(res, msg, status = 400) {
+  json(res, { error: msg }, status);
+}
+
+// --- BILLS BY YEAR (for dashboard chart) ---
+app.get('/api/bills-by-year', async (req, res) => {
+  try {
+    const results = await q(`
+      SELECT 
+        EXTRACT(YEAR FROM registration_date::date) as year,
+        SUM(CASE WHEN stage = 4 THEN 1 ELSE 0 END) as signed,
+        SUM(CASE WHEN stage IN (1,2,3) THEN 1 ELSE 0 END) as in_process,
+        SUM(CASE WHEN stage = 5 THEN 1 ELSE 0 END) as rejected
+      FROM bills 
+      WHERE registration_date IS NOT NULL AND registration_date != ''
+      GROUP BY year
+      ORDER BY year
+    `);
+    json(res, { data: results }, 200, 3600);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- STATS ---
+app.get('/api/stats', async (req, res) => {
+  try {
+    const rows = await q('SELECT key, value FROM stats_cache');
+    const cache = {};
+    for (const r of rows) cache[r.key] = r.value;
+    const byStage = JSON.parse(cache.by_stage || '[]');
+    json(res, {
+      totalBills: Number(cache.total_bills) || 0, byStage,
+      highRiskBills: Number(cache.high_risk) || 0,
+      mediumRiskBills: Number(cache.medium_risk) || 0,
+      recentChanges: Number(cache.recent_changes) || 0,
+      totalVotes: Number(cache.total_votes) || 0,
+      totalMps: Number(cache.total_mps) || 0,
+      activeMps: Number(cache.active_mps) || 0,
+      lastSync: cache.last_updated || null,
+      analyzedBills: Number(cache.analyzed_bills) || 0,
+      proceduralBills: Number(cache.procedural_bills) || 0,
+      newBills24h: Number(cache.new_bills_24h) || 0,
+      statusChanges24h: Number(cache.status_changes_24h) || 0,
+    }, 200, 30);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- STATUSES ---
+app.get('/api/statuses', async (req, res) => {
+  try {
+    const results = await q('SELECT current_status, COUNT(*) as count FROM bills WHERE current_status IS NOT NULL AND current_status != \'\' GROUP BY current_status ORDER BY count DESC');
+    json(res, { statuses: results }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- BY STAGE ---
+app.get('/api/by-stage', async (req, res) => {
+  try {
+    const results = await q('SELECT stage, current_status, COUNT(*) as count FROM bills GROUP BY stage, current_status ORDER BY stage, count DESC');
+    json(res, { data: results }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- BILLS LIST ---
+app.get('/api/bills', async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+    const stage = req.query.stage;
+    const status = req.query.status;
+    const search = req.query.search;
+    const sort = req.query.sort || 'status_changed_at';
+    const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const updatedAfter = req.query.updated_after;
+    const updatedBefore = req.query.updated_before;
+    const analyzed = req.query.analyzed;
+    const threats = req.query.threats;
+    const procedural = req.query.procedural || '';
+
+    const PROCEDURAL_CATEGORIES = ['Організаційні питання', 'Інші (заяви, звернення ВРУ)'];
+    const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
+
+    let where = ['1=1'];
+    let params = [];
+    let idx = 1;
+
+    if (stage) { where.push(`b.stage = $${idx++}`); params.push(Number(stage)); }
+    if (status) { where.push(`b.current_status = $${idx++}`); params.push(status); }
+    if (updatedAfter) { where.push(`b.status_changed_at >= $${idx++}`); params.push(updatedAfter); }
+    if (updatedBefore) { where.push(`b.status_changed_at <= $${idx++}`); params.push(updatedBefore + ' 23:59:59'); }
+    if (analyzed === '1') { where.push(`EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)`); }
+    if (analyzed === '0') { where.push(`NOT EXISTS (SELECT 1 FROM risk_assessments r WHERE r.bill_id = b.id)`); }
+
+    if (procedural === 'only') {
+      const catPH = PROCEDURAL_CATEGORIES.map(() => `$${idx++}`).join(',');
+      where.push(`(b.is_procedural = 1 OR (b.is_procedural IS NULL AND b.agenda_category IN (${catPH})))`);
+      params.push(...PROCEDURAL_CATEGORIES);
+    } else if (procedural !== '1') {
+      const catPH = PROCEDURAL_CATEGORIES.map(() => `$${idx++}`).join(',');
+      where.push(`(b.is_procedural = 0 OR (b.is_procedural IS NULL AND (b.agenda_category IS NULL OR b.agenda_category NOT IN (${catPH})) OR b.agenda_category = ''))`);
+      params.push(...PROCEDURAL_CATEGORIES);
+    }
+
+    if (threats === '1') {
+      where.push(`EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.risk_level = 'high' OR ra2.overall_score >= 70))`);
+    } else if (threats === '2') {
+      where.push(`EXISTS (SELECT 1 FROM risk_assessments ra2 WHERE ra2.bill_id = b.id AND (ra2.risk_level IN ('high','medium') OR ra2.overall_score >= 40))`);
+    }
+
+    const whereSQL = where.join(' AND ');
+
+    let query, countQuery, countParams;
+
+    if (search && search.trim()) {
+      const terms = search.trim().split(/\s+/)
+        .map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/]/g, '').trim())
+        .filter(t => t.length > 0)
+        .map(t => `"${t}"*`)
+        .join(' OR ');
+
+      if (terms) {
+        query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+          FROM bills_fts fts JOIN bills b ON b.id = fts.rowid
+          LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
+          WHERE bills_fts MATCH $${idx++} AND ${whereSQL}
+          ORDER BY b.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`;
+        params = [terms, ...params, limit, offset];
+        countQuery = `SELECT COUNT(*) as total FROM bills_fts fts JOIN bills b ON b.id = fts.rowid WHERE bills_fts MATCH $1 AND ${whereSQL}`;
+        countParams = [terms, ...params.slice(1, -2)];
+      }
+    }
+
+    if (!query) {
+      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+        FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
+        WHERE ${whereSQL}
+        ORDER BY b.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`;
+      params.push(limit, offset);
+      countQuery = `SELECT COUNT(*) as total FROM bills b WHERE ${whereSQL}`;
+      countParams = params.slice(0, -2);
+    }
+
+    const bills = await q(query, params);
+    const countResult = await q(countQuery, countParams);
+    json(res, { bills, limit, offset, total: Number(countResult[0]?.total) || 0 }, 200, 60);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- SINGLE BILL ---
+app.get('/api/bills/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const bill = (await q('SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at FROM bills WHERE id = $1', [id]))[0];
+    if (!bill) return error(res, 'Bill not found', 404);
+
+    const risks = (await q('SELECT * FROM risk_assessments WHERE bill_id = $1', [id]))[0];
+    const versions = await q('SELECT id, version_date, status_at_moment, text_hash FROM law_versions WHERE law_id = $1 ORDER BY version_date DESC LIMIT 10', [id]);
+    const changes = await q('SELECT id, change_type, old_value, new_value, created_at FROM change_log WHERE bill_id = $1 ORDER BY created_at DESC LIMIT 20', [id]);
+    const documents = await q('SELECT id, bill_id, file_id, doc_type FROM bill_documents WHERE bill_id = $1 ORDER BY doc_type', [id]);
+    const passings = await q('SELECT pass_date, title, status FROM bill_passings WHERE bill_id = $1 ORDER BY pass_date DESC', [id]);
+
+    const votesRaw = await q(`SELECT v.vote_id, v.bill_id, v.vote_date, v.title,
+      SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END) as yes_count,
+      SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END) as no_count,
+      SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END) as abstain_count,
+      SUM(CASE WHEN vs.code='not_present' THEN 1 ELSE 0 END) as not_present_count,
+      SUM(CASE WHEN vs.code='absent' THEN 1 ELSE 0 END) as absent_count
+    FROM votes v LEFT JOIN mp_votes mv ON mv.vote_id = v.vote_id LEFT JOIN vote_statuses vs ON mv.status_id = vs.id
+    WHERE v.bill_id = $1 GROUP BY v.vote_id ORDER BY v.vote_date ASC`, [id]);
+
+    for (const vote of votesRaw) {
+      vote.deputies = await q('SELECT mv.mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.name = mv.mp_name WHERE mv.vote_id = $1 ORDER BY mp_faction, mv.mp_name', [vote.vote_id]);
+    }
+
+    json(res, { bill, risks, versions, changes, votes: votesRaw, documents, passings });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- BILL VERSIONS ---
+app.get('/api/bills/:id/versions', async (req, res) => {
+  try {
+    const results = await q('SELECT id, law_id, version_date, status_at_moment, text_hash, plain_text, analysis_summary, risks_json FROM law_versions WHERE law_id = $1 ORDER BY version_date DESC LIMIT 10', [Number(req.params.id)]);
+    json(res, { versions: results });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- BILL RISKS ---
+app.get('/api/bills/:id/risks', async (req, res) => {
+  try {
+    const risks = (await q('SELECT * FROM risk_assessments WHERE bill_id = $1', [Number(req.params.id)]))[0];
+    if (!risks) return error(res, 'No risks found', 404);
+    json(res, { risks });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- BILL VOTES ---
+app.get('/api/bills/:id/votes', async (req, res) => {
+  try {
+    const results = await q('SELECT vote_id, bill_id, vote_date, title FROM votes WHERE bill_id = $1 ORDER BY vote_date DESC', [Number(req.params.id)]);
+    json(res, { votes: results });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- VOTES ---
+app.get('/api/votes', async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 20, 100);
+    const billId = req.query.bill_id;
+    let query = 'SELECT v.vote_id, v.bill_id, v.vote_date, v.title, b.bill_number, b.title as bill_title FROM votes v LEFT JOIN bills b ON v.bill_id = b.id';
+    const params = [];
+    if (billId) { query += ' WHERE v.bill_id = $1'; params.push(Number(billId)); }
+    query += ` ORDER BY v.vote_date DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+    const results = await q(query, params);
+    for (const vote of results) {
+      vote.factions = await q(`SELECT mp_faction, COUNT(*) as total, SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END) as yes, SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END) as no, SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END) as abstain FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id=vs.id WHERE mv.vote_id=$1 GROUP BY mp_faction ORDER BY total DESC`, [vote.vote_id]);
+    }
+    json(res, { votes: results });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- DEPUTY ---
+app.get('/api/deputies/:name', async (req, res) => {
+  try {
+    const param = decodeURIComponent(req.params.name);
+    const isNum = /^\d+$/.test(param);
+    const deputy = isNum
+      ? (await q('SELECT * FROM mps WHERE id = $1', [Number(param)]))[0]
+      : (await q('SELECT * FROM mps WHERE name = $1', [param]))[0];
+    if (!deputy) return error(res, 'Deputy not found', 404);
+
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const offset = Number(req.query.offset) || 0;
+
+    const votes = (await q(`SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label, v.title as vote_title, mv.vote_date, b.bill_number FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id=vs.id JOIN votes v ON mv.vote_id=v.vote_id LEFT JOIN bills b ON v.bill_id=b.id WHERE mv.mp_name=$1 ORDER BY mv.vote_date DESC LIMIT $2 OFFSET $3`, [deputy.name, limit, offset]));
+    const countResult = (await q('SELECT COUNT(*) as total FROM mp_votes mv WHERE mv.mp_name=$1', [deputy.name]))[0];
+    const total = deputy.total_votes || 0;
+
+    json(res, { deputy, votes, votesTotal: Number(countResult.total), votesLimit: limit, votesOffset: offset, stats: { total, attended: total, py: deputy.py || 0, pda: deputy.pda || 0, vkp: deputy.vkp || 0, dataSufficient: deputy.data_sufficient || false } });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- DEPUTIES LIST ---
+app.get('/api/deputies', async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const offset = Number(req.query.offset) || 0;
+    const search = req.query.search;
+    const faction = req.query.faction;
+    const sort = req.query.sort || 'name';
+    const order = (req.query.order || 'ASC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const safeSort = ['name','faction'].includes(sort) ? sort : 'name';
+
+    let where = ['1=1'];
+    let params = [];
+    let idx = 1;
+    if (search) { where.push(`m.name ILIKE $${idx++}`); params.push(`%${search}%`); }
+    if (faction) { where.push(`m.faction = $${idx++}`); params.push(faction); }
+
+    const whereSQL = where.join(' AND ');
+    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws" FROM mps m WHERE ${whereSQL} ORDER BY m.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const countResult = (await q(`SELECT COUNT(*) as total FROM mps m WHERE ${whereSQL}`, params))[0];
+
+    const result = deputies.map(d => ({
+      ...d, conversion: d.totalBills > 0 ? Math.round((d.totalLaws / d.totalBills) * 100) : 0,
+    }));
+
+    json(res, { deputies: result, total: Number(countResult.total) });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- FACTIONS ---
+app.get('/api/factions', async (req, res) => {
+  try {
+    const results = await q('SELECT DISTINCT faction FROM mps WHERE faction IS NOT NULL AND faction != \'\' ORDER BY faction');
+    json(res, { factions: results.map(r => r.faction) }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- PLENARY SESSIONS ---
+app.get('/api/plenary-sessions', async (req, res) => {
+  try {
+    const dates = await q('SELECT DISTINCT DATE(v.vote_date) as session_date FROM votes v WHERE v.bill_id IS NOT NULL ORDER BY v.vote_date DESC LIMIT 100');
+    const sessions = [];
+    for (const d of dates) {
+      const bills = await q('SELECT b.bill_number, b.title FROM votes v JOIN bills b ON v.bill_id = b.id WHERE DATE(v.vote_date) = $1 LIMIT 20', [d.session_date]);
+      sessions.push({ date: d.session_date, bills });
+    }
+    json(res, { sessions });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- SCHEDULE ---
+app.get('/api/schedule', async (req, res) => {
+  try {
+    const month = req.query.month;
+    const year = req.query.year;
+    const event_type = req.query.type;
+    let query = 'SELECT * FROM rada_schedule WHERE 1=1';
+    const params = [];
+    let idx = 1;
+
+    if (month) { query += ` AND date LIKE $${idx++}`; params.push(month + '%'); }
+    else if (year) { query += ` AND date LIKE $${idx++}`; params.push(year + '%'); }
+    else {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const m2 = String(now.getMonth() + 2).padStart(2, '0');
+      const y2 = now.getMonth() === 11 ? y + 1 : y;
+      query += ` AND ((date LIKE $${idx++}) OR (date LIKE $${idx++}))`;
+      params.push(`${y}-${m}%`, `${y2}-${m2}%`);
+    }
+    if (event_type) { query += ` AND event_type = $${idx++}`; params.push(event_type); }
+    query += ' ORDER BY date ASC';
+
+    const schedule = await q(query, params);
+
+    let cQuery = 'SELECT * FROM rada_committee_schedule WHERE 1=1';
+    const cParams = [];
+    if (month) { cQuery += ` AND meeting_date LIKE $1`; cParams.push(month + '%'); }
+    cQuery += ' ORDER BY meeting_date ASC LIMIT 100';
+    const committees = cParams.length ? await q(cQuery, cParams) : await q(cQuery);
+
+    json(res, {
+      schedule, committees,
+      session: { number: 15, name: "П'ятнадцята сесія", convocation: 'IX скликання', start: '2026-02-01', end: '2026-07-31' }
+    }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- EU ALIGNMENT ---
+app.get('/api/eu-alignment', async (req, res) => {
+  try {
+    const overall = await q('SELECT * FROM eu_alignment_overall ORDER BY id DESC LIMIT 1');
+    const chapters = await q('SELECT * FROM eu_alignment_chapters WHERE id IN (SELECT MAX(id) FROM eu_alignment_chapters GROUP BY chapter_id) ORDER BY chapter_id');
+    json(res, { 
+      overall: overall[0] || null, 
+      chapters, 
+      lastUpdated: overall[0]?.calculated_at || null,
+      signed: overall[0] ? {
+        score: overall[0].signed_score || 0,
+        bills: overall[0].signed_bills || 0
+      } : null,
+      inProcess: overall[0] ? {
+        score: overall[0].in_process_score || 0,
+        bills: overall[0].in_process_bills || 0
+      } : null
+    }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+app.get('/api/eu-alignment/trend', async (req, res) => {
+  try {
+    const trend = await q('SELECT calculated_at, weighted_score, overall_score, signed_score, in_process_score, signed_bills, in_process_bills FROM eu_alignment_overall ORDER BY calculated_at DESC LIMIT 30');
+    json(res, { trend }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+app.get('/api/eu-alignment/chapter/:id', async (req, res) => {
+  try {
+    const chapterId = parseInt(req.params.id);
+    if (isNaN(chapterId)) return error(res, 'Invalid chapter ID', 400);
+    const history = await q('SELECT * FROM eu_alignment_chapters WHERE chapter_id = $1 ORDER BY calculated_at DESC LIMIT 30', [chapterId]);
+    json(res, { chapter: history[0] || null, history }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+app.get('/api/eu-alignment/bills', async (req, res) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+    const chapterId = req.query.chapter;
+    let sql = 'SELECT bec.*, b.bill_number, b.title, b.stage FROM bill_eu_classification bec JOIN bills b ON bec.bill_id = b.id';
+    const params = [];
+    if (chapterId) { sql += ' WHERE bec.chapter_id = $1'; params.push(parseInt(chapterId)); }
+    sql += ` ORDER BY bec.confidence DESC LIMIT $${params.length + 1}`;
+    params.push(limit);
+    const bills = await q(sql, params);
+    json(res, { bills }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- Query endpoints REMOVED (security: no raw SQL exposure) ---
+
+app.use((req, res) => error(res, 'Not found', 404));
+
+const PORT = process.env.PORT || 8788;
+app.listen(PORT, () => console.log(`API server on port ${PORT}`));
