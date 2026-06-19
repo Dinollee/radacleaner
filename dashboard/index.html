@@ -272,6 +272,7 @@ tr.clickable { cursor: pointer; }
     <button data-section="bills">Закони</button>
     <button data-section="deputies">Депутати</button>
     <button data-section="schedule">Графік</button>
+    <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
   <div class="theme-toggle" id="theme-toggle" title="Переключити тему"></div>
@@ -282,6 +283,15 @@ tr.clickable { cursor: pointer; }
   <!-- DASHBOARD -->
   <div id="sec-dashboard" class="section active">
     <div class="stats-grid" id="dashboard-stats"></div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📊 Закони за роками</div>
+        <span style="font-size:12px;color:var(--text2)">Прийняті vs В процесі (без відхилених)</span>
+      </div>
+      <div id="bills-by-year-chart" style="padding:16px"></div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div class="card-title">⚠️ Потребують уваги</div>
@@ -397,6 +407,41 @@ tr.clickable { cursor: pointer; }
     </div>
   </div>
 
+  <!-- EU Alignment Section -->
+  <div id="sec-eu-alignment" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🇪🇺 Відповідність нормам ЄС (EU Alignment Score)</div>
+        <div id="eu-last-updated" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+      <div id="eu-overall-score" style="text-align:center;padding:20px">
+        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Кластери переговорів</div>
+        <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
+      </div>
+      <div id="eu-clusters"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Закони за класифікацією EU</div>
+      </div>
+      <div id="eu-classified-bills"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📈 Динаміка Alignment Score</div>
+      </div>
+      <div id="eu-trend-chart" style="padding:16px"></div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -452,10 +497,11 @@ function showSection(name) {
   if (name === 'bills') loadBills();
   if (name === 'deputies') loadDeputies();
   if (name === 'schedule') loadSchedule();
+  if (name === 'eu-alignment') loadEUAlignment();
 }
 
 // === API helpers ===
-const API = 'https://rada-monitor-api.distih.workers.dev';
+const API = 'https://api.dino.pp.ua';
 async function api(path) {
   const r = await fetch(API + path);
   if (!r.ok) throw new Error(`API ${r.status}`);
@@ -520,10 +566,14 @@ async function loadDashboard() {
   try {
     const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
 
-    const [stats, threats] = await Promise.all([
+    const [stats, threats, yearData] = await Promise.all([
       api('/api/stats'),
       api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}`),
+      api('/api/bills-by-year'),
     ]);
+
+    // Render bills by year chart
+    renderBillsByYear(yearData.data);
 
     // Оновлюємо хедер (завжди видимий)
     if (headerEl) {
@@ -569,6 +619,93 @@ function daysSince(dateStr) {
   const d = new Date(dateStr);
   if (isNaN(d)) return null;
   return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function renderBillsByYear(data) {
+  if (!data || !data.length) {
+    document.getElementById('bills-by-year-chart').innerHTML =
+      '<div style="color:var(--text2);padding:16px;text-align:center">Немає даних</div>';
+    return;
+  }
+
+  const maxVal = Math.max(...data.map(d => d.signed + d.in_process));
+  const w = 700, h = 200, padL = 50, padR = 20, padT = 30, padB = 40;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+  const barW = Math.min(50, chartW / data.length - 8);
+  const gap = (chartW - barW * data.length) / (data.length + 1);
+
+  // Grid lines
+  let gridLines = '';
+  const gridSteps = [0, 250, 500, 750, 1000];
+  for (const val of gridSteps) {
+    if (val > maxVal * 1.1) break;
+    const y = padT + chartH - (val / (maxVal * 1.1)) * chartH;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
+    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text2)">${val}</text>`;
+  }
+
+  let bars = '';
+  let labels = '';
+  let totalSigned = 0, totalProcess = 0;
+
+  for (let i = 0; i < data.length; i++) {
+    const d = data[i];
+    const x = padL + gap + i * (barW + gap);
+    const signedH = (d.signed / (maxVal * 1.1)) * chartH;
+    const processH = (d.in_process / (maxVal * 1.1)) * chartH;
+    const ySigned = padT + chartH - signedH;
+    const yProcess = ySigned - processH;
+
+    totalSigned += d.signed;
+    totalProcess += d.in_process;
+
+    // Signed bar (green)
+    bars += `<rect x="${x}" y="${ySigned}" width="${barW}" height="${signedH}" rx="3" fill="var(--green)" opacity="0.85">
+      <title>Підписано: ${d.signed}</title>
+    </rect>`;
+
+    // In-process bar (blue, stacked on top)
+    if (d.in_process > 0) {
+      bars += `<rect x="${x}" y="${yProcess}" width="${barW}" height="${processH}" rx="3" fill="var(--blue)" opacity="0.7">
+        <title>В процесі: ${d.in_process}</title>
+      </rect>`;
+    }
+
+    // Year label
+    labels += `<text x="${x + barW/2}" y="${h - 8}" text-anchor="middle" font-size="11" fill="var(--text2)">${d.year}</text>`;
+
+    // Value on top of stack
+    const total = d.signed + d.in_process;
+    if (total > 0) {
+      bars += `<text x="${x + barW/2}" y="${yProcess - 6}" text-anchor="middle" font-size="10" font-weight="600" fill="var(--text)">${total}</text>`;
+    }
+  }
+
+  // Cumulative signed line
+  let linePoints = '';
+  let cumSigned = 0;
+  for (let i = 0; i < data.length; i++) {
+    cumSigned += data[i].signed;
+    const x = padL + gap + i * (barW + gap) + barW / 2;
+    const y = padT + chartH - (cumSigned / (totalSigned + totalProcess)) * chartH;
+    linePoints += `${x},${y} `;
+  }
+
+  document.getElementById('bills-by-year-chart').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="display:flex;gap:16px;font-size:12px">
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--green);border-radius:2px;vertical-align:middle;margin-right:4px"></span> Підписано (${totalSigned.toLocaleString()})</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--blue);border-radius:2px;vertical-align:middle;margin-right:4px;opacity:0.7"></span> В процесі (${totalProcess.toLocaleString()})</span>
+      </div>
+    </div>
+    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;display:block">
+      ${gridLines}
+      ${bars}
+      <polyline points="${linePoints.trim()}" fill="none" stroke="var(--purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="6,3" opacity="0.7"/>
+      ${labels}
+    </svg>
+  `;
 }
 
 // === BILLS ===
@@ -1372,6 +1509,417 @@ function init() {
       sel.appendChild(opt);
     });
   }).catch(()=>{});
+}
+
+// === EU ALIGNMENT ===
+const EU_CLUSTERS = [
+  {
+    id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
+    status: 'opened', statusText: 'Відкрито 15.06.2026',
+    chapters: [23, 24, 5, 18, 32],
+    chapterNames: {23:'Судова система та основоположні права',24:'Правосуддя, свобода та безпека',5:'Публічні закупівлі',18:'Статистика',32:'Фінансовий контроль'}
+  },
+  {
+    id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
+    status: 'preparing', statusText: 'Готується до відкриття',
+    chapters: [1, 2, 3, 4, 6, 7, 8, 9, 28],
+    chapterNames: {1:'Вільний рух товарів',2:'Вільний рух капіталів',3:'Вільний рух осіб',4:'Вільний рух послуг',6:'Корпоративне право',7:'Інтелектуальна власність',8:'Конкурентна політика',9:'Фінансові послуги',28:'Захист прав споживачів та здоров\'я'}
+  },
+  {
+    id: 3, name: 'Конкурентоспроможність та інклюзивне зростання', nameEn: 'Competitiveness & Inclusive Growth', icon: '📈',
+    status: 'preparing', statusText: 'Готується до відкриття',
+    chapters: [10, 16, 17, 19, 20, 25, 26, 29],
+    chapterNames: {10:'Цифрова трансформація та ЗМІ',16:'Оподаткування',17:'Економічна та грошово-кредитна політика',19:'Соціальна політика та зайнятість',20:'Промислова політика та підприємництво',25:'Наука та дослідження',26:'Освіта та культура',29:'Митний союз'}
+  },
+  {
+    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda & Sustainable Connectivity', icon: '🌿',
+    status: 'preparing', statusText: 'Готується до відкриття',
+    chapters: [14, 15, 21, 27],
+    chapterNames: {14:'Транспортна політика',15:'Енергетика',21:'Трансєвропейські мережі',27:'Охорона навколишнього середовища'}
+  },
+  {
+    id: 5, name: 'Ресурси, сільське господарство та згуртованість', nameEn: 'Resources, Agriculture & Cohesion', icon: '🌾',
+    status: 'preparing', statusText: 'Готується до відкриття',
+    chapters: [11, 12, 13, 22, 33],
+    chapterNames: {11:'Сільське господарство',12:'Безпечність харчових продуктів',13:'Риболовство',22:'Регіональна політика',33:'Фінансові та бюджетні положення'}
+  },
+  {
+    id: 6, name: 'Зовнішні зв\'язки', nameEn: 'External Relations', icon: '🌍',
+    status: 'preparing', statusText: 'Готується до відкриття',
+    chapters: [30, 31],
+    chapterNames: {30:'Зовнішні зв\'язки',31:'Зовнішня політика, безпека та оборона'}
+  }
+];
+
+let euChaptersData = {};
+
+function loadEUAlignment() {
+  api('/api/eu-alignment').then(data => {
+    renderEUOverallScore(data.overall, data.signed, data.inProcess);
+    if (data.chapters) {
+      euChaptersData = {};
+      for (const ch of data.chapters) euChaptersData[ch.chapter_id] = ch;
+    }
+    renderEUClusters();
+    if (data.lastUpdated) {
+      document.getElementById('eu-last-updated').textContent =
+        'Останнє оновлення: ' + new Date(data.lastUpdated).toLocaleString('uk-UA');
+    }
+  }).catch(e => {
+    document.getElementById('eu-overall-score').innerHTML =
+      '<div style="color:var(--text2);padding:20px">Дані EU Alignment поки недоступні</div>';
+  });
+
+  api('/api/eu-alignment/bills?limit=20').then(data => {
+    renderEUClassifiedBills(data.bills);
+  }).catch(() => {});
+
+  api('/api/eu-alignment/trend').then(data => {
+    renderEUTrend(data.trend);
+  }).catch(() => {});
+}
+
+function renderEUOverallScore(overall, signed, inProcess) {
+  if (!overall) {
+    document.getElementById('eu-overall-score').innerHTML =
+      '<div style="color:var(--text2);padding:20px">Немає даних для розрахунку</div>';
+    return;
+  }
+
+  const score = overall.weighted_score || 0;
+  const filled = Math.round(score / 100 * 50);
+  const bar = '█'.repeat(filled) + '░'.repeat(50 - filled);
+  let color = 'var(--red)';
+  let emoji = '🔴';
+  if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
+  else if (score > 40) { color = 'var(--orange)'; emoji = '🟡'; }
+
+  // Signed score
+  const signedScore = signed?.score || 0;
+  const signedFilled = Math.round(signedScore / 100 * 25);
+  const signedBar = '█'.repeat(signedFilled) + '░'.repeat(25 - signedFilled);
+  let signedColor = 'var(--red)';
+  if (signedScore > 70) signedColor = 'var(--green)';
+  else if (signedScore > 40) signedColor = 'var(--orange)';
+
+  // In-process score
+  const processScore = inProcess?.score || 0;
+  const processFilled = Math.round(processScore / 100 * 25);
+  const processBar = '█'.repeat(processFilled) + '░'.repeat(25 - processFilled);
+  let processColor = 'var(--red)';
+  if (processScore > 70) processColor = 'var(--green)';
+  else if (processScore > 40) processColor = 'var(--orange)';
+
+  // Delta
+  const delta = processScore - signedScore;
+  let deltaText = '→ стабільно';
+  let deltaColor = 'var(--text2)';
+  if (delta > 2) { deltaText = `↑ +${delta.toFixed(1)}%`; deltaColor = 'var(--green)'; }
+  else if (delta < -2) { deltaText = `↓ ${delta.toFixed(1)}%`; deltaColor = 'var(--red)'; }
+
+  document.getElementById('eu-overall-score').innerHTML = `
+    <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
+    <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Загальний Alignment Score</div>
+    <div style="font-family:monospace;font-size:14px;letter-spacing:2px;color:${color};margin-bottom:20px">${bar}</div>
+    
+    <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px;max-width:280px;background:var(--bg3);border-radius:8px;padding:12px;text-align:left">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">📗</span>
+          <span style="font-weight:600;font-size:14px">Прийняті закони</span>
+        </div>
+        <div style="font-family:monospace;font-size:16px;font-weight:700;color:${signedColor}">${signedScore.toFixed(1)}%</div>
+        <div style="font-family:monospace;font-size:12px;color:${signedColor};margin:4px 0">${signedBar}</div>
+        <div style="font-size:12px;color:var(--text2)">${signed?.bills || 0} законів</div>
+      </div>
+      
+      <div style="flex:1;min-width:200px;max-width:280px;background:var(--bg3);border-radius:8px;padding:12px;text-align:left">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:18px">📘</span>
+          <span style="font-weight:600;font-size:14px">В процесі</span>
+        </div>
+        <div style="font-family:monospace;font-size:16px;font-weight:700;color:${processColor}">${processScore.toFixed(1)}%</div>
+        <div style="font-family:monospace;font-size:12px;color:${processColor};margin:4px 0">${processBar}</div>
+        <div style="font-size:12px;color:var(--text2)">${inProcess?.bills || 0} законів</div>
+      </div>
+    </div>
+    
+    <div style="margin-top:16px;font-size:13px;color:${deltaColor};font-weight:600">
+      Динаміка: ${deltaText}
+      <span style="font-weight:400;color:var(--text2);margin-left:8px">(в процесі vs прийняті)</span>
+    </div>
+    
+    <div style="display:flex;justify-content:center;gap:24px;margin-top:16px;font-size:13px">
+      <div><span style="color:var(--green)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
+      <div><span style="color:var(--blue)">●</span> Всього: ${overall.total_bills || 0} законів</div>
+    </div>
+  `;
+}
+
+function getClusterAlignment(cluster) {
+  let total = 0, count = 0;
+  for (const chId of cluster.chapters) {
+    const ch = euChaptersData[chId];
+    if (ch && ch.alignment > 0) { total += ch.alignment; count++; }
+  }
+  return count > 0 ? total / count : 0;
+}
+
+function getClusterBills(cluster) {
+  let total = 0;
+  for (const chId of cluster.chapters) {
+    const ch = euChaptersData[chId];
+    if (ch) total += ch.total_bills || 0;
+  }
+  return total;
+}
+
+function renderEUClusters() {
+  let html = '<div style="padding:4px 0">';
+  for (const cluster of EU_CLUSTERS) {
+    const avg = getClusterAlignment(cluster);
+    const bills = getClusterBills(cluster);
+    const filled = Math.round(avg / 100 * 20);
+    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+    let color = 'var(--red)';
+    if (avg > 70) color = 'var(--green)';
+    else if (avg > 40) color = 'var(--orange)';
+
+    let statusBadge = '';
+    if (cluster.status === 'opened') statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
+    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Підготовка</span>';
+
+    html += `
+      <div class="eu-cluster" onclick="toggleCluster(${cluster.id})" style="border:1px solid var(--border);border-radius:8px;margin:6px 0;overflow:hidden;cursor:pointer;transition:all 0.2s">
+        <div style="display:flex;align-items:center;padding:12px 16px;background:var(--bg2)">
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-right:12px;flex-shrink:0">${cluster.id}</div>
+          <div style="font-size:20px;margin-right:8px">${cluster.icon}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${cluster.name} <span style="font-weight:400;color:var(--text2);font-size:12px">${cluster.nameEn}</span>${statusBadge}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="font-family:monospace;color:${color};font-size:12px">${bar}</div>
+            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
+            <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
+          </div>
+        </div>
+        <div id="cluster-detail-${cluster.id}" style="display:none;border-top:1px solid var(--border)"></div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  document.getElementById('eu-clusters').innerHTML = html;
+}
+
+function toggleCluster(clusterId) {
+  const detail = document.getElementById('cluster-detail-' + clusterId);
+  const arrow = document.getElementById('cluster-arrow-' + clusterId);
+  if (!detail) return;
+
+  if (detail.style.display === 'none') {
+    detail.style.display = 'block';
+    arrow.textContent = '▾';
+    renderClusterDetail(clusterId);
+  } else {
+    detail.style.display = 'none';
+    arrow.textContent = '▸';
+  }
+}
+
+function renderClusterDetail(clusterId) {
+  const cluster = EU_CLUSTERS.find(c => c.id === clusterId);
+  if (!cluster) return;
+
+  const detail = document.getElementById('cluster-detail-' + clusterId);
+  let html = '<div style="padding:4px 8px">';
+
+  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${cluster.statusText}</div>`;
+
+  for (const chId of cluster.chapters) {
+    const ch = euChaptersData[chId];
+    const name = cluster.chapterNames[chId] || `Глава ${chId}`;
+    const alignment = ch ? ch.alignment : 0;
+    const bills = ch ? ch.total_bills : 0;
+    const keywords = ch ? ch.keywords_matched : 0;
+    const totalKw = ch ? ch.total_keywords : 0;
+
+    const filled = Math.round(alignment / 100 * 15);
+    const bar = '█'.repeat(filled) + '░'.repeat(15 - filled);
+    let color = 'var(--red)';
+    if (alignment > 70) color = 'var(--green)';
+    else if (alignment > 40) color = 'var(--orange)';
+
+    html += `
+      <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="event.stopPropagation();showChapterBills(${chId})">
+        <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500">${escHtml(name)}</div>
+          <div style="font-size:11px;color:var(--text2)">${keywords}/${totalKw} ключових слів · ${bills} законів</div>
+        </div>
+        <div style="font-family:monospace;color:${color};font-size:12px;margin-right:8px">${bar}</div>
+        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${alignment.toFixed(1)}%</div>
+      </div>
+    `;
+  }
+
+  html += '</div>';
+  detail.innerHTML = html;
+}
+
+function showChapterBills(chapterId) {
+  api(`/api/eu-alignment/bills?chapter=${chapterId}&limit=15`).then(data => {
+    const bills = data.bills || [];
+    const ch = euChaptersData[chapterId];
+    const cluster = EU_CLUSTERS.find(c => c.chapters.includes(chapterId));
+    let html = '<div class="card"><div class="card-header">';
+    html += `<div class="card-title">Ch.${chapterId} — ${cluster ? cluster.chapterNames[chapterId] : ''} (${bills.length} законів)</div>`;
+    html += `<div style="cursor:pointer;font-size:18px" onclick="this.closest('.card').remove()">✕</div>`;
+    html += '</div>';
+
+    if (bills.length === 0) {
+      html += '<div style="padding:20px;color:var(--text2)">Немає класифікованих законів для цієї глави</div>';
+    } else {
+      html += '<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Відповідність</th></tr></thead><tbody>';
+      for (const b of bills) {
+        const conf = ((b.confidence || 0) * 100).toFixed(0);
+        let badgeClass = 'badge-low';
+        if (conf > 70) badgeClass = 'badge-high';
+        else if (conf > 40) badgeClass = 'badge-medium';
+
+        html += `<tr>
+          <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
+          <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
+          <td><span class="badge ${badgeClass}">${conf}%</span></td>
+        </tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+
+    html += '</div>';
+    const container = document.getElementById('eu-clusters');
+    const firstCard = container.parentElement.querySelector('.card');
+    firstCard.insertAdjacentHTML('afterend', html);
+  }).catch(() => {});
+}
+
+function renderEUClassifiedBills(bills) {
+  if (!bills || !bills.length) {
+    document.getElementById('eu-classified-bills').innerHTML =
+      '<div style="color:var(--text2);padding:16px">Немає класифікованих законів</div>';
+    return;
+  }
+
+  let html = '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>Номер</th><th>Назва</th><th>EU Глава</th><th>Відповідність</th><th>Знайдені терміни</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const b of bills) {
+    const conf = (b.confidence * 100).toFixed(0);
+    let badgeClass = 'badge-low';
+    if (conf > 70) badgeClass = 'badge-high';
+    else if (conf > 40) badgeClass = 'badge-medium';
+
+    let matched = '';
+    try {
+      const keywords = JSON.parse(b.matched_keywords || '[]');
+      matched = keywords.slice(0, 3).map(k => `<span class="badge badge-low" style="margin:1px">${escHtml(k)}</span>`).join('');
+      if (keywords.length > 3) matched += `<span style="color:var(--text2);font-size:11px"> +${keywords.length - 3}</span>`;
+    } catch(e) {}
+
+    html += `<tr>
+      <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
+      <td><span class="badge badge-medium">Ch. ${b.chapter_id}</span></td>
+      <td><span class="badge ${badgeClass}">${conf}%</span></td>
+      <td>${matched}</td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('eu-classified-bills').innerHTML = html;
+}
+
+function renderEUTrend(trend) {
+  if (!trend || trend.length < 2) {
+    document.getElementById('eu-trend-chart').innerHTML =
+      '<div style="color:var(--text2);padding:16px;text-align:center">Потрібно щонайменше 2 вимірювання для тренду</div>';
+    return;
+  }
+
+  const maxScore = 100;
+  const w = 700, h = 180, padL = 45, padR = 20, padT = 20, padB = 40;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+  const stepX = chartW / (trend.length - 1);
+
+  // Build points
+  let points = [];
+  for (let i = 0; i < trend.length; i++) {
+    const x = padL + i * stepX;
+    const y = padT + chartH - (trend[i].weighted_score / maxScore) * chartH;
+    points.push({ x, y, score: trend[i].weighted_score, date: trend[i].calculated_at?.slice(0, 10) || '' });
+  }
+
+  // Trend direction
+  const first = trend[trend.length - 1].weighted_score;
+  const last = trend[0].weighted_score;
+  const diff = last - first;
+  let trendText = '→ стабільно';
+  let trendColor = 'var(--text2)';
+  let trendIcon = '→';
+  if (diff > 1) { trendText = `↑ +${diff.toFixed(1)}%`; trendColor = 'var(--green)'; trendIcon = '↑'; }
+  else if (diff < -1) { trendText = `↓ ${diff.toFixed(1)}%`; trendColor = 'var(--red)'; trendIcon = '↓'; }
+
+  // Grid lines
+  let gridLines = '';
+  for (let pct = 0; pct <= 100; pct += 25) {
+    const y = padT + chartH - (pct / 100) * chartH;
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
+    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text2)">${pct}%</text>`;
+  }
+
+  // Polyline
+  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  // Gradient area
+  const areaPath = `M${points[0].x},${padT + chartH} ` + points.map(p => `L${p.x},${p.y}`).join(' ') + ` L${points[points.length-1].x},${padT + chartH} Z`;
+
+  // Dots and labels
+  let dots = '';
+  let labels = '';
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const isLast = i === 0;
+    dots += `<circle cx="${p.x}" cy="${p.y}" r="${isLast ? 6 : 4}" fill="var(--blue)" stroke="var(--bg)" stroke-width="2"/>`;
+    if (isLast || i === points.length - 1 || points.length <= 6) {
+      dots += `<text x="${p.x}" y="${p.y - 10}" text-anchor="middle" font-size="11" font-weight="600" fill="var(--blue)">${p.score.toFixed(1)}%</text>`;
+    }
+    // Date labels (show first, last, and every 2nd if many)
+    if (i === 0 || i === points.length - 1 || (points.length <= 8) || i % Math.ceil(points.length / 6) === 0) {
+      labels += `<text x="${p.x}" y="${h - 8}" text-anchor="middle" font-size="9" fill="var(--text2)">${p.date.slice(5)}</text>`;
+    }
+  }
+
+  document.getElementById('eu-trend-chart').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:var(--text2)">Тренд за ${trend.length} вимірювань</span>
+      <span style="font-size:16px;font-weight:700;color:${trendColor}">${trendIcon} ${trendText}</span>
+    </div>
+    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;display:block">
+      ${gridLines}
+      <defs>
+        <linearGradient id="euGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--blue)" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="var(--blue)" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#euGrad)"/>
+      <polyline points="${polyline}" fill="none" stroke="var(--blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+      ${labels}
+    </svg>
+  `;
 }
 
 // === THEME ===
