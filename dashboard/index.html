@@ -627,7 +627,7 @@ async function loadBills() {
   const tbody = document.querySelector('#bills-table tbody');
   expandedBillId = null;
   tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
-  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=status_changed_at&order=DESC`;
+  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=updated_at&order=DESC`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (stage) url += `&stage=${stage}`;
   if (status) url += `&status=${encodeURIComponent(status)}`;
