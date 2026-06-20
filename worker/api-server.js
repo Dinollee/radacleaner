@@ -226,6 +226,26 @@ app.get('/api/bills/:id/risks', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- BILL ANALYZE ---
+app.post('/api/bills/:id/analyze', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const bill = (await q('SELECT id, bill_number FROM bills WHERE id = $1', [id]))[0];
+    if (!bill) return error(res, 'Bill not found', 404);
+    await q('INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES ($1, $2, $3)', [id, bill.bill_number, 'pending']);
+    json(res, { status: 'triggered', bill_number: bill.bill_number });
+  } catch (e) { error(res, e.message, 500); }
+});
+
+app.get('/api/bills/:id/analyze', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const pending = (await q('SELECT * FROM pending_analysis WHERE bill_id = $1 ORDER BY id DESC LIMIT 1', [id]))[0];
+    if (!pending) return json(res, { status: 'none' });
+    json(res, { status: pending.status, output: pending.output || '', created: pending.created_at, finished: pending.finished_at });
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- BILL VOTES ---
 app.get('/api/bills/:id/votes', async (req, res) => {
   try {
