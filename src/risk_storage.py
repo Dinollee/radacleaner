@@ -173,7 +173,7 @@ def save_risk(document_id: int, data: dict, model: str) -> None:
     risk_level_score = {"high": 3, "medium": 2, "low": 1}.get(risk_level, 1)
     overall_score = risk_level_score * 33.33 if has_risks else 0.0
 
-    insufficient = bool(data.get("insufficient_text", False))
+    insufficient = 1 if data.get("insufficient_text", False) else 0
     confidence = 5 if insufficient else (1 if has_risks else 3)
 
     json_data = json.dumps(data, ensure_ascii=False)

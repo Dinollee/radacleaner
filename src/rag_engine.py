@@ -541,7 +541,7 @@ def process_bill(info: dict, test_mode: bool = False):
         "model_used": LLM_MODEL,
         "json_data": json.dumps(llm_data, ensure_ascii=False),
         "raw_analysis": law_summary or analysis_summary,
-        "insufficient_text": bool(llm_data.get("insufficient_text", False)),
+        "insufficient_text": 1 if llm_data.get("insufficient_text", False) else 0,
     })
     d1_exec("law_version", {
         "bill_number": bill_number,
