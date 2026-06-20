@@ -135,9 +135,7 @@ app.get('/api/bills', async (req, res) => {
       where.push(`(b.is_procedural = 1 OR (b.is_procedural IS NULL AND b.agenda_category IN (${catPH})))`);
       params.push(...PROCEDURAL_CATEGORIES);
     } else if (procedural !== '1') {
-      const catPH = PROCEDURAL_CATEGORIES.map(() => `$${idx++}`).join(',');
-      where.push(`(b.is_procedural = 0 OR (b.is_procedural IS NULL AND (b.agenda_category IS NULL OR b.agenda_category NOT IN (${catPH})) OR b.agenda_category = ''))`);
-      params.push(...PROCEDURAL_CATEGORIES);
+      where.push(`(b.is_procedural = 0 OR b.is_procedural IS NULL)`);
     }
 
     if (threats === '1') {
