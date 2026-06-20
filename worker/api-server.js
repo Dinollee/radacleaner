@@ -193,11 +193,11 @@ app.get('/api/bills/:id', async (req, res) => {
     const passings = await q('SELECT pass_date, title, status FROM bill_passings WHERE bill_id = $1 ORDER BY pass_date DESC', [id]);
 
     const votesRaw = await q(`SELECT v.vote_id, v.bill_id, v.vote_date, v.title,
-      SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END) as yes_count,
-      SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END) as no_count,
-      SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END) as abstain_count,
-      SUM(CASE WHEN vs.code='not_present' THEN 1 ELSE 0 END) as not_present_count,
-      SUM(CASE WHEN vs.code='absent' THEN 1 ELSE 0 END) as absent_count
+      SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END)::INTEGER as yes_count,
+      SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END)::INTEGER as no_count,
+      SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END)::INTEGER as abstain_count,
+      SUM(CASE WHEN vs.code='not_present' THEN 1 ELSE 0 END)::INTEGER as not_present_count,
+      SUM(CASE WHEN vs.code='absent' THEN 1 ELSE 0 END)::INTEGER as absent_count
     FROM votes v LEFT JOIN mp_votes mv ON mv.vote_id = v.vote_id LEFT JOIN vote_statuses vs ON mv.status_id = vs.id
     WHERE v.bill_id = $1 GROUP BY v.vote_id ORDER BY v.vote_date ASC`, [id]);
 
