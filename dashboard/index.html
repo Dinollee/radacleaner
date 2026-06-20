@@ -694,7 +694,7 @@ async function toggleBillExpand(row, id) {
     const docs = data.documents || [];
     const versions = data.versions || [];
 
-    let risksList = [], riskLevel = 'low', analyzedChunks = [];
+    let risksList = [], riskLevel = 'low', analyzedChunks = [], riskCategories = [];
     if (risks?.json_data) {
       try {
         const parsed = JSON.parse(risks.json_data);
@@ -702,6 +702,7 @@ async function toggleBillExpand(row, id) {
           riskLevel = parsed.risk_level || 'low';
           risksList = parsed.detailed_risks || [];
           analyzedChunks = parsed.analyzed_chunks || [];
+          riskCategories = parsed.risk_categories || [];
         }
       } catch(e) {}
     }
@@ -750,9 +751,18 @@ async function toggleBillExpand(row, id) {
       const lc = {high:'var(--red)',medium:'var(--orange)',low:'var(--yellow)'};
       html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid ${lc[riskLevel]};border-radius:4px;margin-bottom:12px">
         <div style="font-size:12px;font-weight:600;margin-bottom:6px">${riskEmoji[riskLevel]||'🟡'} Ризики — ${riskName[riskLevel]} (${risksList.length})</div>
-        ${analyzedChunks.length ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Проаналізовано чанків: ${analyzedChunks.join(', ')}</div>` : ''}
-        ${risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('')}
-      </div>`;
+        ${analyzedChunks.length ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Проаналізовано чанків: ${analyzedChunks.join(', ')}</div>` : ''}`;
+      if (riskCategories.length) {
+        riskCategories.forEach(cat => {
+          html += `<div style="margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text)">📂 ${escHtml(cat.category)}</div>
+            ${(cat.risks||[]).map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:3px;padding-left:12px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('')}
+          </div>`;
+        });
+      } else {
+        html += risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('');
+      }
+      html += '</div>';
     } else if (risks) {
       html += '<div style="padding:10px;color:var(--green);font-size:13px">✅ Ризиків не виявлено</div>';
     } else {

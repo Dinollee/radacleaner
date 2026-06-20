@@ -146,7 +146,16 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
 Ризики, знайдені в різних чанках:
 {all_risks}
 
-ФІНАЛЬНА ОЦІНКА — підсумуй всі знахідки в один JSON:
+ФІНАЛЬНА ОЦІНКА — підсумуй всі знахідки в один JSON.
+
+ВАЖЛИВО: Ризики ПОВИННІ бути згруповані в 3-5 ДИНАМІЧНИХ НАПРЯМКІВ за тематикою.
+Наприклад:
+- "Конституційні невідповідності" (якщо є порушення Конституції)
+- "Бюджетний дисбаланс" (якщо є фінансові ризики)
+- "Корупційні фактори та нечіткі поняття" (якщо є дискреційні повноваження)
+- "Невідповідність чинному законодавству" (якщо є колізії з кодексами)
+- "Обмеження прав та свобод" (якщо є звуження прав)
+Назви напрямків — ДИНАМІЧНІ, залежать від конкретного закону. Не використовуй шаблонні назви.
 
 ФОРМАТ ВІДПОВІДІ (строго JSON):
 {{
@@ -156,9 +165,15 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
   "risk_level": "low/medium/high/null",
   "summary": "Стисле опис суті змін (1-2 речення)",
   "law_summary": "Повний опис: хто ініціює, що змінює, на кого поширюється. 3-5 речень.",
-  "detailed_risks": [
-    "Фінальний ризик: посилання на статтю + опис наслідків"
+  "risk_categories": [
+    {{
+      "category": "Назва напрямку (динамічна, за тематикою)",
+      "risks": [
+        "Конкретний ризик: посилання на статтю + опис наслідків"
+      ]
+    }}
   ],
+  "detailed_risks": ["flat list of all risks for backward compatibility"],
   "analyzed_chunks": [{chunk_indices}],
   "insufficient_text": false
 }}
@@ -166,7 +181,9 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
 Правила:
 - Об'єднай дублікати ризиків з різних чанків
 - Підвищуй risk_level якщо ризики з кількох чанків утворюють ланцюг
-- НЕ додавай нових ризиків яких не було в чанках"""
+- НЕ додавай нових ризиків яких не було в чанках
+- detailed_risks — плоский список для обратної сумісності (ті самі що в risk_categories)
+- Кількість категорій залежить від закону: від 1 до 5"""
 
 
 def format_risk_message(info: dict, data: dict) -> str:
@@ -208,13 +225,25 @@ def format_risk_message(info: dict, data: dict) -> str:
     has_risks = data.get("has_risks", False)
     risk_level = data.get("risk_level", "low")
     detailed_risks = data.get("detailed_risks", [])
+    risk_categories = data.get("risk_categories", [])
 
     if has_risks and detailed_risks:
         level_icon = RISK_LEVEL_EMOJI.get(risk_level, "🟡")
         level_name = RISK_LEVEL_UA.get(risk_level, "НЕВІДОМИЙ")
         lines.append(f"\n{level_icon} <b>Рівень ризику: {level_name}</b>")
-        for i, risk in enumerate(detailed_risks[:5], 1):
-            lines.append(f"\n{i}. {risk[:200]}")
+        if risk_categories:
+            for cat in risk_categories:
+                cat_name = cat.get("category", "Інше")
+                cat_risks = cat.get("risks", [])
+                if cat_risks:
+                    lines.append(f"\n📂 <b>{cat_name}</b>")
+                    for i, risk in enumerate(cat_risks[:3], 1):
+                        lines.append(f"  {i}. {risk[:180]}")
+                    if len(cat_risks) > 3:
+                        lines.append(f"  ... та ще {len(cat_risks) - 3}")
+        else:
+            for i, risk in enumerate(detailed_risks[:5], 1):
+                lines.append(f"\n{i}. {risk[:200]}")
     else:
         lines.append("✅ Ризиків не виявлено")
 
