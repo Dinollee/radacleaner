@@ -720,7 +720,7 @@ async function toggleBillExpand(row, id) {
       <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
       <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
       ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
-      ${b.url ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
+      ${b.url && b.url.startsWith('http') ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
     </div>`;
 
     // Re-analyze button
