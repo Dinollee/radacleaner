@@ -565,6 +565,7 @@ def process_bill(info: dict, test_mode: bool = False):
     })
 
     d1_exec("risk", {
+        "bill_id": bill_id,
         "bill_number": bill_number,
         "overall_score": 100 if risk_level == "high" else 70 if risk_level == "medium" else 30 if risk_level == "low" else 0,
         "model_used": LLM_MODEL,
