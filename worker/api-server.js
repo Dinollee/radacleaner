@@ -151,22 +151,16 @@ app.get('/api/bills', async (req, res) => {
     let query, countQuery, countParams;
 
     if (search && search.trim()) {
-      const terms = search.trim().split(/\s+/)
-        .map(t => t.replace(/['"<>()[\]{}\\:^#@!&;,.?=/]/g, '').trim())
-        .filter(t => t.length > 0)
-        .map(t => `"${t}"*`)
-        .join(' OR ');
-
-      if (terms) {
-        query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
-          FROM bills_fts fts JOIN bills b ON b.id = fts.rowid
-          LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
-          WHERE bills_fts MATCH $${idx++} AND ${whereSQL}
-          ORDER BY b.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`;
-        params = [terms, ...params, limit, offset];
-        countQuery = `SELECT COUNT(*) as total FROM bills_fts fts JOIN bills b ON b.id = fts.rowid WHERE bills_fts MATCH $1 AND ${whereSQL}`;
-        countParams = [terms, ...params.slice(1, -2)];
-      }
+      const searchPattern = `%${search.trim()}%`;
+      params.push(searchPattern);
+      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+        FROM bills b
+        LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
+        WHERE (b.bill_number ILIKE $${idx} OR b.title ILIKE $${idx}) AND ${whereSQL}
+        ORDER BY b.${safeSort} ${order} LIMIT $${idx+1} OFFSET $${idx+2}`;
+      params.push(limit, offset);
+      countQuery = `SELECT COUNT(*) as total FROM bills b WHERE (b.bill_number ILIKE $${idx} OR b.title ILIKE $${idx}) AND ${whereSQL}`;
+      countParams = params.slice(0, -2);
     }
 
     if (!query) {
