@@ -74,9 +74,9 @@ def save_etag(filename: str, etag: str) -> None:
     """Зберігає ETag в D1."""
     d1_exec("raw_sql", {
         "sql": """INSERT INTO sync_state (filename, etag, last_checked, last_downloaded)
-                  VALUES (?, ?, datetime('now'), datetime('now'))
+                  VALUES (?, ?, (now() AT TIME ZONE 'utc'), (now() AT TIME ZONE 'utc'))
                   ON CONFLICT(filename) DO UPDATE SET
-                    etag=?, last_checked=datetime('now'), last_downloaded=datetime('now')""",
+                    etag=?, last_checked=(now() AT TIME ZONE 'utc'), last_downloaded=(now() AT TIME ZONE 'utc')""",
         "params": [filename, etag, etag],
     })
 
@@ -84,7 +84,7 @@ def save_etag(filename: str, etag: str) -> None:
 def update_last_checked(filename: str) -> None:
     """Оновлює мітку часу перевірки."""
     d1_exec("raw_sql", {
-        "sql": "UPDATE sync_state SET last_checked=datetime('now') WHERE filename=?",
+        "sql": "UPDATE sync_state SET last_checked=(now() AT TIME ZONE 'utc') WHERE filename=?",
         "params": [filename],
     })
 
@@ -160,7 +160,7 @@ def sync_billinfo_list(data: bytes) -> int:
         subject = b.get("subject", "")
         api_id = str(b.get("id", ""))
         url = (
-            f"https://itd.rada.gov.ua/billInfo/Bills/Card/{api_id}"
+            f"https://itd.rada.gov.ua/billinfo/Bills/Card/{api_id}"
             if api_id
             else ""
         )
@@ -264,6 +264,20 @@ def process_full_data(data: bytes) -> int:
                 "sql": "UPDATE bills SET committee=? WHERE bill_number=?",
                 "params": [new_subject, bn],
             })
+
+        # Оновлюємо URL з API ID (якщо він є і URL хибний)
+        api_id = str(b.get("id", "")).strip()
+        if api_id and api_id.isdigit():
+            correct_url = f"https://itd.rada.gov.ua/billinfo/Bills/Card/{api_id}"
+            # Оновлюємо якщо URL пустий, хибний (не починається з http), або використовує bill_number замість API ID
+            current_url = row.get("url", "") or ""
+            if (not current_url.startswith("http") or
+                current_url == "rada.gov.ua" or
+                (current_url.endswith(f"/{bn}") and bn != api_id)):
+                d1_exec("raw_sql", {
+                    "sql": "UPDATE bills SET url=? WHERE bill_number=?",
+                    "params": [correct_url, bn],
+                })
 
         if db_id in bills_with_docs:
             continue
