@@ -192,14 +192,9 @@ app.get('/api/bills/:id', async (req, res) => {
     const documents = await q('SELECT id, bill_id, file_id, doc_type FROM bill_documents WHERE bill_id = $1 ORDER BY doc_type', [id]);
     const passings = await q('SELECT pass_date, title, status FROM bill_passings WHERE bill_id = $1 ORDER BY pass_date DESC', [id]);
 
-    const votesRaw = await q(`SELECT v.vote_id, v.bill_id, v.vote_date, v.title,
-      SUM(CASE WHEN vs.code='yes' THEN 1 ELSE 0 END)::INTEGER as yes_count,
-      SUM(CASE WHEN vs.code='no' THEN 1 ELSE 0 END)::INTEGER as no_count,
-      SUM(CASE WHEN vs.code='abstain' THEN 1 ELSE 0 END)::INTEGER as abstain_count,
-      SUM(CASE WHEN vs.code='not_present' THEN 1 ELSE 0 END)::INTEGER as not_present_count,
-      SUM(CASE WHEN vs.code='absent' THEN 1 ELSE 0 END)::INTEGER as absent_count
-    FROM votes v LEFT JOIN mp_votes mv ON mv.vote_id = v.vote_id LEFT JOIN vote_statuses vs ON mv.status_id = vs.id
-    WHERE v.bill_id = $1 GROUP BY v.vote_id ORDER BY v.vote_date ASC`, [id]);
+    const votesRaw = await q(`SELECT vote_id, bill_id, vote_date, title,
+      yes_count, no_count, abstain_count, not_present_count, absent_count
+    FROM votes WHERE bill_id = $1 ORDER BY vote_date ASC`, [id]);
 
     for (const vote of votesRaw) {
       vote.deputies = await q('SELECT mv.mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.name = mv.mp_name WHERE mv.vote_id = $1 ORDER BY mp_faction, mv.mp_name', [vote.vote_id]);
