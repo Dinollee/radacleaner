@@ -18,6 +18,17 @@ from datetime import datetime
 from src.config import log
 from src.d1_client import d1_query, d1_exec
 
+
+def get_vote_weight(title: str) -> float:
+    """Класифікує вагу голосування за заголовком."""
+    t = title.lower() if title else ""
+    if any(kw in t for kw in ("друге читання", "прийняття", "останнє", "в цілому")):
+        return 3.0
+    if any(kw in t for kw in ("перше читання", "за основу")):
+        return 2.0
+    return 1.0
+
+
 # Кнопка фракцій — idf → назва
 FACTION_MAP = {
     "idf1": "СЛУГА НАРОДУ",
@@ -143,7 +154,7 @@ def ensure_vote_statuses():
     for code, label in [("yes", "За"), ("no", "Проти"), ("abstain", "Утримався"),
                          ("not_present", "Не голосував"), ("absent", "Відсутній")]:
         d1_exec("raw_sql", {
-            "sql": "INSERT OR IGNORE INTO vote_statuses (code, label) VALUES (?, ?)",
+            "sql": "INSERT INTO vote_statuses (code, label) VALUES (?, ?) ON CONFLICT (code) DO NOTHING",
             "params": [code, label],
         })
 
@@ -160,22 +171,26 @@ def save_vote(vote_data, bill_number=None):
     if bill_number:
         bill_id = resolve_bill_id(bill_number)
 
+    title = vote_data.get("title", "")[:500]
+    weight = get_vote_weight(title)
+
     d1_exec("raw_sql", {
-        "sql": """INSERT INTO votes (vote_id, bill_id, title, vote_date, yes_count, no_count, abstain_count, not_present_count, absent_count)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "sql": """INSERT INTO votes (vote_id, bill_id, title, vote_date, yes_count, no_count, abstain_count, not_present_count, absent_count, weight)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                   ON CONFLICT(vote_id) DO UPDATE SET
                     title=excluded.title, vote_date=excluded.vote_date,
                     yes_count=excluded.yes_count, no_count=excluded.no_count,
                     abstain_count=excluded.abstain_count, not_present_count=excluded.not_present_count,
-                    absent_count=excluded.absent_count""",
+                    absent_count=excluded.absent_count, weight=excluded.weight""",
         "params": [
-            vote_data["g_id"], bill_id, vote_data.get("title", "")[:500],
+            vote_data["g_id"], bill_id, title,
             vote_data.get("vote_date"),
             vote_data.get("results", {}).get("yes", 0),
             vote_data.get("results", {}).get("no", 0),
             vote_data.get("results", {}).get("abstain", 0),
             vote_data.get("results", {}).get("not_present", 0),
             vote_data.get("results", {}).get("absent", 0),
+            weight,
         ],
     })
 
@@ -195,7 +210,7 @@ def save_vote(vote_data, bill_number=None):
         if values:
             try:
                 d1_exec("raw_sql", {
-                    "sql": f"INSERT OR IGNORE INTO mps (name, faction) VALUES {','.join(values)}",
+                    "sql": f"INSERT INTO mps (name, faction) VALUES {','.join(values)} ON CONFLICT (name) DO NOTHING",
                     "params": params,
                 })
             except Exception as e:
@@ -221,7 +236,7 @@ def save_vote(vote_data, bill_number=None):
             except Exception as e:
                 log.warning("mp_votes batch insert failed: %s", str(e)[:100])
 
-    log.info("Saved vote %d: %d MPs", vote_data["g_id"], len(mps))
+    log.info("Saved vote %d: %d MPs (weight=%.1f)", vote_data["g_id"], len(mps), weight)
 
 
 def process_bill(bill_number, limit=None):
