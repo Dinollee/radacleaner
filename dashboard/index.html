@@ -221,6 +221,16 @@ tr.clickable { cursor: pointer; }
 .vote-deputy-faction { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
 .bill-expand-tab { padding-top: 4px; }
 
+/* Metrics widget */
+.metrics-widget { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.2; }
+.metrics-scores { display: flex; gap: 4px; font-weight: 600; font-size: 11px; }
+.metrics-scores .m-s { color: var(--purple); }
+.metrics-scores .m-i { color: var(--blue); }
+.metrics-scores .m-r { color: var(--red); }
+.toxicity-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; min-width: 50px; }
+.toxicity-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.toxicity-label { font-size: 10px; color: var(--text2); }
+
 /* Vote block (best.html pattern) */
 .vote-block { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
 .vote-block:hover { border-color: rgba(74,158,255,0.3); }
@@ -289,7 +299,7 @@ tr.clickable { cursor: pointer; }
         <div class="card-title">⚠️ Потребують уваги</div>
         <span style="font-size:12px;color:var(--text2)">Непроцедурні закони зі змінами за останні 120 днів</span>
       </div>
-      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th><th>Важливість</th><th>Зміна</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th><th>Метрики</th><th>Зміна</th></tr></thead><tbody></tbody></table></div>
     </div>
   </div>
 
@@ -321,11 +331,18 @@ tr.clickable { cursor: pointer; }
         <option value="1">Включити процедурні</option>
         <option value="only">Тільки процедурні</option>
       </select>
+      <select id="bill-sort">
+        <option value="status_changed_at">За зміною статусу ↓</option>
+        <option value="toxicity">За toxicity ↓</option>
+        <option value="significance">За значимістю ↓</option>
+        <option value="updated_at">За оновленням ↓</option>
+        <option value="registration_date">За реєстрацією ↓</option>
+      </select>
       <input type="date" id="bill-date-from" title="Зміни з дати">
       <input type="date" id="bill-date-to" title="Зміни по дату">
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>LLM</th><th>Важливість</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>LLM</th><th>Метрики</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="bills-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -528,6 +545,24 @@ function proceduralBadge(v) {
     : '<span class="proc-dot non-proc" title="Непроцедурний"></span>';
 }
 
+function metricsWidget(b) {
+  const sig = b.significance, imp = b.impact, rsk = b.risk_score, tox = b.toxicity;
+  if (sig == null && imp == null && rsk == null && tox == null) {
+    return '<span style="color:var(--text2);font-size:11px">—</span>';
+  }
+  const toxPercent = tox != null ? Math.round(tox * 100) : 0;
+  const toxColor = tox >= 0.73 ? 'var(--red)' : tox >= 0.49 ? 'var(--orange)' : tox >= 0.25 ? 'var(--yellow)' : 'var(--green)';
+  return `<div class="metrics-widget">
+    <div class="metrics-scores">
+      <span class="m-s" title="Значимість">S${sig || '?'}</span>
+      <span class="m-i" title="Вплив">I${imp || '?'}</span>
+      <span class="m-r" title="Ризик">R${rsk || '?'}</span>
+    </div>
+    <div class="toxicity-bar"><div class="toxicity-fill" style="width:${toxPercent}%;background:${toxColor}"></div></div>
+    <div class="toxicity-label">tox ${tox != null ? tox.toFixed(2) : '—'}</div>
+  </div>`;
+}
+
 function kpdColor(kpd) {
   if (kpd >= 80) return 'var(--green)';
   if (kpd >= 50) return 'var(--orange)';
@@ -593,7 +628,7 @@ async function loadDashboard() {
         <td>${stageBar(b.stage)}</td>
         <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
         <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-        <td>${b.has_analysis ? proceduralBadge(b.is_procedural) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
+        <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
         <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Активних законів немає</td></tr>';
@@ -622,12 +657,13 @@ async function loadBills() {
   const analyzed = document.getElementById('bill-analyzed').value;
   const threats = document.getElementById('bill-threats').value;
   const procedural = document.getElementById('bill-procedural').value;
+  const sortBy = document.getElementById('bill-sort').value || 'status_changed_at';
   const dateFrom = document.getElementById('bill-date-from').value;
   const dateTo = document.getElementById('bill-date-to').value;
   const tbody = document.querySelector('#bills-table tbody');
   expandedBillId = null;
   tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
-  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=updated_at&order=DESC`;
+  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=${sortBy}&order=DESC`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (stage) url += `&stage=${stage}`;
   if (status) url += `&status=${encodeURIComponent(status)}`;
@@ -648,7 +684,7 @@ async function loadBills() {
       <td style="font-size:12px;color:var(--text2)">${escHtml((b.committee||'').substring(0,40))}</td>
       <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
       <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-      <td>${b.has_analysis ? proceduralBadge(b.is_procedural) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
+      <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
       <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}</td>
     </tr>`).join('');
     // Auto-expand if goToBill was called while loading
@@ -1381,6 +1417,7 @@ function init() {
   document.getElementById('bill-analyzed').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-threats').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-procedural').addEventListener('change', () => { billsOffset = 0; loadBills(); });
+  document.getElementById('bill-sort').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-date-from').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('dep-search').addEventListener('input', debouncedLoadDeputies);

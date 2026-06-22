@@ -170,8 +170,14 @@ def save_risk(document_id: int, data: dict, model: str) -> None:
     detailed_risks = data.get("detailed_risks", [])
     analyzed_chunks = data.get("analyzed_chunks", [])
 
+    # Нові кількісні оцінки
+    significance = data.get("significance", 1)
+    impact = data.get("impact", 1)
+    risk_score = data.get("risk", 1)
+    toxicity = data.get("toxicity", round(significance * impact * risk_score / 125, 2))
+
     risk_level_score = {"high": 3, "medium": 2, "low": 1}.get(risk_level, 1)
-    overall_score = risk_level_score * 33.33 if has_risks else 0.0
+    overall_score = int(toxicity * 100) if toxicity else (risk_level_score * 33.33 if has_risks else 0.0)
 
     insufficient = 1 if data.get("insufficient_text", False) else 0
     confidence = 5 if insufficient else (1 if has_risks else 3)
@@ -196,10 +202,21 @@ def save_risk(document_id: int, data: dict, model: str) -> None:
         "vague_norms_risk": json.dumps([], ensure_ascii=False),
         "confidence_level": confidence,
         "insufficient_text": insufficient,
+        "significance": significance,
+        "impact": impact,
+        "risk_score": risk_score,
+        "toxicity": toxicity,
+        "risk_level": risk_level,
     })
 
-    log.info("RISK_SAVED: doc_id=%d bill_id=%d has_risks=%s risk_level=%s confidence=%d",
-             document_id, bill_id, has_risks, risk_level, confidence)
+    # Оновлюємо toxicity колонки в bills (колонки існують після міграції 017)
+    d1_exec("raw_sql", {
+        "sql": "UPDATE bills SET significance=?, impact=?, risk_score=?, toxicity=? WHERE id=?",
+        "params": [significance, impact, risk_score, toxicity, bill_id],
+    })
+
+    log.info("RISK_SAVED: doc_id=%d bill_id=%d has_risks=%s risk_level=%s sig=%d imp=%d risk=%d tox=%.2f confidence=%d",
+             document_id, bill_id, has_risks, risk_level, significance, impact, risk_score, toxicity, confidence)
 
 
 def update_bill_procedural(bill_id: int, is_procedural: bool) -> None:

@@ -80,6 +80,7 @@ app.get('/api/stats', async (req, res) => {
       proceduralBills: Number(cache.procedural_bills) || 0,
       newBills24h: Number(cache.new_bills_24h) || 0,
       statusChanges24h: Number(cache.status_changes_24h) || 0,
+      avgToxicity: Number(cache.avg_toxicity) || 0,
     }, 200, 30);
   } catch (e) { error(res, e.message, 500); }
 });
@@ -117,7 +118,7 @@ app.get('/api/bills', async (req, res) => {
     const procedural = req.query.procedural || '';
 
     const PROCEDURAL_CATEGORIES = ['Організаційні питання', 'Інші (заяви, звернення ВРУ)'];
-    const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
+    const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date','toxicity','significance'].includes(sort) ? sort : 'status_changed_at';
 
     let where = ['1=1'];
     let params = [];
@@ -151,7 +152,7 @@ app.get('/api/bills', async (req, res) => {
     if (search && search.trim()) {
       const searchPattern = `%${search.trim()}%`;
       params.push(searchPattern);
-      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, b.significance, b.impact, b.risk_score, b.toxicity, ra.has_analysis, ra.risk_level
         FROM bills b
         LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
         WHERE (b.bill_number ILIKE $${idx} OR b.title ILIKE $${idx}) AND ${whereSQL}
@@ -162,7 +163,7 @@ app.get('/api/bills', async (req, res) => {
     }
 
     if (!query) {
-      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+      query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, b.significance, b.impact, b.risk_score, b.toxicity, ra.has_analysis, ra.risk_level
         FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
         WHERE ${whereSQL}
         ORDER BY b.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`;
@@ -181,7 +182,7 @@ app.get('/api/bills', async (req, res) => {
 app.get('/api/bills/:id', async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const bill = (await q('SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at FROM bills WHERE id = $1', [id]))[0];
+    const bill = (await q('SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at, significance, impact, risk_score, toxicity FROM bills WHERE id = $1', [id]))[0];
     if (!bill) return error(res, 'Bill not found', 404);
 
     const risks = (await q('SELECT * FROM risk_assessments WHERE bill_id = $1', [id]))[0];
@@ -294,8 +295,11 @@ app.get('/api/deputies', async (req, res) => {
     const search = req.query.search;
     const faction = req.query.faction;
     const sort = req.query.sort || 'name';
-    const order = (req.query.order || 'ASC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    const safeSort = ['name','faction'].includes(sort) ? sort : 'name';
+    const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const safeSort = ['name','faction','py','pda','vkp','conversion'].includes(sort) ? sort : 'name';
+    const sortCol = safeSort === 'conversion'
+      ? `CASE WHEN m.total_bills > 0 THEN m.total_laws::float / m.total_bills ELSE 0 END`
+      : `m.${safeSort}`;
 
     let where = ['1=1'];
     let params = [];
@@ -304,7 +308,7 @@ app.get('/api/deputies', async (req, res) => {
     if (faction) { where.push(`m.faction = $${idx++}`); params.push(faction); }
 
     const whereSQL = where.join(' AND ');
-    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws" FROM mps m WHERE ${whereSQL} ORDER BY m.${safeSort} ${order} LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
     const countResult = (await q(`SELECT COUNT(*) as total FROM mps m WHERE ${whereSQL}`, params))[0];
 
     const result = deputies.map(d => ({

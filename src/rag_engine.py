@@ -91,18 +91,45 @@ CHUNK1_PROMPT = """Тобі надано ПЕРШУ частину тексту 
 4. Фінансові ризики (зміни до Податкового/Бюджетного кодексів)
 5. Євроінтеграція (невідповідність директивам ЄС)
 
+ЕТАП 3: ПОЧАТКОВІ КІЛЬКІСНІ ОЦІНКИ
+Навіть на першому чанку почни формувати три оцінки від 1 до 5:
+
+3А. ЗНАЧИМНІСТЬ (significance) — масштаб охоплення:
+  1 — Вузькогруповий (окремі установи, кадрові зміни, перейменування)
+  2 — Галузевий локальний (1-3 підприємства, окрема професійна група)
+  3 — Галузевий широкий (ціла галузь: IT, сільгосп, енергетика; велика соцгрупа)
+  4 — Міжгалузевий (кілька галузей, значна частина населення)
+  5 — Загальнонаціональний (всі громадяни: податки, мобілізація, воєнний стан)
+
+3Б. ВПЛИВ (impact) — наскільки ламає поточні процеси:
+  1 — Декларативний (дні пам'яті, стратегії без санкцій)
+  2 — Помірний м'який (нові процедури звітності, зміна термінів, дрібні штрафи)
+  3 — Помірний жорсткий (нові регуляції, штрафи, зміна бізнес-процесів, ліцензії)
+  4 — Сильний (значні штрафи, ліквідація органів, обмеження діяльності, нові контролюючі органи)
+  5 — Екстремальний (кримінальна відповідальність, блокування платформ, конфіскація, заборона галузей)
+
+3В. РИЗИКИ (risk) — побічні ефекти:
+  1 — Мінімальні
+  2 — Низькі (технічні колізії, невизначеність термінів без наслідків)
+  3 — Середні (конфлікт з підзаконними актами, ризик корупції, нечіткі критерії)
+  4 — Високі (конфлікт з МВФ/ЄС/OECD, дірка в бюджеті, неможливість контролю, новий орган без нагляду)
+  5 — Критичні (суперечність Конституції/КПЛ, колапс галузі, втрата міжнародної допомоги)
+
 Правила:
 - Не вигадуй наслідки — аналізуй лише наведений текст.
 - Кожен ризик ПОВИНЕН містити посилання на конкретну статтю/пункт.
 - Абстрактні/надумані ризики без конкретики — НЕ включай.
-- Якщо закон стосується оборони/безпеки/воєнного стану — знижуй "градус токсичності".
+- Оборона/безпека/воєнний стан/окуповані території — НЕ ризик, а обґрунтована необхідність. Знижуй significance/impact/risk (1-2).
+- Процедурні закони → significance=1, impact=1, risk=1.
 
 ФОРМАТ ВІДПОВІДІ (строго JSON):
 {{
   "is_procedural": true/false,
   "classification_reason": "Стисле пояснення",
   "has_risks": true/false,
-  "risk_level": "low/medium/high/null",
+  "significance": 1-5,
+  "impact": 1-5,
+  "risk": 1-5,
   "chunk_risks": [
     "Конкретний ризик: посилання на статтю + опис наслідків"
   ],
@@ -115,23 +142,31 @@ CHUNK1_PROMPT = """Тобі надано ПЕРШУ частину тексту 
 CHUNK_N_PROMPT = """Тобі надано НАСТУПНУ частину тексту законопроєкту Верховної Ради України (чанк {chunk_num}/{total_chunks}).
 
 Попередній контекст (чанки 1-{prev_num}):
+ - Попередні оцінки: significance={prev_significance}, impact={prev_impact}, risk={prev_risk}
 {prev_context}
 
 АНАЛІЗ ЦІЄЇ ЧАСТИНИ:
 Проаналізуй цей чанк на наявність ризиків. Порівняй з попереднім контекстом — чи додає ця частина нові ризики або змінює оцінку?
 
+Оновлюй кількісні оцінки якщо новий чанк дає підстави:
+- significance — може зрости якщо виявляться ширші наслідки
+- impact — може зрости якщо виявляться жорсткіші механізми
+- risk — може зрости якщо виявляться додаткові побічні ефекти
+
 Правила:
 - Не дублюй ризики з попередніх чанків
 - Додавай ТІЛЬКИ нові знахідки з посиланнями на конкретні статті
 - Абстрактні ризики без конкретики — НЕ включай
-- Якщо нових ризиків немає — chunk_risks: []
+- Якщо нових ризиків немає — chunk_risks: [], оцінки не змінюй
 
 ФОРМАТ ВІДПОВІДІ (строго JSON):
 {{
   "has_risks": true/false,
-  "risk_level": "low/medium/high/null (або залиш попередній)",
+  "significance": 1-5,
+  "impact": 1-5,
+  "risk": 1-5,
   "chunk_risks": [
-    "Новий ризик: посилання на статтю + опис"
+    "Новий ризик: посилання на норму (статтю/пункт + назва базового закону) + опис"
   ],
   "chunk_summary": "Що містить ця частина (1-2 речення)"
 }}
@@ -146,6 +181,8 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
 Ризики, знайдені в різних чанках:
 {all_risks}
 
+Зібрані оцінки з чанків: significance={max_significance}, impact={max_impact}, risk={max_risk}
+
 ФІНАЛЬНА ОЦІНКА — підсумуй всі знахідки в один JSON.
 
 ВАЖЛИВО: Ризики ПОВИННІ бути згруповані в 3-5 ДИНАМІЧНИХ НАПРЯМКІВ за тематикою.
@@ -157,19 +194,33 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
 - "Обмеження прав та свобод" (якщо є звуження прав)
 Назви напрямків — ДИНАМІЧНІ, залежать від конкретного закону. Не використовуй шаблонні назви.
 
+КІЛЬКІСНІ ОЦІНКИ — фінальні значення трьох метрик (1-5):
+
+significance (значимість для суспільства):
+  1 — Вузькогруповий  →  3 — Галузевий  →  5 — Загальнонаціональний
+impact (глибина впливу):
+  1 — Декларативний  →  3 — Помірний жорсткий  →  5 — Екстремальний
+risk (побічні ризики):
+  1 — Мінімальні  →  3 — Середні  →  5 — Критичні
+
+significance, impact, risk — фінальні цілі числа 1-5.
+risk_level та toxicity будуть розраховані сервером — НЕ повертай їх у JSON.
+
 ФОРМАТ ВІДПОВІДІ (строго JSON):
 {{
   "is_procedural": true/false,
   "classification_reason": "Підсумкове пояснення класифікації",
   "has_risks": true/false,
-  "risk_level": "low/medium/high/null",
   "summary": "Стисле опис суті змін (1-2 речення)",
   "law_summary": "Повний опис: хто ініціює, що змінює, на кого поширюється. 3-5 речень.",
+  "significance": 1-5,
+  "impact": 1-5,
+  "risk": 1-5,
   "risk_categories": [
     {{
       "category": "Назва напрямку (динамічна, за тематикою)",
       "risks": [
-        "Конкретний ризик: посилання на статтю + опис наслідків"
+    "Конкретний ризик: посилання на статтю/пункт законопроєкту або змінюваного закону (із назвою) + опис наслідків"
       ]
     }}
   ],
@@ -182,8 +233,10 @@ FINAL_PROMPT = """Аналіз законопроєкту завершено. О
 - Об'єднай дублікати ризиків з різних чанків
 - Підвищуй risk_level якщо ризики з кількох чанків утворюють ланцюг
 - НЕ додавай нових ризиків яких не було в чанках
-- detailed_risks — плоский список для обратної сумісності (ті самі що в risk_categories)
-- Кількість категорій залежить від закону: від 1 до 5"""
+- detailed_risks — плоский список для зворотної сумісності (ті самі що в risk_categories)
+- Кількість категорій залежить від закону: від 1 до 5
+- significance, impact, risk — фінальні цілі числа 1-5
+- Процедурні → significance=1, impact=1, risk=1"""
 
 
 def format_risk_message(info: dict, data: dict) -> str:
@@ -212,6 +265,27 @@ def format_risk_message(info: dict, data: dict) -> str:
     if chunks_analyzed:
         lines.append(f"📑 Проаналізовано чанків: {len(chunks_analyzed)}")
 
+    # === ТОКСИЧНІСТЬ ІНДЕКС ===
+    significance = data.get("significance", 0)
+    impact = data.get("impact", 0)
+    risk = data.get("risk", 0)
+    toxicity = data.get("toxicity", 0)
+    
+    if significance and impact and risk:
+        if toxicity == 0:
+            toxicity = significance * impact * risk / 125
+        toxicity = min(max(toxicity, 0.0), 1.0)
+        # Візуальна шкала токсичності
+        blocks = min(int(toxicity * 10), 10)
+        tox_bar = "█" * blocks + "░" * (10 - blocks)
+        tox_emoji = "🔴" if toxicity >= 0.73 else "🟠" if toxicity >= 0.49 else "🟡" if toxicity >= 0.25 else "🟢"
+        lines.append(
+            f"\n{tox_emoji} <b>Токсичність: {toxicity:.2f}</b> {tox_bar}"
+        )
+        lines.append(
+            f"📐 Значимість: {significance}/5 | Вплив: {impact}/5 | Ризики: {risk}/5"
+        )
+
     summary = data.get("summary", "—")
     lines.append(f"💡 Суть: {summary[:200]}")
 
@@ -237,13 +311,13 @@ def format_risk_message(info: dict, data: dict) -> str:
                 cat_risks = cat.get("risks", [])
                 if cat_risks:
                     lines.append(f"\n📂 <b>{cat_name}</b>")
-                    for i, risk in enumerate(cat_risks[:3], 1):
-                        lines.append(f"  {i}. {risk[:180]}")
+                    for i, risk_item in enumerate(cat_risks[:3], 1):
+                        lines.append(f"  {i}. {risk_item[:180]}")
                     if len(cat_risks) > 3:
                         lines.append(f"  ... та ще {len(cat_risks) - 3}")
         else:
-            for i, risk in enumerate(detailed_risks[:5], 1):
-                lines.append(f"\n{i}. {risk[:200]}")
+            for i, risk_item in enumerate(detailed_risks[:5], 1):
+                lines.append(f"\n{i}. {risk_item[:200]}")
     else:
         lines.append("✅ Ризиків не виявлено")
 
@@ -325,6 +399,11 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
     all_risks = []
     all_summaries = []
     messages = None
+    
+    # Трекінг кількісних оцінок — беремо максимум з усіх чанків
+    max_significance = 1
+    max_impact = 1
+    max_risk = 1
 
     for seq, (i, chunk) in enumerate(selected):
         chunk_num = i + 1
@@ -346,6 +425,11 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
             all_chunk_results.append(result)
             all_risks.extend(result.get("chunk_risks", []))
             all_summaries.append(result.get("chunk_summary", ""))
+            
+            # Збираємо оцінки
+            max_significance = max(max_significance, result.get("significance", 1))
+            max_impact = max(max_impact, result.get("impact", 1))
+            max_risk = max(max_risk, result.get("risk", 1))
 
             # Перевіряємо чи процедурний — якщо так, пропускаємо решту
             if result.get("is_procedural"):
@@ -359,7 +443,7 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
                 {"role": "assistant", "content": json.dumps(result, ensure_ascii=False)},
             ]
         else:
-            # Наступні чанки — продовження з контекстом
+            # Наступні чанки — продовження з контекстом + оцінками
             prev_context = "\n".join(
                 f"[Чанк {j+1}]: {s}" for j, s in enumerate(all_summaries)
             )
@@ -368,6 +452,9 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
                 total_chunks=actual_chunks,
                 prev_num=i,
                 prev_context=prev_context[:3000],
+                prev_significance=max_significance,
+                prev_impact=max_impact,
+                prev_risk=max_risk,
                 text=chunk,
             )
 
@@ -387,6 +474,11 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
             all_chunk_results.append(result)
             all_risks.extend(result.get("chunk_risks", []))
             all_summaries.append(result.get("chunk_summary", ""))
+            
+            # Оновлюємо максимальні оцінки
+            max_significance = max(max_significance, result.get("significance", max_significance))
+            max_impact = max(max_impact, result.get("impact", max_impact))
+            max_risk = max(max_risk, result.get("risk", max_risk))
 
             # Додаємо відповідь асистента в історію
             messages.append({"role": "assistant", "content": json.dumps(result, ensure_ascii=False)})
@@ -394,7 +486,8 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
         time.sleep(1)  # пауза між чанками
 
     # Фінальна агрегація
-    log.info("  Final aggregation: %d risks found across %d chunks", len(all_risks), actual_chunks)
+    log.info("  Final aggregation: %d risks found across %d chunks, sig=%d/imp=%d/risk=%d", 
+             len(all_risks), actual_chunks, max_significance, max_impact, max_risk)
 
     summaries_text = "\n".join(
         f"[Чанк {j+1}]: {s}" for j, s in enumerate(all_summaries) if s
@@ -408,6 +501,9 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
         all_summaries=summaries_text,
         all_risks=risks_text,
         chunk_indices=json.dumps(list(range(1, actual_chunks + 1))),
+        max_significance=max_significance,
+        max_impact=max_impact,
+        max_risk=max_risk,
     )
 
     messages.append({"role": "user", "content": final_prompt})
@@ -424,6 +520,35 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
         return None
 
     final_result["analyzed_chunks"] = list(range(1, actual_chunks + 1))
+    
+    # Гарантуємо наявність кількісних оцінок
+    if "significance" not in final_result:
+        final_result["significance"] = max_significance
+    if "impact" not in final_result:
+        final_result["impact"] = max_impact
+    if "risk" not in final_result:
+        final_result["risk"] = max_risk
+    
+    # Автоматичний розрахунок toxicity якщо LLM не повернув
+    sig = final_result.get("significance", 1)
+    imp = final_result.get("impact", 1)
+    rsk = final_result.get("risk", 1)
+    if "toxicity" not in final_result:
+        final_result["toxicity"] = round(sig * imp * rsk / 125, 2)
+    
+    # Консистентність risk_level за математичною формулою
+    rsk_val = final_result.get("risk", 1)
+    sig_val = final_result.get("significance", 1)
+    imp_val = final_result.get("impact", 1)
+    if not final_result.get("is_procedural"):
+        product = sig_val * imp_val
+        if rsk_val >= 4 or (rsk_val == 3 and product >= 12):
+            final_result["risk_level"] = "high"
+        elif rsk_val == 3 or (rsk_val == 2 and product >= 12):
+            final_result["risk_level"] = "medium"
+        else:
+            final_result["risk_level"] = "low"
+    
     return final_result
 
 
@@ -540,13 +665,21 @@ def process_bill(info: dict, test_mode: bool = False):
     has_risks = llm_data.get("has_risks", False)
 
     if is_procedural:
-        log.info("  Classification: ПРОЦЕДУРНИЙ — %s", llm_data.get("classification_reason", "")[:80])
+        sig = llm_data.get("significance", 1)
+        imp = llm_data.get("impact", 1)
+        rsk = llm_data.get("risk", 1)
+        log.info("  Classification: ПРОЦЕДУРНИЙ — %s (sig=%d imp=%d risk=%d)",
+                 llm_data.get("classification_reason", "")[:60], sig, imp, rsk)
         llm_data["has_risks"] = False
         llm_data["risk_level"] = None
         llm_data["detailed_risks"] = []
     else:
-        log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d",
-                 risk_level, len(llm_data.get("detailed_risks", [])))
+        sig = llm_data.get("significance", 0)
+        imp = llm_data.get("impact", 0)
+        rsk = llm_data.get("risk", 0)
+        tox = llm_data.get("toxicity", 0)
+        log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d sig=%d imp=%d risk=%d tox=%.2f",
+                 risk_level, len(llm_data.get("detailed_risks", [])), sig, imp, rsk, tox)
 
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)
@@ -562,16 +695,6 @@ def process_bill(info: dict, test_mode: bool = False):
         "sql": """UPDATE law_versions SET analysis_summary=?, risks_json=?
                   WHERE law_id=? AND text_hash=?""",
         "params": [analysis_summary, risks_json_str, bill_id, all_pdf_hash],
-    })
-
-    d1_exec("risk", {
-        "bill_id": bill_id,
-        "bill_number": bill_number,
-        "overall_score": 100 if risk_level == "high" else 70 if risk_level == "medium" else 30 if risk_level == "low" else 0,
-        "model_used": LLM_MODEL,
-        "json_data": json.dumps(llm_data, ensure_ascii=False),
-        "raw_analysis": law_summary or analysis_summary,
-        "insufficient_text": 1 if llm_data.get("insufficient_text", False) else 0,
     })
     d1_exec("law_version", {
         "bill_number": bill_number,
