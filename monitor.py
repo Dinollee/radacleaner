@@ -13,83 +13,111 @@ QUIET_HOURS_START = 23
 QUIET_HOURS_END = 8
 CRITICAL_SCORE_THRESHOLD = 70
 
+# Стадії: (крок, коротка назва)
 STATUS_MAP = {
-    "new": (1, "\u0417\u0430\u0440\u0435\u0454\u0441\u0442\u0440\u043e\u0432\u0430\u043d\u043e"),
-    "\u0417\u0430\u043a\u043e\u043d \u043f\u0440\u0438\u0439\u043d\u044f\u0442\u043e": (4, "\u041f\u0440\u0438\u0439\u043d\u044f\u0442\u043e"),
-    "\u0417\u0430\u043a\u043e\u043d \u043f\u0456\u0434\u043f\u0438\u0441\u0430\u043d\u043e": (4, "\u041f\u0456\u0434\u043f\u0438\u0441\u0430\u043d\u043e"),
-    "\u0412\u0456\u0434\u0445\u0438\u043b\u0435\u043d\u043e \u0442\u0430 \u0437\u043d\u044f\u0442\u043e \u0437 \u0440\u043e\u0437\u0433\u043b\u044f\u0434\u0443": (5, "\u0412\u0456\u0434\u0445\u0438\u043b\u0435\u043d\u043e"),
+    "new": (1, "Ініціатива"),
+    "Одержано проєкт": (1, "Одержано"),
+    "Подано": (1, "Подано"),
+    "На розгляді в комітеті": (2, "В комітеті"),
+    "Перше читання": (2, "І читання"),
+    "Друге читання": (3, "ІІ читання"),
+    "Закон прийнято": (4, "Прийнято"),
+    "Закон підписано": (4, "Підписано"),
+    "Відхилено та знято з розгляду": (5, "Відхилено"),
 }
 
-def stage_bar(status):
-    step, name = STATUS_MAP.get(status, (1, status or "\u041d\u0435\u0432\u0456\u0434\u043e\u043c\u043e"))
-    filled = min(step, 5)
-    return chr(9608) * filled + chr(9617) * (5 - filled), name
+
+def _stage_indicator(stage, max_stages=4):
+    """●●○○ = пройшли 2 з 4 стадій, ✕ = відхилено"""
+    if stage == 5:
+        return "✕"
+    filled = min(stage, max_stages)
+    return "●" * filled + "○" * (max_stages - filled)
+
 
 def format_new_bill_message(info):
     bn = info["bill_number"]
-    title = info["title"]
+    title = info["title"][:80]
     status = info["status"]
     url = info.get("url", "")
     reg_date = info.get("reg_date", "")
     committee = info.get("committee", "")
     score = info.get("overall_score", 0)
-    lines = [f"\U0001f195 \u041d\u043e\u0432\u0438\u0439 \u0437\u0430\u043a\u043e\u043d\u043e\u043f\u0440\u043e\u0454\u043a\u0442 #{bn}"]
+
+    step, stage_name = STATUS_MAP.get(status, (1, status or "Невідомо"))
+    indicator = _stage_indicator(step)
+
+    # Номер як посилання (інлайн, без прев'ю)
     if url:
-        lines.append(f'<a href="{url}">{title[:100]}</a>')
+        header = f'<a href="{url}">#{bn}</a>'
     else:
-        lines.append(title[:100])
-    bar, stage_name = stage_bar(status)
-    lines.append(f"\U0001f4ca {bar} {stage_name}")
+        header = f"#{bn}"
+
+    lines = [f"<b>{header}</b>  {indicator}  {stage_name}"]
+    lines.append(title)
+
+    meta = []
     if reg_date:
-        lines.append(f"\U0001f4c5 \u0417\u0430\u0440\u0435\u0454\u0441\u0442\u0440\u043e\u0432\u0430\u043d\u043e: {reg_date}")
+        meta.append(reg_date)
     if committee:
-        lines.append(f"\U0001f3db {committee}")
+        meta.append(committee[:40])
+    if meta:
+        lines.append(" · ".join(meta))
+
     if score >= CRITICAL_SCORE_THRESHOLD:
-        lines.append(f"\n\u26a0\ufe0f \u0412\u0418\u0421\u041e\u041a\u0418\u0419 \u0420\u0418\u0417\u0418\u041a: {score}/100")
-    elif score > 0:
-        lines.append(f"\n\U0001f4ca \u0420\u0438\u0437\u0438\u043a: {score}/100")
+        lines.append(f"⚠️ Ризик {score}/100")
+    elif score >= 40:
+        lines.append(f"Ризик {score}/100")
+
     return "\n".join(lines)
 
+
 def format_status_update_group(changes):
-    lines = [f"\U0001f504 \u0417\u043c\u0456\u043d\u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u0456\u0432 ({len(changes)})"]
+    lines = [f"🔄 Зміни статусів <b>{len(changes)}</b>"]
     for ch in changes[:15]:
         bn = ch["bill_number"]
-        title = ch.get("title", "")[:60]
-        old = ch.get("old_value", "?")
-        new = ch.get("new_value", "?")
+        old = ch.get("old_value", "?")[:25]
+        new = ch.get("new_value", "?")[:25]
         url = ch.get("url", "")
+        old_step, old_name = STATUS_MAP.get(old, (0, old))
+        new_step, new_name = STATUS_MAP.get(new, (0, new))
         if url:
-            lines.append(f"\u2022 <a href='{url}'>#{bn}</a> {title}")
+            lines.append(f'<a href="{url}">#{bn}</a>  {old_name} → {new_name}')
         else:
-            lines.append(f"\u2022 #{bn} {title}")
-        lines.append(f"  {old} \u2192 {new}")
+            lines.append(f"#{bn}  {old_name} → {new_name}")
     if len(changes) > 15:
-        lines.append(f"\n... \u0456 \u0449\u0435 {len(changes) - 15} \u0437\u043c\u0456\u043d")
+        lines.append(f"... і ще {len(changes) - 15}")
     return "\n".join(lines)
+
 
 def format_daily_digest(changes, date_str):
     new_bills = [c for c in changes if c.get("change_type") == "new"]
     status_changes = [c for c in changes if c.get("change_type") == "status_change"]
-    lines = [f"\U0001f4ca \u0414\u0410\u0419\u0414\u0416\u0415\u0421\u0422 \u0417\u0410 {date_str}"]
+    lines = [f"📋 Дайджест <b>{date_str}</b>"]
+
     if new_bills:
-        lines.append(f"\U0001f195 \u041d\u043e\u0432\u0438\u0445: {len(new_bills)}")
+        lines.append(f"\n<b>Нові</b> ({len(new_bills)})")
         for b in new_bills[:10]:
             score = b.get("overall_score", 0)
-            score_str = f" (\u26a0\ufe0f{score})" if score >= CRITICAL_SCORE_THRESHOLD else ""
-            lines.append(f"  \u2022 #{b['bill_number']} {b.get('title', '')[:50]}{score_str}")
+            tag = f" ⚠️{score}" if score >= CRITICAL_SCORE_THRESHOLD else ""
+            lines.append(f'#{b["bill_number"]} {b.get("title", "")[:50]}{tag}')
         if len(new_bills) > 10:
-            lines.append(f"  ... \u0456 \u0449\u0435 {len(new_bills) - 10}")
+            lines.append(f"... і ще {len(new_bills) - 10}")
+
     if status_changes:
         if new_bills:
             lines.append("")
-        lines.append(f"\U0001f504 \u0417\u043c\u0456\u043d \u0441\u0442\u0430\u0442\u0443\u0441\u0443: {len(status_changes)}")
+        lines.append(f"<b>Зміни статусу</b> ({len(status_changes)})")
         for ch in status_changes[:10]:
-            lines.append(f"  \u2022 #{ch['bill_number']}: {ch.get('old_value', '?')} \u2192 {ch.get('new_value', '?')}")
+            lines.append(f'#{ch["bill_number"]}: {ch.get("old_value", "?")} → {ch.get("new_value", "?")}')
         if len(status_changes) > 10:
-            lines.append(f"  ... \u0456 \u0449\u0435 {len(status_changes) - 10}")
+            lines.append(f"... і ще {len(status_changes) - 10}")
+
     if not new_bills and not status_changes:
-        lines.append("\u041d\u0435\u043c\u0430\u0454 \u0437\u043c\u0456\u043d")
+        lines.append("Без змін")
+
     return "\n".join(lines)
+
 
 def get_unprocessed_changes(limit=100):
     rows = d1_query(
@@ -116,13 +144,16 @@ def get_unprocessed_changes(limit=100):
         for r in rows
     ]
 
+
 def mark_processed(change_ids):
     for cid in change_ids:
         d1_exec("raw_sql", {"sql": "UPDATE change_log SET notified=1 WHERE id=?", "params": [cid]})
 
+
 def is_quiet_hours():
     h = datetime.now().hour
     return h >= QUIET_HOURS_START or h < QUIET_HOURS_END
+
 
 def run_monitor(test_mode=False, force=False):
     quiet = is_quiet_hours() and not force
@@ -161,6 +192,7 @@ def run_monitor(test_mode=False, force=False):
         mark_processed(processed_ids)
     log.info("Done: %d processed", len(processed_ids))
 
+
 def run_daily_digest(test_mode=False):
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     rows = d1_query(
@@ -181,6 +213,7 @@ def run_daily_digest(test_mode=False):
         send_message(msg)
     else:
         log.info("[TEST] %s", msg[:300])
+
 
 def main():
     parser = argparse.ArgumentParser()

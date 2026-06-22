@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 async def _send_async(text: str, chat_id: str, token: str) -> bool:
     """Асинхронна відправка одного повідомлення."""
     bot = Bot(token=token)
-    await bot.send_message(chat_id=chat_id, text=text[:4000], parse_mode="HTML")
+    await bot.send_message(chat_id=chat_id, text=text[:4000], parse_mode="HTML", disable_web_page_preview=True)
     return True
 
 
