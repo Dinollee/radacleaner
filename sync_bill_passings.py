@@ -55,7 +55,7 @@ def sync_passings():
                 continue
 
             d1_exec("raw_sql", {
-                "sql": "INSERT OR IGNORE INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, ?)",
+                "sql": "INSERT INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, ?) ON CONFLICT (bill_id, pass_date, title) DO NOTHING",
                 "params": [bill_id, pass_date, title, status]
             })
             inserted += 1

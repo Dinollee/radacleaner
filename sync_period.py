@@ -11,17 +11,77 @@ Usage:
     python sync_period.py              — check & sync new bills
     python sync_period.py --dry-run    — show what would change
     python sync_period.py --all        — re-check ALL bills on Period (not just new)
+    python sync_period.py --all --skip-hours 12  — skip bills checked < 12h ago
+    python sync_period.py --all --skip-hours 0  — disable time-based skip (only hash skip)
 """
 import argparse
+import hashlib
 import re
 import sys
 import time
 import urllib.request
 import urllib.error
+from datetime import datetime, timedelta, timezone
 
 from src.config import log
 from src.d1_client import d1_query, d1_exec
 from src.bill_sync import queue_for_analysis
+
+# Bills in these stages never change status — always skip in --all mode
+TERMINAL_STAGES = {4, 5}
+
+
+def html_hash(html: str) -> str:
+    """SHA256 хеш HTML для виявлення змін."""
+    return hashlib.sha256(html.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def should_skip_card(bill_number: str, skip_hours: float) -> str | None:
+    """Визначає чи треба пропустити Card-сторінку bill.
+
+    Returns:
+        None — не пропускати (треба перевіряти)
+        str  — причина пропуску (для логування)
+    """
+    if skip_hours <= 0:
+        return None
+
+    rows = d1_query(
+        "SELECT stage, last_card_check, card_hash FROM bills WHERE bill_number = ?",
+        [bill_number],
+    )
+    if not rows:
+        return None
+
+    row = rows[0]
+    stage = row.get("stage")
+
+    # Terminal bills — never change
+    if stage in TERMINAL_STAGES:
+        return f"terminal stage {stage}"
+
+    # Time-based skip
+    last_check = row.get("last_card_check")
+    if last_check:
+        try:
+            last_dt = datetime.fromisoformat(last_check.replace("Z", "+00:00"))
+            age_hours = (datetime.now(timezone.utc) - last_dt).total_seconds() / 3600
+            if age_hours < skip_hours:
+                return f"checked {age_hours:.1f}h ago (< {skip_hours}h)"
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
+def update_card_check(bill_number: str, html: str) -> None:
+    """Оновлює last_card_check та card_hash після перевірки Card."""
+    now = datetime.now(timezone.utc).isoformat()
+    h = html_hash(html)
+    d1_exec("raw_sql", {
+        "sql": "UPDATE bills SET last_card_check=?, card_hash=? WHERE bill_number=?",
+        "params": [now, h, bill_number],
+    })
 
 
 def fetch_html(url: str) -> str | None:
@@ -197,7 +257,7 @@ def save_bill_to_d1(bill: dict, card: dict, dry_run: bool = False) -> bool:
                 log.info("[DRY] Passing: %s — %s %s", bn, p["pass_date"], p["title"])
             else:
                 d1_exec("raw_sql", {
-                    "sql": "INSERT OR IGNORE INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, '')",
+                    "sql": "INSERT INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, '') ON CONFLICT (bill_id, pass_date, title) DO NOTHING",
                     "params": [bill_id, p["pass_date"], p["title"]],
                 })
             new_passings += 1
@@ -228,7 +288,7 @@ def save_bill_to_d1(bill: dict, card: dict, dry_run: bool = False) -> bool:
                 log.info("[DRY] Doc: %s — %s", bn, doc["name"])
             else:
                 d1_exec("raw_sql", {
-                    "sql": "INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?)",
+                    "sql": "INSERT INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?) ON CONFLICT (bill_id, file_id) DO NOTHING",
                     "params": [bill_id, doc["file_id"], doc["name"]],
                 })
             new_docs += 1
@@ -241,7 +301,7 @@ def save_bill_to_d1(bill: dict, card: dict, dry_run: bool = False) -> bool:
     return True
 
 
-def sync_period(dry_run: bool = False, check_all: bool = False) -> int:
+def sync_period(dry_run: bool = False, check_all: bool = False, skip_hours: float = 6.0) -> int:
     """Перевіряє сторінку Period та синхронізує закони."""
     html = fetch_html("https://itd.rada.gov.ua/billinfo/Bills/Period")
     if not html:
@@ -258,11 +318,25 @@ def sync_period(dry_run: bool = False, check_all: bool = False) -> int:
     existing = {row["bill_number"] for row in existing_rows}
 
     processed = 0
+    skipped = {"new": 0, "terminal": 0, "recent": 0, "hash": 0}
     for b in bills:
         bn = b["bill_number"]
 
         if not check_all and bn in existing:
+            skipped["new"] += 1
             continue
+
+        # Skip logic for --all mode
+        if check_all:
+            reason = should_skip_card(bn, skip_hours)
+            if reason:
+                if "terminal" in reason:
+                    skipped["terminal"] += 1
+                elif "checked" in reason:
+                    skipped["recent"] += 1
+                else:
+                    skipped["hash"] += 1
+                continue
 
         log.info("Processing %s — %s", bn, b["title"][:70])
 
@@ -272,15 +346,37 @@ def sync_period(dry_run: bool = False, check_all: bool = False) -> int:
             time.sleep(1)
             continue
 
+        # Hash-based skip: if HTML unchanged since last check, skip DB writes
+        if check_all and skip_hours > 0:
+            new_hash = html_hash(card_html)
+            existing_hash_rows = d1_query(
+                "SELECT card_hash FROM bills WHERE bill_number = ?", [bn]
+            )
+            if existing_hash_rows and existing_hash_rows[0].get("card_hash") == new_hash:
+                # HTML unchanged — just update timestamp
+                update_card_check(bn, card_html)
+                skipped["hash"] += 1
+                log.debug("Hash unchanged for %s — skipping DB writes", bn)
+                time.sleep(0.3)
+                continue
+
         card = parse_card_page(card_html)
         log.info("  Status: %s, Passings: %d, Docs: %d",
                  card["status"] or "?", len(card["passings"]), len(card["documents"]))
 
         save_bill_to_d1(b, card, dry_run=dry_run)
+
+        # Update check timestamp + hash after processing
+        if not dry_run:
+            update_card_check(bn, card_html)
+
         processed += 1
         time.sleep(1)  # Rate limit
 
-    log.info("=== Done: %d bills processed ===", processed)
+    total_skipped = sum(skipped.values())
+    log.info("=== Done: %d processed, %d skipped (terminal=%d, recent=%d, hash=%d, new_only=%d) ===",
+             processed, total_skipped,
+             skipped["terminal"], skipped["recent"], skipped["hash"], skipped["new"])
     return processed
 
 
@@ -288,8 +384,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--all", action="store_true", help="Re-check ALL bills on Period")
+    parser.add_argument("--skip-hours", type=float, default=6.0,
+                        help="Skip bills checked less than N hours ago (default: 6, 0=disable)")
     args = parser.parse_args()
-    sync_period(dry_run=args.dry_run, check_all=args.all)
+    sync_period(dry_run=args.dry_run, check_all=args.all, skip_hours=args.skip_hours)
 
 
 if __name__ == "__main__":
