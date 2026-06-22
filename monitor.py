@@ -37,7 +37,7 @@ def _stage_indicator(stage, max_stages=4):
 
 def format_new_bill_message(info):
     bn = info["bill_number"]
-    title = info["title"][:80]
+    title = info["title"]
     status = info["status"]
     url = info.get("url", "")
     reg_date = info.get("reg_date", "")
@@ -54,7 +54,7 @@ def format_new_bill_message(info):
         header = f"#{bn}"
 
     lines = [f"<b>{header}</b>  {indicator}  {stage_name}"]
-    lines.append(title)
+    lines.append(f"🆕 {title}")
 
     meta = []
     if reg_date:
