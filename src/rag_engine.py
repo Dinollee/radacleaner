@@ -358,7 +358,7 @@ def format_status_message(info: dict) -> str:
     return "\n".join(lines)
 
 
-MAX_CHUNKS = 15  # максимальна кількість чанків для аналізу
+MAX_CHUNKS = 30  # макс. чанків (60K × 30 = 1.8M символів; при >30 — рівномірний відбір)
 
 
 def _select_chunks(chunks: list[str], max_chunks: int = MAX_CHUNKS) -> list[tuple[int, str]]:

@@ -4,7 +4,7 @@
 """
 import re
 
-CHUNK_SIZE = 30000  # символів на чанк
+CHUNK_SIZE = 60000  # символів на чанк (126K context window)
 
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
