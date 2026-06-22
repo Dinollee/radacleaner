@@ -1,0 +1,12 @@
+[Unit]
+Description=Night batch analysis of bills (21:00-08:00)
+After=network.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python night_batch.py --workers 3 --force
+StandardOutput=append:/var/log/night_batch.log
+StandardError=append:/var/log/night_batch.log
+TimeoutStartSec=43200
