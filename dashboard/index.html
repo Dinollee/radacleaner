@@ -793,6 +793,47 @@ async function toggleBillExpand(row, id) {
       } else {
         html += risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('');
       }
+
+    // === Нові поля аналізу ===
+    if (risks) {
+      // urgency + time_context
+      const urgency = risks.urgency || 'normal';
+      const urgencyLabels = {normal:'Звичайний',expedited:'Прискорений',emergency:'Екстренний'};
+      const urgencyIcons = {normal:'⏱',expedited:'⚡',emergency:'🚨'};
+      const timeCtx = risks.time_context || 'permanent';
+      const timeCtxLabels = {permanent:'Постійний',temporary:'Тимчасовий',until_war_end:'До кінця ВП'};
+      html += `<div style="display:flex;gap:12px;margin:8px 0;font-size:12px;flex-wrap:wrap">
+        <div style="background:var(--bg2);padding:6px 10px;border-radius:6px">${urgencyIcons[urgency]||'⏱'} <b>Терміновість:</b> ${urgencyLabels[urgency]||urgency} · ${timeCtxLabels[timeCtx]||timeCtx}</div>
+      </div>`;
+
+      // stakeholders
+      try {
+        const stk = typeof risks.stakeholders === 'string' ? JSON.parse(risks.stakeholders) : risks.stakeholders;
+        if (stk && (stk.beneficiaries?.length || stk.losers?.length)) {
+          html += `<div style="margin:8px 0 12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:6px">👥 Стейкхолдери</div>`;
+          if (stk.beneficiaries?.length) {
+            html += `<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--green)">✓ Виграють:</span> ${stk.beneficiaries.map(escHtml).join(', ')}</div>`;
+          }
+          if (stk.losers?.length) {
+            html += `<div style="font-size:12px"><span style="color:var(--red)">✗ Програють:</span> ${stk.losers.map(escHtml).join(', ')}</div>`;
+          }
+          html += '</div>';
+        }
+      } catch(e) {}
+
+      // risk_signals
+      try {
+        const signals = typeof risks.risk_signals === 'string' ? JSON.parse(risks.risk_signals) : risks.risk_signals;
+        if (signals && signals.length > 0) {
+          html += `<div style="margin:8px 0 12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--orange);border-radius:4px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:6px">🔔 Ризик-сигнали (спостереження, не впливають на score)</div>
+            ${signals.map((s,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:3px"><span style="color:var(--text2)">•</span> ${escHtml(s)}</div>`).join('')}
+          </div>`;
+        }
+      } catch(e) {}
+    }
+
       html += '</div>';
     } else if (risks) {
       html += '<div style="padding:10px;color:var(--green);font-size:13px">✅ Ризиків не виявлено</div>';

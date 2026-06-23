@@ -143,7 +143,8 @@ def _exec_risk(conn, data: dict) -> bool:
             "corruption_risk", "raw_response", "raw_analysis", "json_data",
             "legislative_risk", "official_power_risk", "vague_norms_risk",
             "confidence_level", "insufficient_text",
-            "significance", "impact", "risk_score", "toxicity", "risk_level"]
+            "significance", "impact", "risk_score", "toxicity", "risk_level",
+            "urgency", "time_context", "stakeholders", "risk_signals"]
     present = [c for c in cols if c in data]
     placeholders = ",".join(["%s"] * len(present))
     col_names = ",".join(present)

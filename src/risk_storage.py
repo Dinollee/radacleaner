@@ -207,6 +207,10 @@ def save_risk(document_id: int, data: dict, model: str) -> None:
         "risk_score": risk_score,
         "toxicity": toxicity,
         "risk_level": risk_level,
+        "urgency": data.get("urgency", "normal"),
+        "time_context": data.get("time_context", "permanent"),
+        "stakeholders": json.dumps(data.get("stakeholders", {}), ensure_ascii=False),
+        "risk_signals": json.dumps(data.get("risk_signals", []), ensure_ascii=False),
     })
 
     # Оновлюємо toxicity колонки в bills (колонки існують після міграції 017)
