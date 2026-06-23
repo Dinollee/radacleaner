@@ -326,11 +326,6 @@ tr.clickable { cursor: pointer; }
         <option value="1">🔴 Високий ризик</option>
         <option value="2">🔴🟠 Високий + середній</option>
       </select>
-      <select id="bill-procedural">
-        <option value="">Без процедурних</option>
-        <option value="1">Включити процедурні</option>
-        <option value="only">Тільки процедурні</option>
-      </select>
       <select id="bill-sort">
         <option value="status_changed_at">За зміною статусу ↓</option>
         <option value="toxicity">За toxicity ↓</option>
@@ -595,7 +590,7 @@ async function loadDashboard() {
 
     const [stats, threats] = await Promise.all([
       api('/api/stats'),
-      api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}`),
+      api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}&threats=2`),
     ]);
 
     // Оновлюємо хедер (завжди видимий)
@@ -656,7 +651,6 @@ async function loadBills() {
   const status = document.getElementById('bill-status').value;
   const analyzed = document.getElementById('bill-analyzed').value;
   const threats = document.getElementById('bill-threats').value;
-  const procedural = document.getElementById('bill-procedural').value;
   const sortBy = document.getElementById('bill-sort').value || 'status_changed_at';
   const dateFrom = document.getElementById('bill-date-from').value;
   const dateTo = document.getElementById('bill-date-to').value;
@@ -669,7 +663,6 @@ async function loadBills() {
   if (status) url += `&status=${encodeURIComponent(status)}`;
   if (analyzed) url += `&analyzed=${analyzed}`;
   if (threats) url += `&threats=${threats}`;
-  if (procedural) url += `&procedural=${procedural}`;
   if (dateFrom) url += `&updated_after=${dateFrom}`;
   if (dateTo) url += `&updated_before=${dateTo}`;
   try {
@@ -1416,7 +1409,6 @@ function init() {
   document.getElementById('bill-status').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-analyzed').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-threats').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-procedural').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-sort').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-date-from').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
