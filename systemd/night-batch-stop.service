@@ -1,0 +1,6 @@
+[Unit]
+Description=Stop night batch analysis
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stop-night-batch
