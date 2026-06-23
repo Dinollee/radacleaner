@@ -231,11 +231,13 @@ def process_full_data(data: bytes) -> int:
     data = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", data)
     bills = json.loads(data, strict=False)
 
-    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee FROM bills")
+    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee, stage FROM bills")
     db_bills = {row["bill_number"]: row for row in db_rows}
 
-    docs_rows = d1_query("SELECT DISTINCT bill_id FROM bill_documents")
-    bills_with_docs = {r["bill_id"] for r in docs_rows}
+    existing_file_ids = d1_query("SELECT bill_id, file_id FROM bill_documents")
+    bills_doc_ids: dict[int, set[str]] = {}
+    for r in existing_file_ids:
+        bills_doc_ids.setdefault(r["bill_id"], set()).add(r["file_id"])
 
     status_updates = []
     doc_updates = []
@@ -285,17 +287,24 @@ def process_full_data(data: bytes) -> int:
                     "params": [correct_url, bn],
                 })
 
-        if db_id in bills_with_docs:
+        stage = row.get("stage", 0) or 0
+        if stage >= 4:
             continue
 
         docs = b.get("documents", {})
-        if docs:
-            for kind in ["source", "workflow"]:
-                for d in docs.get(kind, []) or []:
-                    for f in d.get("docFiles", []) or []:
-                        if not f.get("id"):
-                            continue
-                        doc_updates.append((db_id, str(f["id"]), f.get("type") or d.get("kind", "?"), bn))
+        if not docs:
+            continue
+
+        known_ids = bills_doc_ids.get(db_id, set())
+        for kind in ["source", "workflow"]:
+            for d in docs.get(kind, []) or []:
+                for f in d.get("docFiles", []) or []:
+                    fid = str(f.get("id", ""))
+                    if not fid:
+                        continue
+                    if fid not in known_ids:
+                        doc_updates.append((db_id, fid, f.get("type") or d.get("kind", "?"), bn))
+                        known_ids.add(fid)
 
     for bn, new_status, new_act, new_act_date, db_id, old_status in status_updates:
         d1_exec("bill", {
@@ -306,17 +315,14 @@ def process_full_data(data: bytes) -> int:
         queue_for_analysis(db_id, bn, "status_change")
 
     doc_count = 0
-    new_doc_bills = {}  # {bill_id: bill_number} — закони які вже мали документи
+    new_doc_bills: dict[int, str] = {}
     for db_id, file_id, dtype, bn in doc_updates[:BATCH_DOCS]:
         d1_exec("raw_sql", {
-            "sql": "INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?)",
+            "sql": "INSERT INTO bill_documents (bill_id, file_id, doc_type) VALUES (?, ?, ?) ON CONFLICT (bill_id, file_id) DO NOTHING",
             "params": [db_id, file_id, dtype],
         })
         doc_count += 1
-        if db_id in bills_with_docs:
-            # Закон вже мав документи — це НОВІ документи (зміна)
-            new_doc_bills[db_id] = bn
-        bills_with_docs.add(db_id)
+        new_doc_bills[db_id] = bn
 
     for db_id, bn in new_doc_bills.items():
         queue_for_analysis(db_id, bn, "new_documents")
