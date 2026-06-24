@@ -590,7 +590,7 @@ async function loadDashboard() {
 
     const [stats, threats] = await Promise.all([
       api('/api/stats'),
-      api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}&threats=2`),
+      api(`/api/bills?limit=20&sort=updated_at&order=DESC&updated_after=${d120}&threats=2`),
     ]);
 
     // Оновлюємо хедер (завжди видимий)
