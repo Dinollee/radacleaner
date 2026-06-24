@@ -9,3 +9,9 @@ package-lock.json
 package.json
 dashboard/best.html
 .vote_sync_progress.txt
+cloudflared.deb
+data/*.db
+data/*.sqlite
+*.deb
+test_gemini_5.py
+/tmp/
