@@ -178,6 +178,7 @@ def sync_all():
     
     # Синхронізуємо кожного депутата
     total_synced = 0
+    total_errors = 0
     for deputy in deputies:
         name = deputy["name"]
         
@@ -206,9 +207,14 @@ def sync_all():
             total_synced += 1
             time.sleep(0.5)  # Пауза між запитами
         except Exception as e:
+            total_errors += 1
             log.error("Failed to sync %s: %s", name, str(e)[:200])
+            if total_errors > 20:
+                log.error("Too many errors, stopping")
+                break
+            time.sleep(2)  # Longer pause on error
     
-    log.info("Synced %d deputies", total_synced)
+    log.info("Synced %d deputies, %d errors", total_synced, total_errors)
 
 
 if __name__ == "__main__":

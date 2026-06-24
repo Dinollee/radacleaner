@@ -17,6 +17,12 @@ def main():
 
     bill_number = sys.argv[1]
     force = "--force" in sys.argv
+    provider = None
+    for arg in sys.argv:
+        if arg.startswith("--provider="):
+            provider = arg.split("=", 1)[1]
+        elif arg == "--provider" and sys.argv.index(arg) + 1 < len(sys.argv):
+            provider = sys.argv[sys.argv.index(arg) + 1]
 
     rows = d1_query(
         "SELECT id, bill_number, title, current_status, url FROM bills WHERE bill_number = ?",
@@ -52,7 +58,7 @@ def main():
         print(f"Cleared old analysis + cache for #{bill_number}")
 
     print(f"Analyzing #{bill_number} — {info['title'][:60]}...")
-    info_result, data = process_bill(info, test_mode=True)
+    info_result, data = process_bill(info, test_mode=True, provider=provider)
 
     if data:
         proc = "ПРОЦЕДУРНИЙ" if data.get("is_procedural") else "НЕПРОЦЕДУРНИЙ"

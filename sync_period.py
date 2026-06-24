@@ -244,13 +244,14 @@ def save_bill_to_d1(bill: dict, card: dict, dry_run: bool = False) -> bool:
     # Passings
     if card.get("passings"):
         existing_p = d1_query(
-            "SELECT pass_date, title FROM bill_passings WHERE bill_id=?", [bill_id]
+            "SELECT pass_date::date as day, title FROM bill_passings WHERE bill_id=?", [bill_id]
         )
-        existing_set = {(r["pass_date"][:19], r["title"]) for r in existing_p}
+        existing_set = {(str(r["day"]), r["title"]) for r in existing_p}
 
         new_passings = 0
         for p in card["passings"]:
-            key = (p["pass_date"][:19], p["title"])
+            day = p["pass_date"][:10]
+            key = (day, p["title"])
             if key in existing_set:
                 continue
             if dry_run:

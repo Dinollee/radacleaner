@@ -17,20 +17,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-WORKER_URL = os.getenv("WORKER_URL", "https://rada-monitor-api.distih.workers.dev")
-SYNC_TOKEN = os.getenv("CF_SYNC_TOKEN", "")
-
-
-def d1_exec(type_name, data):
-    """Відправка запиту до Worker /api/sync."""
-    resp = requests.post(
-        f"{WORKER_URL}/api/sync",
-        json={"type": type_name, "data": data},
-        headers={"Authorization": f"Bearer {SYNC_TOKEN}"},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
+from src.d1_client import d1_exec
 
 
 def fetch_mp_dates():

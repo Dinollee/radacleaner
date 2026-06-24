@@ -28,6 +28,10 @@ D1_QUERY_URL = f"{WORKER_URL}/api/query"
 LLM_API_URL = "https://openrouter.ai/api/v1"
 LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/owl-alpha")
 
+# === LLM (Google AI Studio / Gemini) ===
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemma-4-31b-it")
+
 
 def get_llm_key() -> str:
     """Отримує OpenRouter API ключ: спочатку з оточення, потім з .env."""

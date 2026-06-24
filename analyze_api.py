@@ -38,8 +38,8 @@ def poll_and_analyze():
 
                 try:
                     result = subprocess.run(
-                        [VENV_PYTHON, ANALYZE_SCRIPT, bill_number, "--force"],
-                        capture_output=True, text=True, timeout=300,
+                        [VENV_PYTHON, ANALYZE_SCRIPT, bill_number],
+                        capture_output=True, text=True, timeout=600,
                         cwd="/home/radamon/radacleaner",
                     )
                     output = result.stdout + result.stderr

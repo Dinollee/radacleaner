@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""D1 CLI — швидкий доступ до бази даних через Worker API.
+"""D1 CLI — швидкий доступ до бази даних (локальна SQLite).
 
 Usage:
     python d1_cli.py "SELECT COUNT(*) FROM bills"
@@ -11,43 +11,39 @@ Usage:
 """
 import json
 import os
+import sqlite3
 import sys
-import urllib.request
-import urllib.parse
 
-WORKER_URL = "https://rada-monitor-api.distih.workers.dev"
-SYNC_TOKEN = os.environ["CF_SYNC_TOKEN"]
+DB_PATH = os.environ.get("SQLITE_DB_PATH", os.path.join(os.path.dirname(__file__), "data", "radacleaner.db"))
+
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def query(sql, params=None):
-    """SELECT через Worker /api/query."""
-    url = f"{WORKER_URL}/api/query"
-    body = json.dumps({"sql": sql, "params": params or []}).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "Authorization": f"Bearer {SYNC_TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
-    })
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read())
-        return data.get("results", [])
+    conn = get_conn()
+    rows = conn.execute(sql, params or []).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def exec_sql(sql, params=None):
-    """INSERT/UPDATE/DELETE через Worker /api/sync з типом raw_sql."""
-    url = f"{WORKER_URL}/api/sync"
-    body = json.dumps({"type": "raw_sql", "data": {"sql": sql, "params": params or []}}).encode()
-    req = urllib.request.Request(url, data=body, headers={
-        "Authorization": f"Bearer {SYNC_TOKEN}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0",
-    })
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+    conn = get_conn()
+    try:
+        cur = conn.execute(sql, params or [])
+        conn.commit()
+        affected = cur.rowcount
+        conn.close()
+        return {"success": True, "changes": affected}
+    except Exception as e:
+        conn.close()
+        return {"success": False, "error": str(e)}
 
 
 def show_tables():
-    """Показує всі таблиці та кількість рядків."""
     rows = query("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     for row in rows:
         name = row["name"]
@@ -61,18 +57,15 @@ def show_tables():
 
 
 def show_schema(table):
-    """Показує схему таблиці."""
     rows = query(f"PRAGMA table_info({table})")
     for row in rows:
         print(f"  {row['name']:25s} {row['type']:15s} {'NOT NULL' if row['notnull'] else ''}")
 
 
 def format_results(rows):
-    """Форматує результати для виведення."""
     if not rows:
         print("(empty)")
         return
-    # Headers
     keys = list(rows[0].keys())
     widths = {k: max(len(k), max(len(str(r.get(k, ""))) for r in rows)) for k in keys}
     header = " | ".join(k.ljust(widths[k]) for k in keys)

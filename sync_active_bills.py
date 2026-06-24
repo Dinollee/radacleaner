@@ -157,8 +157,8 @@ def sync_active_bills(days: int = 30, dry_run: bool = False):
                 for doc in data["documents"][:50]:
                     if not dry_run:
                         d1_exec("raw_sql", {
-                            "sql": """INSERT OR IGNORE INTO bill_documents (bill_id, file_id, doc_type)
-                                      VALUES (?, ?, ?)""",
+                            "sql": """INSERT INTO bill_documents (bill_id, file_id, doc_type)
+                                      VALUES (?, ?, ?) ON CONFLICT (bill_id, file_id) DO NOTHING""",
                             "params": [bill["id"], doc["file_id"], doc["name"]],
                         })
                 docs_added += 1
@@ -176,7 +176,7 @@ def sync_active_bills(days: int = 30, dry_run: bool = False):
                 for p in data["passings"][:30]:
                     if not dry_run:
                         d1_exec("raw_sql", {
-                            "sql": "INSERT OR IGNORE INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, '')",
+                            "sql": "INSERT INTO bill_passings (bill_id, pass_date, title, status) VALUES (?, ?, ?, '') ON CONFLICT (bill_id, pass_date, title) DO NOTHING",
                             "params": [bill["id"], p["pass_date"], p["title"]],
                         })
                 passings_added += 1
@@ -186,6 +186,10 @@ def sync_active_bills(days: int = 30, dry_run: bool = False):
             log.info("Progress: %d/%d checked, %d updated, %d docs, %d passings",
                      checked, len(bills), updated, docs_added, passings_added)
 
+        d1_exec("raw_sql", {
+            "sql": "UPDATE bills SET last_card_check = now() AT TIME ZONE 'utc' WHERE id = ?",
+            "params": [bill["id"]],
+        })
         time.sleep(1)  # Rate limit: 1 req/sec
 
     log.info("=== Done: checked=%d, status_updated=%d, docs_added=%d, passings_added=%d, errors=%d ===",

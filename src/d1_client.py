@@ -149,6 +149,10 @@ def _exec_risk(conn, data: dict) -> bool:
     placeholders = ",".join(["%s"] * len(present))
     col_names = ",".join(present)
     vals = [data[c] for c in present]
+    # Convert boolean to int for PG integer columns
+    for i, c in enumerate(present):
+        if c in ("insufficient_text",) and isinstance(vals[i], bool):
+            vals[i] = 1 if vals[i] else 0
 
     with conn.cursor() as cur:
         cur.execute(f"SELECT bill_id FROM risk_assessments WHERE bill_id=%s", (bill_id,))

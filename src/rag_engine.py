@@ -22,7 +22,7 @@ from .config import (
     LLM_MODEL,
     log,
 )
-from .groq_client import groq_completion, groq_completion_raw
+from .llm_client import llm_completion, llm_completion_raw
 from .chunking import chunk_text, CHUNK_SIZE
 from .pdf_utils import (
     download_rada_pdf,
@@ -383,7 +383,7 @@ def _select_chunks(chunks: list[str], max_chunks: int = MAX_CHUNKS) -> list[tupl
     return [(i, chunks[i]) for i in sorted(selected)]
 
 
-def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
+def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | None = None) -> dict | None:
     """Послідовний чанкований аналіз тексту через LLM з збереженням контексту.
 
     Returns:
@@ -417,7 +417,7 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
                 text=chunk,
             )
             try:
-                result = groq_completion(prompt, system_prompt=SYSTEM_PROMPT, max_tokens=1600)
+                result = llm_completion(prompt, system_prompt=SYSTEM_PROMPT, max_tokens=8000, provider=provider)
             except Exception as e:
                 log.error("  LLM error on chunk %d: %s", chunk_num, str(e)[:200])
                 return None
@@ -461,11 +461,12 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
             messages.append({"role": "user", "content": prompt})
 
             try:
-                result = groq_completion(
+                result = llm_completion(
                     prompt=None,
                     system_prompt=SYSTEM_PROMPT,
                     messages=messages,
-                    max_tokens=1600,
+                    max_tokens=8000,
+                    provider=provider,
                 )
             except Exception as e:
                 log.error("  LLM error on chunk %d: %s", chunk_num, str(e)[:200])
@@ -509,11 +510,12 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
     messages.append({"role": "user", "content": final_prompt})
 
     try:
-        final_result = groq_completion(
+        final_result = llm_completion(
             prompt=None,
             system_prompt=SYSTEM_PROMPT,
             messages=messages,
-            max_tokens=2000,
+            max_tokens=8000,
+            provider=provider,
         )
     except Exception as e:
         log.error("  LLM final aggregation error: %s", str(e)[:200])
@@ -552,7 +554,7 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int) -> dict | None:
     return final_result
 
 
-def process_bill(info: dict, test_mode: bool = False):
+def process_bill(info: dict, test_mode: bool = False, provider: str | None = None):
     """Повна обробка одного законопроекту: PDF → чанки → LLM → збереження.
 
     Args:
@@ -649,7 +651,7 @@ def process_bill(info: dict, test_mode: bool = False):
 
     # Чанкований LLM аналіз
     insufficient = len(full_text.strip()) < 1200
-    llm_data = _chunked_llm_analysis(full_text, len(chunk_text(full_text)))
+    llm_data = _chunked_llm_analysis(full_text, len(chunk_text(full_text)), provider=provider)
 
     if llm_data is None:
         log.error("  LLM analysis failed")

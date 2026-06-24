@@ -76,6 +76,7 @@ export default {
 					proceduralBills: Number(cache.procedural_bills) || 0,
 					newBills24h: Number(cache.new_bills_24h) || 0,
 					statusChanges24h: Number(cache.status_changes_24h) || 0,
+					avgToxicity: Number(cache.avg_toxicity) || 0,
 				}, 200, 30);
 			}
 
@@ -98,7 +99,7 @@ export default {
 				// Procedural categories to exclude by default (fallback for unanalyzed bills)
 				const PROCEDURAL_CATEGORIES = ['Організаційні питання', 'Інші (заяви, звернення ВРУ)'];
 
-				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date'].includes(sort) ? sort : 'status_changed_at';
+				const safeSort = ['created_at','updated_at','status_changed_at','registration_date','bill_number','stage','current_status','act_date','toxicity','significance'].includes(sort) ? sort : 'status_changed_at';
 				const params = [];
 
 				// Build procedural filter: prefer LLM is_procedural, fallback to agenda_category
@@ -137,7 +138,7 @@ export default {
 				}
 
 				if (useFts) {
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, b.significance, b.impact, b.risk_score, b.toxicity, ra.has_analysis, ra.risk_level
 					FROM bills_fts fts
 						JOIN bills b ON b.id = fts.rowid
 						LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id
@@ -174,7 +175,7 @@ export default {
 				}
 
 				// Non-search query
-				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, ra.has_analysis, ra.risk_level
+				let query = `SELECT b.id, b.bill_number, b.title, b.current_status, b.registration_date, b.committee, b.stage, b.updated_at, b.status_changed_at, b.agenda_category, b.is_procedural, b.significance, b.impact, b.risk_score, b.toxicity, ra.has_analysis, ra.risk_level
 					FROM bills b LEFT JOIN (SELECT bill_id, 1 as has_analysis, risk_level FROM risk_assessments) ra ON ra.bill_id = b.id WHERE 1=1`;
 
 				if (stage) { query += ' AND b.stage = ?'; params.push(Number(stage)); }
@@ -234,7 +235,7 @@ export default {
 			if (method === 'GET' && billMatch) {
 				const id = Number(billMatch[1]);
 				const bill = await env.radacleaner_db.prepare(
-					'SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at FROM bills WHERE id = ?'
+					'SELECT id, bill_number, title, current_status, registration_date, committee, agenda_category, url, stage, act_number, act_date, created_at, updated_at, status_changed_at, significance, impact, risk_score, toxicity FROM bills WHERE id = ?'
 				).bind(id).first();
 				if (!bill) return error('Bill not found', 404);
 
@@ -736,8 +737,97 @@ export default {
 						return json({ success: true });
 					}
 
+					case 'eu_alignment': {
+						const euType = data.type;
+						if (euType === 'overall') {
+							await env.radacleaner_db.prepare(
+								'INSERT INTO eu_alignment_overall (overall_score, weighted_score, chapters_analyzed, total_chapters, calculated_at) VALUES (?, ?, ?, ?, ?)'
+							).bind(
+								data.overall_score || 0,
+								data.weighted_score || 0,
+								data.chapters_analyzed || 0,
+								data.total_chapters || 35,
+								data.calculated_at || new Date().toISOString()
+							).run();
+						} else if (euType === 'chapter') {
+							await env.radacleaner_db.prepare(
+								'INSERT INTO eu_alignment_chapters (chapter_id, chapter_name, chapter_name_en, alignment, total_bills, keywords_matched, total_keywords, weight, calculated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+							).bind(
+								data.chapter_id,
+								data.chapter_name,
+								data.chapter_name_en,
+								data.alignment || 0,
+								data.total_bills || 0,
+								data.keywords_matched || 0,
+								data.total_keywords || 0,
+								data.weight || 1.0,
+								data.calculated_at || new Date().toISOString()
+							).run();
+						}
+						return json({ success: true });
+					}
+
+					case 'bill_eu_classification': {
+						await env.radacleaner_db.prepare(
+							'INSERT INTO bill_eu_classification (bill_id, chapter_id, confidence, matched_keywords, classified_at) VALUES (?, ?, ?, ?, ?)'
+						).bind(
+							data.bill_id,
+							data.chapter_id,
+							data.confidence || 0,
+							JSON.stringify(data.matched_keywords || []),
+							data.classified_at || new Date().toISOString()
+						).run();
+						return json({ success: true });
+					}
+
 					default: return error(`Unknown type: ${type}`, 400);
 				}
+			}
+
+			// --- EU ALIGNMENT ---
+			if (method === 'GET' && pathname === '/api/eu-alignment') {
+				const { results: overall } = await env.radacleaner_db.prepare(
+					'SELECT * FROM eu_alignment_overall ORDER BY id DESC LIMIT 1'
+				).all();
+				const { results: chapters } = await env.radacleaner_db.prepare(
+					'SELECT * FROM eu_alignment_chapters WHERE id IN (SELECT MAX(id) FROM eu_alignment_chapters GROUP BY chapter_id) ORDER BY chapter_id'
+				).all();
+				return json({
+					overall: overall?.[0] || null,
+					chapters: chapters || [],
+					lastUpdated: overall?.[0]?.calculated_at || null
+				}, 200, 300);
+			}
+
+			if (method === 'GET' && pathname === '/api/eu-alignment/trend') {
+				const { results: trend } = await env.radacleaner_db.prepare(
+					'SELECT calculated_at, weighted_score, overall_score FROM eu_alignment_overall ORDER BY calculated_at DESC LIMIT 30'
+				).all();
+				return json({ trend: trend || [] }, 200, 300);
+			}
+
+			if (method === 'GET' && pathname.startsWith('/api/eu-alignment/chapter/')) {
+				const chapterId = parseInt(pathname.split('/').pop());
+				if (isNaN(chapterId)) return error('Invalid chapter ID', 400);
+				const { results: history } = await env.radacleaner_db.prepare(
+					'SELECT * FROM eu_alignment_chapters WHERE chapter_id = ? ORDER BY calculated_at DESC LIMIT 30'
+				).bind(chapterId).all();
+				return json({ chapter: history?.[0] || null, history: history || [] }, 200, 300);
+			}
+
+			if (method === 'GET' && pathname === '/api/eu-alignment/bills') {
+				const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 200);
+				const chapterId = url.searchParams.get('chapter');
+				let sql = 'SELECT bec.*, b.bill_number, b.title, b.stage FROM bill_eu_classification bec JOIN bills b ON bec.bill_id = b.id';
+				const params = [];
+				if (chapterId) {
+					sql += ' WHERE bec.chapter_id = ?';
+					params.push(parseInt(chapterId));
+				}
+				sql += ' ORDER BY bec.confidence DESC LIMIT ?';
+				params.push(limit);
+				const { results: bills } = await env.radacleaner_db.prepare(sql).bind(...params).all();
+				return json({ bills: bills || [] }, 200, 300);
 			}
 
 			return error('Not found', 404);
@@ -759,7 +849,7 @@ async function db(env, sql, mode) {
 async function refreshStatsCache(env) {
 	const db = env.radacleaner_db;
 
-	const [totalBills, byStage, highRisk, mediumRisk, analyzed, procedural, totalVotes, totalMps, activeMps, newBills24h, statusChanges24h, recentChanges] =
+	const [totalBills, byStage, highRisk, mediumRisk, analyzed, procedural, totalVotes, totalMps, activeMps, newBills24h, statusChanges24h, recentChanges, topToxic] =
 		await Promise.all([
 			db.prepare('SELECT COUNT(*) as c FROM bills').first(),
 			db.prepare('SELECT stage, COUNT(*) as count FROM bills WHERE stage IS NOT NULL GROUP BY stage ORDER BY stage').all(),
@@ -773,6 +863,7 @@ async function refreshStatsCache(env) {
 			db.prepare("SELECT COUNT(*) as c FROM bills WHERE registration_date >= date('now', '-1 day')").first(),
 			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE change_type='status_change' AND created_at >= datetime('now', '-1 day')").first(),
 			db.prepare("SELECT COUNT(*) as c FROM change_log WHERE created_at > datetime('now', '-7 days')").first(),
+			db.prepare("SELECT AVG(toxicity) as avg_tox FROM bills WHERE toxicity IS NOT NULL").first(),
 		]);
 
 	const now = new Date().toISOString();
@@ -789,6 +880,7 @@ async function refreshStatsCache(env) {
 		['new_bills_24h', String(newBills24h?.c || 0)],
 		['status_changes_24h', String(statusChanges24h?.c || 0)],
 		['recent_changes', String(recentChanges?.c || 0)],
+		['avg_toxicity', String(topToxic?.avg_tox ? Number(topToxic.avg_tox).toFixed(3) : '0')],
 		['last_updated', now],
 	];
 

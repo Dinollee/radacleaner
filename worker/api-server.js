@@ -224,9 +224,30 @@ app.get('/api/bills/:id/risks', async (req, res) => {
 app.post('/api/bills/:id/analyze', async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const bill = (await q('SELECT id, bill_number FROM bills WHERE id = $1', [id]))[0];
+    const bill = (await q('SELECT id, bill_number, title, current_status, url FROM bills WHERE id = $1', [id]))[0];
     if (!bill) return error(res, 'Bill not found', 404);
-    await q('INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES ($1, $2, $3)', [id, bill.bill_number, 'pending']);
+    await q('INSERT INTO pending_analysis (bill_id, bill_number, status) VALUES ($1, $2, $3)', [id, bill.bill_number, 'running']);
+
+    // Run analysis in background, return immediately
+    const { execFile } = require('child_process');
+    const pythonPath = process.env.PYTHON_PATH || '/home/radamon/radacleaner/venv/bin/python';
+    const scriptPath = '/home/radamon/radacleaner/analyze_bill.py';
+
+    execFile(pythonPath, [scriptPath, bill.bill_number, '--force'], {
+      timeout: 300000,
+      env: { ...process.env, PYTHONPATH: '/home/radamon/radacleaner' },
+    }, async (err, stdout, stderr) => {
+      const status = err ? 'error' : 'done';
+      const output = (stdout || '') + (stderr || '');
+      try {
+        await q('UPDATE pending_analysis SET status=$1, output=$2, finished_at=now() WHERE bill_id=$3 AND status=\'running\'',
+          [status, output.slice(-2000), id]);
+      } catch (e) {}
+      if (status === 'done') {
+        try { await q('REFRESH MATERIALIZED VIEW IF EXISTS stats_cache'); } catch(e) {}
+      }
+    });
+
     json(res, { status: 'triggered', bill_number: bill.bill_number });
   } catch (e) { error(res, e.message, 500); }
 });

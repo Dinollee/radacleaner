@@ -744,6 +744,13 @@ async function toggleBillExpand(row, id) {
     let html = '<button class="bill-expand-close" data-action="close-expand">✕ Закрити</button>';
     html += `<h3 style="font-size:17px;margin-bottom:10px;line-height:1.3">#${escHtml(b.bill_number)} — ${escHtml(b.title||'')}</h3>`;
 
+    // Headline from LLM
+    if (risks?.headline) {
+      html += `<div style="margin-bottom:12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--yellow);border-radius:4px">
+        <div style="font-size:14px;font-weight:600;line-height:1.4">${escHtml(risks.headline)}</div>
+      </div>`;
+    }
+
     // Info grid
     html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;font-size:13px;margin-bottom:12px">
       <div><span style="color:var(--text2)">Статус:</span> <strong>${escHtml(b.current_status||'new')}</strong></div>
@@ -771,10 +778,23 @@ async function toggleBillExpand(row, id) {
 
     // === TAB: Аналіз ===
     html += `<div id="bill-tab-${id}-analysis" class="bill-expand-tab">`;
-    if (risks?.raw_analysis) {
+    if (risks?.json_data) {
+      let j = {};
+      try { j = typeof risks.json_data === 'string' ? JSON.parse(risks.json_data) : risks.json_data; } catch(e) {}
+      const lawText = j.law_summary || j.summary || '';
+      if (lawText) {
+        html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
+          <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
+          <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(lawText)}</p>
+          <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
+        </div>`;
+      }
+    } else if (risks?.raw_analysis) {
+      let summaryText = risks.raw_analysis;
+      try { const j = JSON.parse(risks.raw_analysis); summaryText = j.law_summary || j.summary || risks.raw_analysis; } catch(e) {}
       html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
         <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
-        <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(risks.raw_analysis)}</p>
+        <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(summaryText)}</p>
         <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
       </div>`;
     }
@@ -821,6 +841,41 @@ async function toggleBillExpand(row, id) {
           html += '</div>';
         }
       } catch(e) {}
+
+      // headline
+      if (risks.headline) {
+        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--yellow);border-radius:4px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">📰 Заголовок статті</div>
+          <div style="font-size:14px;font-weight:600;line-height:1.4">${escHtml(risks.headline)}</div>
+        </div>`;
+      }
+
+      // budget_impact
+      if (risks.budget_impact) {
+        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--orange);border-radius:4px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">💰 Фінансовий вплив</div>
+          <div style="font-size:13px">${escHtml(risks.budget_impact)}</div>
+        </div>`;
+      }
+
+      // opposition
+      try {
+        const opp = typeof risks.opposition === 'string' ? JSON.parse(risks.opposition) : risks.opposition;
+        if (opp && opp.length > 0) {
+          html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--red);border-radius:4px">
+            <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚔️ Опозиція та зауваження</div>
+            ${opp.map(o => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--red)">${escHtml(o.who)}:</span> ${escHtml(o.against)}</div>`).join('')}
+          </div>`;
+        }
+      } catch(e) {}
+
+      // next_steps
+      if (risks.next_steps) {
+        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔜 Наступні кроки</div>
+          <div style="font-size:13px">${escHtml(risks.next_steps)}</div>
+        </div>`;
+      }
 
       // risk_signals
       try {

@@ -23,8 +23,8 @@ def sync_passings():
     bill_map = {str(b['bill_number']): b['id'] for b in db_bills}
     log.info("Bills in D1: %d", len(bill_map))
 
-    existing_rows = d1_query("SELECT bill_id, pass_date, title FROM bill_passings")
-    existing_set = {(r['bill_id'], r['pass_date'][:19], r['title']) for r in existing_rows}
+    existing_rows = d1_query("SELECT bill_id, pass_date::date as day, title FROM bill_passings")
+    existing_set = {(r['bill_id'], str(r['day']), r['title']) for r in existing_rows}
     log.info("Existing passings: %d", len(existing_set))
 
     inserted = 0
@@ -49,7 +49,7 @@ def sync_passings():
             title = p.get('title', '')
             status = p.get('status', '')
 
-            key = (bill_id, pass_date, title)
+            key = (bill_id, pass_date[:10], title)
             if key in existing_set:
                 skipped += 1
                 continue
