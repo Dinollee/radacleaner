@@ -24,7 +24,20 @@ import psycopg2.extras
 
 from .config import log
 
-PG_DSN = os.environ.get("PG_DSN", "")
+def _build_pg_dsn() -> str:
+    dsn = os.environ.get("PG_DSN", "")
+    if dsn:
+        return dsn
+    host = os.environ.get("DB_HOST", "")
+    port = os.environ.get("DB_PORT", "5432")
+    name = os.environ.get("DB_NAME", "")
+    user = os.environ.get("DB_USER", "")
+    pwd = os.environ.get("DB_PASSWORD", "")
+    if host and name and user:
+        return f"host={host} port={port} dbname={name} user={user} password={pwd}"
+    return ""
+
+PG_DSN = _build_pg_dsn()
 
 _local = threading.local()
 
@@ -278,6 +291,11 @@ def _exec_refresh_stats(conn) -> bool:
             "INSERT INTO stats_cache (key, value, updated_at) VALUES (%s,%s,(now() AT TIME ZONE 'utc')) "
             "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at",
             ("by_stage", json.dumps(by_stage))
+        )
+
+        cur.execute(
+            "INSERT INTO stats_cache (key, value, updated_at) VALUES ('last_updated',(now() AT TIME ZONE 'utc'),(now() AT TIME ZONE 'utc')) "
+            "ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at"
         )
 
     conn.commit()

@@ -134,7 +134,7 @@ def check_and_download(url: str, local_path: str, filename: str):
 def log_change(bill_id: int, change_type: str, old_value=None, new_value=None) -> None:
     """Записує зміну в change_log (D1), якщо такої зміни ще немає."""
     existing = d1_query(
-        "SELECT 1 FROM change_log WHERE bill_id=? AND change_type=? AND old_value IS ? AND new_value IS ? LIMIT 1",
+        "SELECT 1 FROM change_log WHERE bill_id=? AND change_type=? AND old_value IS NOT DISTINCT FROM ? AND new_value IS NOT DISTINCT FROM ? LIMIT 1",
         [bill_id, change_type, old_value, new_value],
     )
     if existing:
