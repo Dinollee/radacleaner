@@ -22,7 +22,7 @@ import requests
 
 # Конфіг
 WORKER_URL = os.environ.get("WORKER_URL", "https://rada-monitor-api.distih.workers.dev")
-SYNC_TOKEN = os.environ.get("CF_SYNC_TOKEN", "radacleaner-sync-secret-2026")
+SYNC_TOKEN = os.environ.get("CF_SYNC_TOKEN", "")
 SYNC_URL = f"{WORKER_URL}/api/sync"
 
 DB_PARAMS = {
@@ -30,7 +30,7 @@ DB_PARAMS = {
     "port": int(os.environ.get("DB_PORT", "5432")),
     "dbname": os.environ.get("DB_NAME", "my_bills"),
     "user": os.environ.get("DB_USER", "hermes"),
-    "password": os.environ.get("DB_PASSWORD", "hermes"),
+    "password": os.environ.get("DB_PASSWORD", ""),
 }
 
 DRY_RUN = "--dry-run" in sys.argv

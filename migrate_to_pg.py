@@ -9,7 +9,7 @@ import psycopg2
 import psycopg2.extras
 
 SQLITE_PATH = os.path.join(os.path.dirname(__file__), "data", "radacleaner.db")
-PG_DSN = "host=192.168.1.244 dbname=radacleaner user=postgres password=164352"
+PG_DSN = os.environ.get("PG_DSN", "")
 
 TABLES = [
     "vote_statuses", "bills", "risk_assessments", "change_log",

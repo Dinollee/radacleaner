@@ -24,10 +24,7 @@ import psycopg2.extras
 
 from .config import log
 
-PG_DSN = os.environ.get(
-    "PG_DSN",
-    "host=192.168.1.244 dbname=radacleaner user=postgres password=164352"
-)
+PG_DSN = os.environ.get("PG_DSN", "")
 
 _local = threading.local()
 
