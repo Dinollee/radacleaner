@@ -186,7 +186,7 @@ app.get('/api/bills/:id', async (req, res) => {
     if (!bill) return error(res, 'Bill not found', 404);
 
     const risks = (await q('SELECT * FROM risk_assessments WHERE bill_id = $1', [id]))[0];
-    const versions = await q('SELECT id, version_date, status_at_moment, text_hash FROM law_versions WHERE law_id = $1 ORDER BY version_date DESC LIMIT 10', [id]);
+    const versions = await q('SELECT id, version_date, status_at_moment, text_hash, plain_text FROM law_versions WHERE law_id = $1 ORDER BY version_date DESC LIMIT 10', [id]);
     const changes = await q('SELECT id, change_type, old_value, new_value, created_at FROM change_log WHERE bill_id = $1 ORDER BY created_at DESC LIMIT 20', [id]);
     const documents = await q('SELECT id, bill_id, file_id, doc_type FROM bill_documents WHERE bill_id = $1 ORDER BY doc_type', [id]);
     const passings = await q('SELECT pass_date, title, status FROM bill_passings WHERE bill_id = $1 ORDER BY pass_date DESC', [id]);
