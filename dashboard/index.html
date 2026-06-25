@@ -4,2044 +4,566 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Страж Демократії — Моніторинг ВРУ</title>
-<link rel="icon" type="image/x-icon" href="favicon.ico">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
 :root {
-  --bg: #f5f6fa;
-  --bg2: #ffffff;
-  --bg3: #eef0f5;
-  --card: #ffffff;
-  --hover: #f0f2f8;
-  --text: #1a1a2e;
-  --text2: #5a6a85;
-  --muted: #9aa5b4;
-  --blue: #2563eb;
-  --green: #16a34a;
-  --red: #dc2626;
-  --orange: #d97706;
-  --yellow: #ca8a04;
-  --purple: #7c3aed;
-  --border: #e2e5ed;
-  --radius: 10px;
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-hover: #1e2a45;
+  --text-primary: #e0e6f0;
+  --text-secondary: #8899b4;
+  --text-muted: #5a6a85;
+  --accent-blue: #4a9eff;
+  --accent-green: #2ecc71;
+  --accent-red: #e74c3c;
+  --accent-orange: #f39c12;
+  --accent-yellow: #f1c40f;
+  --accent-purple: #9b59b6;
+  --border-color: #2a2a4a;
+  --shadow: 0 4px 20px rgba(0,0,0,0.3);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
   --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
-:root.dark {
-  --bg: #0a0a12;
-  --bg2: #12121f;
-  --bg3: #1a1a2e;
-  --card: #16162a;
-  --hover: #1e1e3a;
-  --text: #e0e6f0;
-  --text2: #8899b4;
-  --muted: #5a6a85;
-  --blue: #4a9eff;
-  --green: #2ecc71;
-  --red: #e74c3c;
-  --orange: #f39c12;
-  --yellow: #f1c40f;
-  --purple: #9b59b6;
-  --border: #252545;
-}
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
-
-/* Theme toggle */
-.theme-toggle { background: var(--bg3); border: 1px solid var(--border); border-radius: 20px; width: 44px; height: 24px; cursor: pointer; position: relative; transition: background 0.3s; margin-left: 16px; flex-shrink: 0; }
-.theme-toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--text2); transition: transform 0.3s, background 0.3s; }
-:root.dark .theme-toggle { background: var(--blue); }
-:root.dark .theme-toggle::after { transform: translateX(20px); background: #fff; }
-
-/* Header */
-.header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
-.logo { font-size: 18px; font-weight: 700; color: var(--blue); margin-right: 32px; white-space: nowrap; }
-.logo span { color: var(--text2); font-weight: 400; font-size: 14px; margin-left: 8px; }
-.header-stats { display: flex; gap: 20px; margin-left: auto; align-items: center; }
-.header-stat { text-align: center; }
-.header-stat-value { font-size: 16px; font-weight: 700; color: var(--text); }
-.header-stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
-nav { display: flex; gap: 4px; }
-nav button { background: none; border: none; color: var(--text2); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; }
-nav button:hover { background: var(--hover); color: var(--text); }
-nav button.active { background: var(--blue); color: #fff; }
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  line-height: 1.6;
+}
 
 /* Layout */
-.container { max-width: 1400px; margin: 0 auto; padding: 24px; }
-.section { display: none; }
-.section.active { display: block; }
-
-/* Cards */
-.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.card-title { font-size: 16px; font-weight: 600; }
-
-/* Stats grid */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.stat-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; text-align: center; }
-.stat-value { font-size: 28px; font-weight: 700; margin: 8px 0 4px; }
-.stat-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-daily { display: flex; gap: 8px; justify-content: center; margin-top: 6px; }
-.stat-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; white-space: nowrap; }
-.stat-badge.new { background: rgba(46,204,113,0.12); color: #2ecc71; }
-.stat-badge.changed { background: rgba(52,152,219,0.12); color: #3498db; }
-.stat-badge.zero { opacity: 0.4; }
-
-/* Tables */
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-th { text-align: left; padding: 10px 12px; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
-tr:hover td { background: var(--hover); }
-tr.clickable { cursor: pointer; }
-
-/* Badges */
-.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
-.badge-high { background: rgba(231,76,60,0.15); color: var(--red); }
-.badge-medium { background: rgba(243,156,18,0.15); color: var(--orange); }
-.badge-low { background: rgba(234,179,8,0.15); color: var(--yellow); }
-.badge-stage1 { background: rgba(136,153,180,0.15); color: var(--text2); }
-.badge-stage2 { background: rgba(74,158,255,0.15); color: var(--blue); }
-.badge-stage3 { background: rgba(155,89,182,0.15); color: var(--purple); }
-.badge-stage4 { background: rgba(46,204,113,0.15); color: var(--green); }
-.badge-stage5 { background: rgba(231,76,60,0.15); color: var(--red); }
-
-/* Risk indicator dots */
-.risk-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.risk-dot.r-high { background: var(--red); box-shadow: 0 0 6px rgba(231,76,60,0.5); }
-.risk-dot.r-medium { background: var(--orange); box-shadow: 0 0 6px rgba(243,156,18,0.5); }
-.risk-dot.r-low { background: var(--yellow); }
-.risk-dot.r-none { background: var(--green); box-shadow: 0 0 6px rgba(46,204,113,0.5); }
-.risk-dot.r-unknown { background: var(--text2); }
-.sch-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-
-/* Progress bar */
-.progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
-
-/* Stage progress bar */
-.stage-progress { display: inline-flex; gap: 3px; align-items: center; }
-.stage-progress .sq { width: 12px; height: 12px; border-radius: 2px; background: var(--border); }
-.stage-progress .sq.done { background: var(--blue); }
-.stage-progress .sq.rejected { background: var(--red); }
-.stage-progress .sq.done.s1 { background: var(--text2); }
-.stage-progress .sq.done.s2 { background: var(--blue); }
-.stage-progress .sq.done.s3 { background: var(--purple); }
-.stage-progress .sq.done.s4 { background: var(--green); }
-
-/* Filters */
-.filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
-.filters input, .filters select { background: var(--bg2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-.filters input { flex: 1; min-width: 200px; }
-.filters select { min-width: 140px; }
-.filters input[type="date"] { min-width: 150px; flex: 0; }
-
-/* Analysis indicator */
-.analysis-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-.analysis-dot.analyzed { background: var(--green); box-shadow: 0 0 6px rgba(46,204,113,0.5); }
-.analysis-dot.not-analyzed { background: var(--muted); }
-
-/* Procedural indicator */
-.proc-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.proc-dot.proc { background: var(--text2); }
-.proc-dot.non-proc { background: var(--green); box-shadow: 0 0 6px rgba(46,204,113,0.5); }
-
-/* Diff */
-.diff-container { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.diff-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; max-height: 500px; overflow-y: auto; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-.diff-panel .added { background: rgba(46,204,113,0.15); color: var(--green); }
-.diff-panel .removed { background: rgba(231,76,60,0.15); color: var(--red); text-decoration: line-through; }
-.diff-header { font-weight: 600; color: var(--text2); margin-bottom: 8px; font-size: 12px; text-transform: uppercase; }
-
-/* KPD */
-.kpd-bar { display: flex; align-items: center; gap: 8px; }
-.kpd-value { font-weight: 600; min-width: 40px; }
-.kpd-track { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
-.kpd-fill { height: 100%; border-radius: 4px; }
-
-/* Faction dot */
-.faction-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
-
-/* Vote bar */
-.vote-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; gap: 1px; }
-.vote-bar .yes { background: var(--green); }
-.vote-bar .no { background: var(--red); }
-.vote-bar .abstain { background: var(--orange); }
-.vote-bar .not-present { background: var(--muted); }
-
-/* Detail panel */
-.detail-panel { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-.detail-row { display: flex; gap: 12px; margin-bottom: 8px; }
-.detail-label { color: var(--text2); min-width: 120px; font-size: 13px; }
-.detail-value { font-size: 14px; }
+.app-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0; z-index: 100;
+}
+.app-header .header-left { flex: 1; }
+.app-header .header-center { flex: 0 0 auto; text-align: center; }
+.app-header .header-right { flex: 1; display: flex; justify-content: flex-end; }
+.app-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.app-header .subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+  -webkit-text-fill-color: var(--text-secondary);
+}
+.header-stats { display: flex; gap: 20px; align-items: center; }
+.header-stat { text-align: center; }
+.header-stat .num { font-size: 20px; font-weight: 700; color: var(--accent-blue); }
+.header-stat .label { font-size: 11px; color: var(--text-secondary); }
 
 /* Tabs */
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-.tabs button { background: none; border: none; color: var(--text2); padding: 8px 16px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; transition: all 0.2s; white-space: nowrap; flex-shrink: 0; }
-.tabs button:hover { color: var(--text); }
-.tabs button.active { color: var(--blue); border-bottom-color: var(--blue); }
+.tab-nav {
+  display: flex;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 24px;
+  gap: 4px;
+}
+.tab-btn {
+  padding: 14px 24px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: var(--transition);
+  font-family: var(--font);
+}
+.tab-btn:hover { color: var(--text-primary); background: var(--bg-hover); }
+.tab-btn.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+.tab-content { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; }
+.tab-content.active { display: block; }
 
-/* Schedule */
-.schedule-item { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-.schedule-date { min-width: 100px; font-weight: 600; color: var(--blue); font-size: 14px; }
-.schedule-info { flex: 1; }
-.schedule-title { font-size: 14px; margin-bottom: 4px; }
-.schedule-meta { font-size: 12px; color: var(--text2); }
+/* Cards */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: var(--transition);
+}
+.card:hover { border-color: rgba(74,158,255,0.3); }
+.card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-/* Back button */
-.back-btn { background: none; border: 1px solid var(--border); color: var(--text2); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; margin-bottom: 16px; }
-.back-btn:hover { background: var(--hover); color: var(--text); }
+/* Grids */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media(max-width:768px){ .grid-2 { grid-template-columns: 1fr; } }
 
-/* Risk categories */
-.risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
-.risk-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-.risk-cat { font-size: 12px; color: var(--text2); text-transform: uppercase; margin-bottom: 4px; }
-.risk-quote { font-size: 13px; font-style: italic; color: var(--text2); margin: 6px 0; border-left: 2px solid var(--border); padding-left: 8px; }
-.risk-explanation { font-size: 13px; }
+/* Bill items */
+.bill-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.bill-item:hover { border-color: rgba(74,158,255,0.3); background: var(--bg-hover); }
+.bill-item-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.bill-number { font-weight: 700; color: var(--accent-blue); font-size: 14px; }
+.bill-title { flex: 1; font-size: 14px; }
+.bill-status { padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.bill-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); }
 
-/* Loading */
-.loading { text-align: center; padding: 40px; color: var(--text2); }
-.spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; }
-.section-loading { text-align: center; padding: 60px 20px; color: var(--text2); }
-.section-loading .spinner { width: 32px; height: 32px; margin-bottom: 12px; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* Inline bill expansion */
-.bill-expand-row td { padding: 0 !important; border-bottom: 1px solid var(--border); }
-.bill-expand-content { background: var(--bg2); padding: 16px 20px; border-top: 1px solid var(--border); animation: slideDown 0.2s ease; }
-@keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 2000px; } }
-.bill-expand-close { float: right; background: none; border: 1px solid var(--border); color: var(--text2); padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
-.bill-expand-close:hover { background: var(--hover); color: var(--text); }
-
-/* Vote deputy list */
-.vote-deputies-toggle { cursor: pointer; color: var(--blue); font-size: 12px; margin-top: 6px; user-select: none; }
-.vote-deputies-toggle:hover { text-decoration: underline; }
-.vote-deputy-list { max-height: 300px; overflow-y: auto; margin-top: 8px; font-size: 12px; }
-.vote-deputy-list table { font-size: 12px; }
-.vote-deputy-list td { padding: 4px 8px; }
-.vote-deputy-faction { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-.bill-expand-tab { padding-top: 4px; }
-
-/* Metrics widget */
-.metrics-widget { display: flex; flex-direction: column; gap: 3px; font-size: 12px; line-height: 1.2; }
-.metrics-scores { display: flex; gap: 4px; font-weight: 600; font-size: 11px; }
-.metrics-scores .m-s { color: var(--purple); }
-.metrics-scores .m-i { color: var(--blue); }
-.metrics-scores .m-r { color: var(--red); }
-.toxicity-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; min-width: 50px; }
-.toxicity-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
-.toxicity-label { font-size: 10px; color: var(--text2); }
-
-/* Vote block (best.html pattern) */
-.vote-block { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
+/* Vote blocks */
+.vote-block {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: 10px;
+  overflow: hidden;
+  transition: var(--transition);
+}
 .vote-block:hover { border-color: rgba(74,158,255,0.3); }
-.vote-block.expanded { border-color: var(--blue); }
-.vote-block-header { padding: 14px 16px; cursor: pointer; }
-.vote-block-header:hover { background: var(--hover); }
+.vote-block.expanded { border-color: var(--accent-blue); }
+.vote-block-header { padding: 14px 16px; cursor: pointer; transition: var(--transition); }
+.vote-block-header:hover { background: var(--bg-hover); }
 .vote-block-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
 .vote-block-summary { display: flex; gap: 12px; font-size: 12px; margin-bottom: 8px; flex-wrap: wrap; }
-.vote-block-summary .vc { white-space: nowrap; }
-.vote-block-summary .vc-za { color: var(--green); }
-.vote-block-summary .vc-no { color: var(--red); }
-.vote-block-summary .vc-ab { color: var(--orange); }
-.vote-block-summary .vc-np { color: var(--muted); }
-.vote-bar-seg { height: 100%; transition: width 0.3s; }
-.vote-expand-hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
-.vote-block.expanded .vote-expand-hint { color: var(--blue); }
-.vote-factions-inner { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; border-top: 1px solid transparent; }
-.vote-block.expanded .vote-factions-inner { max-height: 5000px; border-top-color: var(--border); }
-.deputies-filter { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); flex-wrap: wrap; }
-.filter-btn { padding: 4px 12px; border-radius: 12px; border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 11px; cursor: pointer; transition: all 0.2s; }
-.filter-btn:hover { border-color: var(--blue); color: var(--text); }
-.filter-btn.active { background: rgba(74,158,255,0.15); border-color: var(--blue); color: var(--blue); }
-.deputies-list { padding: 4px 14px 10px; max-height: 320px; overflow-y: auto; }
-.deputy-row { display: flex; align-items: center; padding: 5px 8px; gap: 8px; border-radius: 6px; font-size: 13px; }
-.deputy-row:hover { background: var(--hover); }
-.deputy-row .dep-name { flex: 1; }
-.deputy-row .dep-faction { font-size: 11px; color: var(--text2); }
-.deputy-row .dep-vote { padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-.deputy-row .dep-vote.v-za { background: rgba(46,204,113,0.15); color: var(--green); }
-.deputy-row .dep-vote.v-no { background: rgba(231,76,60,0.15); color: var(--red); }
-.deputy-row .dep-vote.v-ab { background: rgba(243,156,18,0.15); color: var(--orange); }
-.deputy-row .dep-vote.v-np { background: rgba(90,106,133,0.15); color: var(--muted); }
+.vote-count.za { color: var(--accent-green); }
+.vote-count.proti { color: var(--accent-red); }
+.vote-count.utr { color: var(--accent-orange); }
+.vote-count.ne { color: var(--text-muted); }
+.vote-count.vid { color: var(--text-muted); opacity: 0.7; }
+.vote-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--bg-secondary); margin-bottom: 6px; }
+.vote-bar-seg { height: 100%; }
+.vote-bar-seg.za { background: var(--accent-green); }
+.vote-bar-seg.proti { background: var(--accent-red); }
+.vote-bar-seg.utr { background: var(--accent-orange); }
+.vote-bar-seg.ne { background: var(--text-muted); }
+.vote-bar-seg.vid { background: #3a3a5a; }
+.vote-expand-hint { font-size: 11px; color: var(--text-muted); }
+.vote-block.expanded .vote-expand-hint { color: var(--accent-blue); }
+.vote-factions { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+.vote-block.expanded .vote-factions { max-height: 5000px; }
+
+/* Faction detail */
+.faction-detail-item { border-bottom: 1px solid var(--border-color); }
+.faction-detail-header { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; gap: 10px; }
+.faction-detail-header:hover { background: var(--bg-hover); }
+.faction-color { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.faction-name { flex: 1; font-size: 13px; font-weight: 500; }
+.faction-mini-stats { display: flex; gap: 8px; font-size: 11px; }
+.mini-stat.za { color: var(--accent-green); }
+.mini-stat.proti { color: var(--accent-red); }
+.mini-stat.utr { color: var(--accent-orange); }
+.mini-stat.ne { color: var(--text-muted); }
+.mini-stat.vid { color: var(--text-muted); opacity: 0.7; }
+.faction-expand { color: var(--text-muted); font-size: 10px; transition: transform 0.3s; }
+.faction-detail-item.open .faction-expand { transform: rotate(180deg); }
+.faction-deputies { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; padding: 0 16px; }
+.faction-detail-item.open .faction-deputies { max-height: 3000px; padding: 0 16px 10px; }
+.deputy-row { display: flex; align-items: center; padding: 4px 8px; gap: 8px; font-size: 12px; border-radius: 4px; }
+.deputy-row:hover { background: var(--bg-hover); }
+.deputy-name { flex: 1; }
+.deputy-vote { padding: 1px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+.deputy-vote.za { background: rgba(46,204,113,0.2); color: var(--accent-green); }
+.deputy-vote.proti { background: rgba(231,76,60,0.2); color: var(--accent-red); }
+.deputy-vote.utr { background: rgba(243,156,18,0.2); color: var(--accent-orange); }
+.deputy-vote.ne { background: rgba(90,106,133,0.2); color: var(--text-muted); }
+.deputy-vote.vid { background: rgba(90,106,133,0.15); color: var(--text-muted); }
+
+/* Detail panel */
+.bill-detail { display: none; }
+.bill-detail.open { display: block; }
+.bill-detail-close { float: right; background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; }
+.detail-section { margin-top: 20px; }
+.detail-section h3 { font-size: 14px; margin-bottom: 10px; color: var(--text-secondary); }
+
+/* Deputies table */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th, .data-table td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 13px; }
+.data-table th { color: var(--text-secondary); font-weight: 600; cursor: pointer; }
+.data-table th:hover { color: var(--text-primary); }
+.data-table tbody tr:hover { background: var(--bg-hover); }
+
+/* Toolbar */
+.deputies-toolbar { display: flex; gap: 12px; margin-bottom: 16px; }
+.deputies-toolbar input, .deputies-toolbar select {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-family: var(--font);
+}
+.deputies-toolbar input { flex: 1; }
+.deputies-toolbar select { min-width: 180px; }
+.bill-search {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: var(--font);
+  margin-bottom: 16px;
+}
+
+/* Calendar */
+.cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; text-align: center; font-size: 12px; }
+.cal-header { color: var(--text-muted); padding: 4px; font-weight: 600; }
+.cal-day { padding: 6px; border-radius: 4px; }
+.cal-day.today { background: var(--accent-blue); color: #fff; }
+.cal-day.vote { background: rgba(46,204,113,0.3); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* Responsive */
-@media (max-width: 768px) {
-  .diff-container { grid-template-columns: 1fr; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .header { padding: 0 12px; }
-  .container { padding: 12px; }
+@media(max-width:768px) {
+  .app-header { flex-direction: column; gap: 8px; }
+  .header-stats { flex-wrap: wrap; justify-content: center; }
 }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="logo">Страж Демократії <span>ВРУ IX</span></div>
-  <nav>
-    <button class="active" data-section="dashboard">Дашборд</button>
-    <button data-section="bills">Закони</button>
-    <button data-section="deputies">Депутати</button>
-    <button data-section="schedule">Графік</button>
-    <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
-  </nav>
-  <div class="header-stats" id="header-stats"></div>
-  <div class="theme-toggle" id="theme-toggle" title="Переключити тему"></div>
-</div>
-
-<div class="container">
-
-  <!-- DASHBOARD -->
-  <div id="sec-dashboard" class="section active">
-    <div class="stats-grid" id="dashboard-stats"></div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">⚠️ Потребують уваги</div>
-        <span style="font-size:12px;color:var(--text2)">Непроцедурні закони зі змінами за останні 120 днів</span>
-      </div>
-      <div class="table-wrap"><table id="threats-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Ризик</th><th>LLM</th><th>Метрики</th><th>Зміна</th></tr></thead><tbody></tbody></table></div>
+<!-- Header -->
+<header class="app-header">
+  <div class="header-left"></div>
+  <div class="header-center">
+    <h1>🏛️ Страж Демократії</h1>
+    <div class="subtitle">Моніторинг Верховної Ради України · IX скликання</div>
+  </div>
+  <div class="header-right">
+    <div class="header-stats">
+      <div class="header-stat"><div class="num" id="headerBills">-</div><div class="label">Законів</div></div>
+      <div class="header-stat"><div class="num" id="headerVotes">-</div><div class="label">Голосувань</div></div>
+      <div class="header-stat"><div class="num" id="headerDeputies">-</div><div class="label">Депутатів</div></div>
+      <div class="header-stat"><div class="num" id="headerFactions">-</div><div class="label">Фракцій</div></div>
     </div>
   </div>
+</header>
 
-  <!-- BILLS -->
-  <div id="sec-bills" class="section">
-    <div class="filters">
-      <input type="text" id="bill-search" placeholder="Пошук за номером (напр. 15224) або назвою...">
-      <select id="bill-stage">
-        <option value="">Всі етапи</option>
-        <option value="1">1 — Зареєстровано</option>
-        <option value="2">2 — Перше читання</option>
-        <option value="3">3 — Друге читання</option>
-        <option value="4">4 — Підписано</option>
-        <option value="5">5 — Відхилено</option>
-      </select>
-      <select id="bill-status"></select>
-      <select id="bill-analyzed">
-        <option value="">Всі</option>
-        <option value="1">✓ З аналізом</option>
-        <option value="0">— Без аналізу</option>
-      </select>
-      <select id="bill-threats">
-        <option value="">Всі закони</option>
-        <option value="1">🔴 Високий ризик</option>
-        <option value="2">🔴🟠 Високий + середній</option>
-      </select>
-      <select id="bill-sort">
-        <option value="updated_at" selected>За зміною статусу ↓</option>
-        <option value="toxicity">За toxicity ↓</option>
-        <option value="significance">За значимістю ↓</option>
-        <option value="updated_at">За оновленням ↓</option>
-        <option value="registration_date">За реєстрацією ↓</option>
-      </select>
-      <input type="date" id="bill-date-from" title="Зміни з дати">
-      <input type="date" id="bill-date-to" title="Зміни по дату">
+<!-- Tabs -->
+<nav class="tab-nav">
+  <button class="tab-btn active" data-tab="dashboard">📊 Дашборд</button>
+  <button class="tab-btn" data-tab="bills">📜 Законопроєкти</button>
+  <button class="tab-btn" data-tab="deputies">👥 Депутати</button>
+</nav>
+
+<!-- Dashboard -->
+<section id="tab-dashboard" class="tab-content active">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">📌 Останні закони</div>
+      <div id="dashBillList"></div>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="bills-table"><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Етап</th><th>Комітет</th><th>Ризик</th><th>LLM</th><th>Метрики</th><th>Оновлено</th></tr></thead><tbody></tbody></table></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-        <span id="bills-count" style="font-size:13px;color:var(--text2)"></span>
-        <div style="display:flex;gap:8px">
-          <button class="back-btn" data-page="-1">← Назад</button>
-          <button class="back-btn" data-page="1">Далі →</button>
-        </div>
-      </div>
+      <div class="card-title">📅 Календарь пленарних засідань</div>
+      <div id="dashCalendar"></div>
     </div>
   </div>
+</section>
 
-  <!-- DEPUTIES -->
-  <div id="sec-deputies" class="section">
-    <div class="filters">
-      <input type="text" id="dep-search" placeholder="Пошук депутата...">
-      <select id="dep-faction"></select>
-      <select id="dep-sort">
-        <option value="name">За ім'ям</option>
-        <option value="conversion">За конверсією ↓</option>
-        <option value="py">За ПЯ ↓</option>
-        <option value="pda">За ПДА ↓</option>
-        <option value="vkp">За ВКП ↓</option>
-      </select>
-    </div>
-    <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
-        <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
-        <div style="display:flex;gap:8px">
-          <button class="back-btn" data-page="-1" data-list="deputies">← Назад</button>
-          <button class="back-btn" data-page="1" data-list="deputies">Далі →</button>
-        </div>
-      </div>
-    </div>
+<!-- Bills -->
+<section id="tab-bills" class="tab-content">
+  <input class="bill-search" id="billSearch" type="text" placeholder="🔍 Пошук за номером або назвою...">
+  <div id="billListContainer"></div>
+  <div id="billDetailPanel" class="card bill-detail"></div>
+</section>
+
+<!-- Deputies -->
+<section id="tab-deputies" class="tab-content">
+  <div class="deputies-toolbar">
+    <input type="text" id="depSearch" placeholder="🔍 Пошук за ПІБ або фракцією...">
+    <select id="depFactionFilter"><option value="">Усі фракції</option></select>
   </div>
-
-  <!-- DEPUTY DETAIL -->
-  <div id="sec-deputy-detail" class="section">
-    <button class="back-btn" data-section="deputies">← Назад до списку</button>
-    <div id="deputy-detail-content"></div>
+  <div class="card" style="overflow-x:auto;padding:0;">
+    <table class="data-table">
+      <thead><tr><th>ПІБ</th><th>Фракція</th><th>Голосувань</th><th>КПД</th></tr></thead>
+      <tbody id="deputiesBody"></tbody>
+    </table>
   </div>
-
-  <!-- SCHEDULE -->
-  <div id="sec-schedule" class="section">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Графік роботи Верховної Ради</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-sm" onclick="scheduleMonth(-1)">← Назад</button>
-          <span id="schedule-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
-          <button class="btn btn-sm" onclick="scheduleMonth(1)">Далі →</button>
-        </div>
-      </div>
-      <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарні</span>
-        <span><span class="sch-dot" style="background:#9b59b6"></span> Погоджувальні ради</span>
-        <span><span class="sch-dot" style="background:#27ae60"></span> Комітети</span>
-        <span><span class="sch-dot" style="background:#3498db"></span> Робота з виборцями</span>
-        <span><span class="sch-dot" style="background:#e67e22"></span> Позачергові</span>
-        <span><span class="sch-dot" style="background:#e74c3c"></span> Запитання до Уряду</span>
-        <span><span class="sch-dot" style="background:#95a5a6"></span> Свята</span>
-      </div>
-      <div id="schedule-calendar" style="padding:8px 16px"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Засідання комітетів (тижневий графік)</div></div>
-      <div id="schedule-committees"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Закони на голосування</div></div>
-      <div id="upcoming-bills"></div>
-    </div>
-  </div>
-
-  <!-- EU Alignment Section -->
-  <div id="sec-eu-alignment" class="section">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">🇪🇺 Відповідність нормам ЄС (EU Alignment Score)</div>
-        <div id="eu-last-updated" style="font-size:12px;color:var(--text2)"></div>
-      </div>
-      <div id="eu-overall-score" style="text-align:center;padding:20px">
-        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Кластери переговорів</div>
-        <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
-      </div>
-      <div id="eu-clusters"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Закони за класифікацією EU</div>
-      </div>
-      <div id="eu-classified-bills"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">📈 Динаміка Alignment Score</div>
-      </div>
-      <div id="eu-trend-chart" style="padding:16px"></div>
-    </div>
-  </div>
-
-</div>
+</section>
 
 <script>
-let billsOffset = 0, depsOffset = 0, billsTotal = 0, depsTotal = 0;
-const PAGE = 50;
+// ===== DATA =====
+let FACTIONS = [];
+let BILLS = [];
+let ALL_DEPUTIES = [];
 
-function escHtml(s) {
-  if (s == null) return '';
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
-}
-
-function attr(s) {
-  if (s == null) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function debounce(fn, ms) {
-  let t;
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
-}
-const debouncedLoadBills = debounce(() => { billsOffset = 0; loadBills(); }, 300);
-const debouncedLoadDeputies = debounce(() => { depsOffset = 0; loadDeputies(); }, 300);
-
-// === Navigation ===
-function showSection(name) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-  document.getElementById('sec-' + name).classList.add('active');
-  const navBtn = document.querySelector(`nav button[data-section="${name}"]`);
-  if (navBtn) navBtn.classList.add('active');
-  // Close any expanded bill row
-  const expandRow = document.querySelector('.bill-expand-row');
-  if (expandRow) {
-    const id = expandRow.dataset.billId;
-    document.querySelector(`tr[data-bill-id="${id}"]`)?.classList.remove('active');
-    expandRow.remove();
-    expandedBillId = null;
-  }
-  // Show section-level spinner while loading
-  const sectionEl = document.getElementById('sec-' + name);
-  if (sectionEl && (name === 'dashboard' || name === 'bills' || name === 'deputies')) {
-    const cards = sectionEl.querySelectorAll('.card');
-    if (cards.length && !sectionEl.querySelector('.section-loading')) {
-      const loader = document.createElement('div');
-      loader.className = 'section-loading';
-      loader.innerHTML = '<div class="spinner"></div><div>Завантаження...</div>';
-      sectionEl.prepend(loader);
-    }
-  }
-  if (name === 'dashboard') loadDashboard();
-  if (name === 'bills') loadBills();
-  if (name === 'deputies') loadDeputies();
-  if (name === 'schedule') loadSchedule();
-  if (name === 'eu-alignment') loadEUAlignment();
-}
-
-// === API helpers ===
-const API = 'https://api.dino.pp.ua';
-async function api(path) {
-  const r = await fetch(API + path);
-  if (!r.ok) throw new Error(`API ${r.status}`);
-  return r.json();
-}
-
-function stageBar(stage) {
-  stage = stage || 1;
-  if (stage === 5) {
-    return '<span class="stage-progress"><span class="sq rejected" title="Відхилено"></span></span>';
-  }
-  const s = Math.min(Math.max(stage, 1), 4);
-  let html = '<span class="stage-progress">';
-  for (let i = 1; i <= 4; i++) {
-    html += `<span class="sq${i <= s ? ` done s${i}` : ''}" title="${['','Зареєстровано','Перше читання','Друге читання','Підписано'][i]}"></span>`;
-  }
-  return html + '</span>';
-}
-
-function riskBadge(level, hasAnalysis) {
-  if (!hasAnalysis) return '<span class="risk-dot r-unknown" title="Не проаналізовано"></span>';
-  if (!level) return '<span class="risk-dot r-none" title="Ризиків немає"></span>';
-  if (level === 'high') return '<span class="risk-dot r-high" title="Високий ризик"></span>';
-  if (level === 'medium') return '<span class="risk-dot r-medium" title="Середній ризик"></span>';
-  return '<span class="risk-dot r-low" title="Низький ризик"></span>';
-}
-
-function proceduralBadge(v) {
-  if (v === null || v === undefined) return '<span style="color:var(--text2);font-size:11px">—</span>';
-  return v
-    ? '<span class="proc-dot proc" title="Процедурний"></span>'
-    : '<span class="proc-dot non-proc" title="Непроцедурний"></span>';
-}
-
-function metricsWidget(b) {
-  const sig = b.significance, imp = b.impact, rsk = b.risk_score, tox = b.toxicity;
-  if (sig == null && imp == null && rsk == null && tox == null) {
-    return '<span style="color:var(--text2);font-size:11px">—</span>';
-  }
-  const toxPercent = tox != null ? Math.round(tox * 100) : 0;
-  const toxColor = tox >= 0.73 ? 'var(--red)' : tox >= 0.49 ? 'var(--orange)' : tox >= 0.25 ? 'var(--yellow)' : 'var(--green)';
-  return `<div class="metrics-widget">
-    <div class="metrics-scores">
-      <span class="m-s" title="Значимість">S${sig || '?'}</span>
-      <span class="m-i" title="Вплив">I${imp || '?'}</span>
-      <span class="m-r" title="Ризик">R${rsk || '?'}</span>
-    </div>
-    <div class="toxicity-bar"><div class="toxicity-fill" style="width:${toxPercent}%;background:${toxColor}"></div></div>
-    <div class="toxicity-label">tox ${tox != null ? tox.toFixed(2) : '—'}</div>
-  </div>`;
-}
-
-function kpdColor(kpd) {
-  if (kpd >= 80) return 'var(--green)';
-  if (kpd >= 50) return 'var(--orange)';
-  return 'var(--red)';
-}
-
-function factionColor(faction) {
-  const colors = {
-    'СЛУГА НАРОДУ': '#2ecc71',
-    'Європейська Солідарність': '#3498db',
-    'Батьківщина': '#f1c40f',
-    'Платформа за життя та мир': '#9b59b6',
-    'ДОВІРА': '#e67e22',
-    'Партія "За майбутнє"': '#1abc9c',
-    'ГОЛОС': '#e74c3c',
-    'Відновлення України': '#95a5a6',
-    'Позафракційні': '#7f8c8d',
-  };
-  return colors[faction] || '#6c7a89';
-}
-
-// === DASHBOARD ===
-async function loadDashboard() {
-  document.querySelector('#sec-dashboard .section-loading')?.remove();
-  const statsEl = document.getElementById('dashboard-stats');
-  const headerEl = document.getElementById('header-stats');
-  const tbody = document.querySelector('#threats-table tbody');
+async function loadData() {
   try {
-    const d120 = new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10);
-
-    const [stats, threats] = await Promise.all([
-      api('/api/stats'),
-      api(`/api/bills?limit=20&sort=updated_at&order=DESC&updated_after=${d120}&threats=2`),
+    const [billsRes, factionsRes, deputiesRes] = await Promise.all([
+      fetch('/api/bills'),
+      fetch('/api/factions'),
+      fetch('/api/deputies')
     ]);
-
-    // Оновлюємо хедер (завжди видимий)
-    if (headerEl) {
-      headerEl.innerHTML = `
-        <div class="header-stat"><div class="header-stat-value">${(stats.totalBills||0).toLocaleString()}</div><div class="header-stat-label">Законів</div></div>
-        <div class="header-stat"><div class="header-stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div><div class="header-stat-label">🔴 Загрози</div></div>
-        <div class="header-stat"><div class="header-stat-value" style="color:var(--orange)">${stats.mediumRiskBills||0}</div><div class="header-stat-label">🟠 Середній</div></div>
-        <div class="header-stat"><div class="header-stat-value" style="color:var(--green)">${stats.activeMps||0}</div><div class="header-stat-label">Депутатів</div></div>
-        <div class="header-stat"><div class="header-stat-value">${(stats.totalVotes||0).toLocaleString()}</div><div class="header-stat-label">Голосувань</div></div>
-        <div class="header-stat"><div class="header-stat-value" style="color:var(--blue)">${stats.analyzedBills||0}</div><div class="header-stat-label">LLM</div></div>
-      `;
-    }
-
-    // Оновлюємо секцію dashboard
-    statsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${stats.totalBills||0}</div><div class="stat-daily"><span class="stat-badge new${(stats.newBills24h||0)===0?' zero':''}">+${stats.newBills24h||0} new</span><span class="stat-badge changed${(stats.statusChanges24h||0)===0?' zero':''}">~${stats.statusChanges24h||0} змін</span></div></div>
-      <div class="stat-card"><div class="stat-label">Активні (120 днів)</div><div class="stat-value" style="color:var(--blue)">${threats.total||0}</div></div>
-      <div class="stat-card"><div class="stat-label">Проаналізовано</div><div class="stat-value" style="color:var(--green)">${stats.analyzedBills||0}</div></div>
-      <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--red)">${stats.highRiskBills||0}</div></div>
-      <div class="stat-card"><div class="stat-label">Депутатів (активних)</div><div class="stat-value">${stats.activeMps||0}<span style="font-size:13px;color:var(--text2);font-weight:400">/${stats.totalMps||0}</span></div></div>
-    `;
-
-    tbody.innerHTML = (threats.bills||[]).map(b => {
-      const age = b.updated_at ? daysSince(b.updated_at) : null;
-      return `<tr class="clickable" data-bill-id="${b.id}">
-        <td><strong>${escHtml(b.bill_number)}</strong></td>
-        <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}${(b.title||'').length>60?'...':''}</td>
-        <td>${escHtml(b.current_status||'new')}</td>
-        <td>${stageBar(b.stage)}</td>
-        <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
-        <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-        <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-        <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Активних законів немає</td></tr>';
+    BILLS = await billsRes.json();
+    FACTIONS = (await factionsRes.json()).map(f => ({...f, color: getFactionColor(f.name)}));
+    ALL_DEPUTIES = await deputiesRes.json();
+    document.getElementById('headerBills').textContent = BILLS.length;
+    document.getElementById('headerVotes').textContent = BILLS.reduce((s,b) => s + b.votes.length, 0);
+    document.getElementById('headerDeputies').textContent = ALL_DEPUTIES.length;
+    document.getElementById('headerFactions').textContent = FACTIONS.length;
   } catch(e) {
-    console.error('Dashboard error:', e);
-    statsEl.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><p style="color:var(--red)">Помилка завантаження даних</p></div>';
-    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red)">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
+    console.error('Failed to load data:', e);
   }
 }
 
-function daysSince(dateStr) {
-  const d = new Date(dateStr);
-  if (isNaN(d)) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86400000);
+function getFactionColor(name) {
+  return {'СЛУГА НАРОДУ':'#19950b','Європейська Солідарність':'#ffff00','Батьківщина':'#0057b8','Платформа за життя та мир':'#ff6600','ДОВІРА':'#00bcd4','Партія "За майбутнє"':'#ff9800','ГОЛОС':'#9c27b0','Відновлення України':'#4caf50','Позафракційні':'#888888'}[name] || '#888888';
 }
 
-// === BILLS ===
-let expandedBillId = null;
-let _pendingGoToBill = null;
-
-async function loadBills() {
-  document.querySelector('#sec-bills .section-loading')?.remove();
-  const search = document.getElementById('bill-search').value;
-  const stage = document.getElementById('bill-stage').value;
-  const status = document.getElementById('bill-status').value;
-  const analyzed = document.getElementById('bill-analyzed').value;
-  const threats = document.getElementById('bill-threats').value;
-  const sortBy = document.getElementById('bill-sort').value || 'updated_at';
-  const dateFrom = document.getElementById('bill-date-from').value;
-  const dateTo = document.getElementById('bill-date-to').value;
-  const tbody = document.querySelector('#bills-table tbody');
-  expandedBillId = null;
-  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
-  let url = `/api/bills?limit=${PAGE}&offset=${billsOffset}&sort=${sortBy}&order=DESC`;
-  if (search) url += `&search=${encodeURIComponent(search)}`;
-  if (stage) url += `&stage=${stage}`;
-  if (status) url += `&status=${encodeURIComponent(status)}`;
-  if (analyzed) url += `&analyzed=${analyzed}`;
-  if (threats) url += `&threats=${threats}`;
-  if (dateFrom) url += `&updated_after=${dateFrom}`;
-  if (dateTo) url += `&updated_before=${dateTo}`;
-  try {
-    const data = await api(url);
-    billsTotal = data.total || 0;
-    document.getElementById('bills-count').textContent = billsTotal ? `Показано ${billsOffset+1}–${Math.min(billsOffset+PAGE,billsTotal)} з ${billsTotal}` : 'Нічого не знайдено';
-    tbody.innerHTML = (data.bills||[]).map(b => `<tr class="clickable" data-bill-id="${b.id}">
-      <td><strong>${escHtml(b.bill_number)}</strong></td>
-      <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,70))}${(b.title||'').length>70?'...':''}</td>
-      <td>${escHtml(b.current_status||'new')}</td>
-      <td>${stageBar(b.stage)}</td>
-      <td style="font-size:12px;color:var(--text2)">${escHtml((b.committee||'').substring(0,40))}</td>
-      <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
-      <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-      <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}</td>
-    </tr>`).join('');
-    // Auto-expand if goToBill was called while loading
-    if (_pendingGoToBill) {
-      const row = tbody.querySelector(`tr[data-bill-id="${_pendingGoToBill}"]`);
-      if (row) toggleBillExpand(row, _pendingGoToBill);
-      _pendingGoToBill = null;
-    }
-  } catch(e) { tbody.innerHTML = `<tr><td colspan="8" style="color:var(--red)">Помилка: ${escHtml(e.message)}</td></tr>`; console.error('Bills error:', e); }
-}
-function billsPage(d) { billsOffset = Math.max(0, billsOffset + d * PAGE); loadBills(); }
-
-function goToBill(id) {
-  showSection('bills');
-  _pendingGoToBill = id;
-  // If bills already loaded, try to expand
-  const row = document.querySelector(`tr[data-bill-id="${id}"]`);
-  if (row) { toggleBillExpand(row, id); _pendingGoToBill = null; }
+// ===== HELPERS =====
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) for (const [k,v] of Object.entries(attrs))
+    if (k==='className') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k==='style' && typeof v==='object') Object.assign(e.style, v);
+    else e.setAttribute(k, v);
+  for (const c of children)
+    if (typeof c==='string') e.appendChild(document.createTextNode(c));
+    else if (c) e.appendChild(c);
+  return e;
 }
 
-// === INLINE BILL EXPANSION ===
-async function toggleBillExpand(row, id) {
-  const existing = document.querySelector('.bill-expand-row');
-  if (existing) {
-    const prevId = existing.dataset.billId;
-    existing.remove();
-    if (expandedBillId === id) { expandedBillId = null; return; }
-    document.querySelector(`tr[data-bill-id="${prevId}"]`)?.classList.remove('active');
-  }
-  expandedBillId = id;
-  row.classList.add('active');
-
-  const expandRow = document.createElement('tr');
-  expandRow.className = 'bill-expand-row';
-  expandRow.dataset.billId = id;
-  expandRow.innerHTML = '<td colspan="7"><div class="bill-expand-content"><div class="loading"><div class="spinner"></div></div></div></td>';
-  row.after(expandRow);
-
-  try {
-    const data = await api(`/api/bills/${id}`);
-    const b = data.bill;
-    const risks = data.risks;
-    const votes = data.votes || [];
-    const passings = data.passings || [];
-    const docs = data.documents || [];
-    const versions = data.versions || [];
-
-    let risksList = [], riskLevel = 'low', analyzedChunks = [], riskCategories = [];
-    if (risks?.json_data) {
-      try {
-        const parsed = JSON.parse(risks.json_data);
-        if (Object.hasOwn(parsed, 'has_risks')) {
-          riskLevel = parsed.risk_level || 'low';
-          risksList = parsed.detailed_risks || [];
-          analyzedChunks = parsed.analyzed_chunks || [];
-          riskCategories = parsed.risk_categories || [];
-        }
-      } catch(e) {}
-    }
-
-    const riskEmoji = {high:'🔴',medium:'🟠',low:'🟡'};
-    const riskName = {high:'ВИСОКИЙ',medium:'СЕРЕДНІЙ',low:'НИЗЬКИЙ'};
-
-    let html = '<button class="bill-expand-close" data-action="close-expand">✕ Закрити</button>';
-    html += `<h3 style="font-size:17px;margin-bottom:10px;line-height:1.3">#${escHtml(b.bill_number)} — ${escHtml(b.title||'')}</h3>`;
-
-    // Headline from LLM
-    if (risks?.headline) {
-      html += `<div style="margin-bottom:12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--yellow);border-radius:4px">
-        <div style="font-size:14px;font-weight:600;line-height:1.4">${escHtml(risks.headline)}</div>
-      </div>`;
-    }
-
-    // Info grid
-    html += `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px;font-size:13px;margin-bottom:12px">
-      <div><span style="color:var(--text2)">Статус:</span> <strong>${escHtml(b.current_status||'new')}</strong></div>
-      <div><span style="color:var(--text2)">Комітет:</span> ${escHtml(b.committee||'—')}</div>
-      <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
-      <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.updated_at||b.updated_at)}</div>
-      ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
-      ${b.url && b.url.startsWith('http') ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
-    </div>`;
-
-    // Re-analyze button
-    html += `<div style="margin-bottom:12px">
-      <button data-action="reanalyze" data-bill-id="${id}" data-bill-number="${attr(b.bill_number)}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px">🔄 Переаналізувати (LLM)</button>
-      <span id="reanalyze-status-${id}" style="margin-left:8px;font-size:12px;color:var(--text2)"></span>
-    </div>`;
-
-    // Tabs
-    html += `<div class="tabs" data-bill-id="${id}">
-      <button class="active" data-tab="analysis">📊 Аналіз</button>
-      <button data-tab="chronology">📅 Хронологія</button>
-      <button data-tab="documents">📄 Документи (${docs.length})</button>
-      <button data-tab="versions">🔄 Версії (${versions.length})</button>
-      <button data-tab="votes">🗳 Голосування (${votes.length})</button>
-    </div>`;
-
-    // === TAB: Аналіз ===
-    html += `<div id="bill-tab-${id}-analysis" class="bill-expand-tab">`;
-    if (risks?.json_data) {
-      let j = {};
-      try { j = typeof risks.json_data === 'string' ? JSON.parse(risks.json_data) : risks.json_data; } catch(e) {}
-      const lawText = j.law_summary || j.summary || '';
-      if (lawText) {
-        html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
-          <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
-          <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(lawText)}</p>
-          <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
-        </div>`;
-      }
-    } else if (risks?.raw_analysis) {
-      let summaryText = risks.raw_analysis;
-      try { const j = JSON.parse(risks.raw_analysis); summaryText = j.law_summary || j.summary || risks.raw_analysis; } catch(e) {}
-      html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
-        <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
-        <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(summaryText)}</p>
-        <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
-      </div>`;
-    }
-    if (risksList.length) {
-      const lc = {high:'var(--red)',medium:'var(--orange)',low:'var(--yellow)'};
-      html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid ${lc[riskLevel]};border-radius:4px;margin-bottom:12px">
-        <div style="font-size:12px;font-weight:600;margin-bottom:6px">${riskEmoji[riskLevel]||'🟡'} Ризики — ${riskName[riskLevel]} (${risksList.length})</div>
-        ${analyzedChunks.length ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Проаналізовано чанків: ${analyzedChunks.join(', ')}</div>` : ''}`;
-      if (riskCategories.length) {
-        riskCategories.forEach(cat => {
-          html += `<div style="margin-bottom:8px">
-            <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text)">📂 ${escHtml(cat.category)}</div>
-            ${(cat.risks||[]).map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:3px;padding-left:12px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('')}
-          </div>`;
-        });
-      } else {
-        html += risksList.map((r,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--text2)">${i+1}.</span> ${escHtml(r)}</div>`).join('');
-      }
-
-    // === Нові поля аналізу ===
-    if (risks) {
-      // urgency + time_context
-      const urgency = risks.urgency || 'normal';
-      const urgencyLabels = {normal:'Звичайний',expedited:'Прискорений',emergency:'Екстренний'};
-      const urgencyIcons = {normal:'⏱',expedited:'⚡',emergency:'🚨'};
-      const timeCtx = risks.time_context || 'permanent';
-      const timeCtxLabels = {permanent:'Постійний',temporary:'Тимчасовий',until_war_end:'До кінця ВП'};
-      html += `<div style="display:flex;gap:12px;margin:8px 0;font-size:12px;flex-wrap:wrap">
-        <div style="background:var(--bg2);padding:6px 10px;border-radius:6px">${urgencyIcons[urgency]||'⏱'} <b>Терміновість:</b> ${urgencyLabels[urgency]||urgency} · ${timeCtxLabels[timeCtx]||timeCtx}</div>
-      </div>`;
-
-      // stakeholders
-      try {
-        const stk = typeof risks.stakeholders === 'string' ? JSON.parse(risks.stakeholders) : risks.stakeholders;
-        if (stk && (stk.beneficiaries?.length || stk.losers?.length)) {
-          html += `<div style="margin:8px 0 12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px">
-            <div style="font-size:12px;font-weight:600;margin-bottom:6px">👥 Стейкхолдери</div>`;
-          if (stk.beneficiaries?.length) {
-            html += `<div style="font-size:12px;margin-bottom:4px"><span style="color:var(--green)">✓ Виграють:</span> ${stk.beneficiaries.map(escHtml).join(', ')}</div>`;
-          }
-          if (stk.losers?.length) {
-            html += `<div style="font-size:12px"><span style="color:var(--red)">✗ Програють:</span> ${stk.losers.map(escHtml).join(', ')}</div>`;
-          }
-          html += '</div>';
-        }
-      } catch(e) {}
-
-      // headline
-      if (risks.headline) {
-        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--yellow);border-radius:4px">
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px">📰 Заголовок статті</div>
-          <div style="font-size:14px;font-weight:600;line-height:1.4">${escHtml(risks.headline)}</div>
-        </div>`;
-      }
-
-      // budget_impact
-      if (risks.budget_impact) {
-        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--orange);border-radius:4px">
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px">💰 Фінансовий вплив</div>
-          <div style="font-size:13px">${escHtml(risks.budget_impact)}</div>
-        </div>`;
-      }
-
-      // opposition
-      try {
-        const opp = typeof risks.opposition === 'string' ? JSON.parse(risks.opposition) : risks.opposition;
-        if (opp && opp.length > 0) {
-          html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--red);border-radius:4px">
-            <div style="font-size:12px;font-weight:600;margin-bottom:6px">⚔️ Опозиція та зауваження</div>
-            ${opp.map(o => `<div style="font-size:12px;line-height:1.5;margin-bottom:4px"><span style="color:var(--red)">${escHtml(o.who)}:</span> ${escHtml(o.against)}</div>`).join('')}
-          </div>`;
-        }
-      } catch(e) {}
-
-      // next_steps
-      if (risks.next_steps) {
-        html += `<div style="margin:8px 0;padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px">
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px">🔜 Наступні кроки</div>
-          <div style="font-size:13px">${escHtml(risks.next_steps)}</div>
-        </div>`;
-      }
-
-      // risk_signals
-      try {
-        const signals = typeof risks.risk_signals === 'string' ? JSON.parse(risks.risk_signals) : risks.risk_signals;
-        if (signals && signals.length > 0) {
-          html += `<div style="margin:8px 0 12px;padding:10px 14px;background:var(--bg);border-left:3px solid var(--orange);border-radius:4px">
-            <div style="font-size:12px;font-weight:600;margin-bottom:6px">🔔 Ризик-сигнали (спостереження, не впливають на score)</div>
-            ${signals.map((s,i) => `<div style="font-size:12px;line-height:1.5;margin-bottom:3px"><span style="color:var(--text2)">•</span> ${escHtml(s)}</div>`).join('')}
-          </div>`;
-        }
-      } catch(e) {}
-    }
-
-      html += '</div>';
-    } else if (risks) {
-      html += '<div style="padding:10px;color:var(--green);font-size:13px">✅ Ризиків не виявлено</div>';
-    } else {
-      html += '<div style="padding:10px;color:var(--text2);font-size:13px">Аналіз LLM не проведено</div>';
-    }
-    html += '</div>';
-
-    // === TAB: Хронологія ===
-    html += `<div id="bill-tab-${id}-chronology" class="bill-expand-tab" style="display:none">`;
-    if (passings.length) {
-      const statusGroups = [];
-      let lastStatus = null;
-      for (const p of passings) {
-        if (p.status !== lastStatus) {
-          statusGroups.push({ status: p.status, entries: [p] });
-          lastStatus = p.status;
-        } else {
-          statusGroups[statusGroups.length - 1].entries.push(p);
-        }
-      }
-      html += '<div style="position:relative;padding-left:28px">';
-      statusGroups.forEach((group, gi) => {
-        const isFirst = gi === 0;
-        const isLast = gi === statusGroups.length - 1;
-        const dotColor = isFirst ? 'var(--green)' : 'var(--blue)';
-        html += `<div style="position:relative;padding-bottom:${group.entries.length > 1 || !isLast ? 8 : 0}px">
-          <div style="position:absolute;left:-28px;top:2px;width:20px;height:20px;border-radius:50%;background:${dotColor};display:flex;align-items:center;justify-content:center;font-size:11px">${isFirst ? '📌' : '📋'}</div>
-          ${!isLast ? '<div style="position:absolute;left:-19px;top:22px;width:2px;height:calc(100% - 22px);background:var(--border)"></div>' : ''}
-          <div style="font-size:13px;font-weight:600;color:${isFirst ? 'var(--green)' : 'var(--text)'};margin-bottom:4px">${escHtml(group.status || '—')}</div>
-        </div>`;
-        const sorted = [...group.entries].sort((a, b) => (b.pass_date || '').localeCompare(a.pass_date || ''));
-        sorted.forEach((p, ei) => {
-          const isLastEntry = isLast && ei === sorted.length - 1;
-          html += `<div style="position:relative;padding-left:20px;padding-bottom:${isLastEntry ? 0 : 10}px">
-            <div style="position:absolute;left:-14px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--border)"></div>
-            <div style="display:flex;gap:12px;align-items:baseline">
-              <div style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:80px">${formatDate(p.pass_date)}</div>
-              <div style="font-size:13px;color:var(--text)">${escHtml(p.title)}</div>
-            </div>
-          </div>`;
-        });
-      });
-      html += '</div>';
-    } else {
-      html += '<p style="color:var(--text2)">Хронологія відсутня</p>';
-    }
-    html += '</div>';
-
-    // === TAB: Документи ===
-    html += `<div id="bill-tab-${id}-documents" class="bill-expand-tab" style="display:none">`;
-    if (docs.length) {
-      const seen = new Set();
-      html += '<table style="width:100%;font-size:13px"><thead><tr><th>Тип</th><th>ID файлу</th><th>Посилання</th></tr></thead><tbody>';
-      docs.forEach(d => {
-        const key = `${d.file_id}-${d.doc_type}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        html += `<tr><td>${escHtml(d.doc_type||'—')}</td><td style="font-size:12px;color:var(--text2)">${escHtml(d.file_id)}</td><td><a href="https://itd.rada.gov.ua/billInfo/Bills/pubFile/${escHtml(d.file_id)}" target="_blank" style="color:var(--blue)">Відкрити →</a></td></tr>`;
-      });
-      html += '</tbody></table>';
-    } else {
-      html += '<p style="color:var(--text2)">Документи відсутні</p>';
-    }
-    html += '</div>';
-
-    // === TAB: Версії ===
-    html += `<div id="bill-tab-${id}-versions" class="bill-expand-tab" style="display:none">`;
-    if (versions.length >= 2) {
-      html += `<div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-        <label style="font-size:13px;color:var(--text2)">Порівняти:</label>
-        <select data-role="ver-old" data-bill-id="${id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
-          ${versions.slice(1).map((v,i) => `<option value="${i+1}">${escHtml(v.status_at_moment||'v'+(i+1))} (${escHtml((v.text_hash||'?').substring(0,8))})</option>`).join('')}
-        </select>
-        <span style="color:var(--text2)">←</span>
-        <select data-role="ver-new" data-bill-id="${id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:6px;border-radius:6px">
-          ${versions.slice(0,-1).map((v,i) => `<option value="${i}" ${i===0?'selected':''}>${escHtml(v.status_at_moment||'v'+(versions.length-i))} (${escHtml((v.text_hash||'?').substring(0,8))})</option>`).join('')}
-        </select>
-      </div>`;
-      html += '<div class="diff-container"><div><div class="diff-header">Стара версія</div><div class="diff-panel" id="diff-old-'+id+'"></div></div><div><div class="diff-header">Нова версія</div><div class="diff-panel" id="diff-new-'+id+'"></div></div></div>';
-      window['_billVersions_' + id] = versions;
-    } else if (versions.length === 1) {
-      html += `<div style="padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;max-height:400px;overflow-y:auto;font-size:13px;white-space:pre-wrap">${escHtml(versions[0].plain_text||'')}</div>`;
-    } else {
-      html += '<p style="color:var(--text2)">Версії відсутні</p>';
-    }
-    html += '</div>';
-
-    // === TAB: Голосування ===
-    html += `<div id="bill-tab-${id}-votes" class="bill-expand-tab" style="display:none">`;
-    if (votes.length) {
-      votes.forEach((v, vi) => {
-        const total = (v.yes_count||0)+(v.no_count||0)+(v.abstain_count||0)+(v.not_present_count||0)+(v.absent_count||0) || 1;
-        const barW = p => Math.max(0, Math.round(p/total*100));
-        html += `<div class="vote-block" data-vi="${vi}">
-          <div class="vote-block-header">
-            <div class="vote-block-title">${escHtml(v.title||'Голосування')}</div>
-            <div class="vote-block-summary">
-              <span class="vc vc-za">✅ ${v.yes_count} За</span>
-              <span class="vc vc-no">❌ ${v.no_count} Проти</span>
-              <span class="vc vc-ab">⏸️ ${v.abstain_count} Утр</span>
-              <span class="vc vc-np">⬜ ${(v.not_present_count||0)+(v.absent_count||0)} Відсутні</span>
-              <span style="font-size:11px;color:var(--text2);margin-left:auto">${v.vote_date||''}</span>
-            </div>
-            <div class="vote-bar" style="height:10px">
-              <div class="vote-bar-seg" style="width:${barW(v.yes_count)}%;background:var(--green)"></div>
-              <div class="vote-bar-seg" style="width:${barW(v.no_count)}%;background:var(--red)"></div>
-              <div class="vote-bar-seg" style="width:${barW(v.abstain_count)}%;background:var(--orange)"></div>
-              <div class="vote-bar-seg" style="width:${barW((v.not_present_count||0)+(v.absent_count||0))}%;background:var(--muted)"></div>
-            </div>
-            <div class="vote-expand-hint">▼ Депутати (${v.deputies?.length||0})</div>
-          </div>
-          <div class="vote-factions-inner">`;
-        if (v.deputies && v.deputies.length) {
-          html += `<div class="deputies-filter">
-            <button class="filter-btn active" data-filter="all">Всі (${v.deputies.length})</button>
-            <button class="filter-btn" data-filter="za">За (${v.yes_count})</button>
-            <button class="filter-btn" data-filter="no">Проти (${v.no_count})</button>
-            <button class="filter-btn" data-filter="ab">Утримались (${v.abstain_count})</button>
-            <button class="filter-btn" data-filter="np">Відсутні (${(v.not_present_count||0)+(v.absent_count||0)})</button>
-          </div>`;
-          html += '<div class="deputies-list">';
-          v.deputies.forEach(d => {
-            const vc = d.vote_code === 'yes' ? 'za' : d.vote_code === 'no' ? 'no' : d.vote_code === 'abstain' ? 'ab' : 'np';
-            const vlabel = d.vote_code === 'yes' ? '✅ За' : d.vote_code === 'no' ? '❌ Проти' : d.vote_code === 'abstain' ? '⏸️ Утримався' : '⬜ Відсутній';
-            html += `<div class="deputy-row" data-vc="${vc}">
-              <span class="dep-name"><span class="vote-deputy-faction" style="background:${factionColor(d.mp_faction)}"></span>${escHtml(d.mp_name)}</span>
-              <span class="dep-faction">${escHtml(d.mp_faction||'')}</span>
-              <span class="dep-vote v-${vc}">${vlabel}</span>
-            </div>`;
-          });
-          html += '</div>';
-        }
-        html += '</div></div>';
-      });
-    } else {
-      html += '<p style="color:var(--text2)">Голосувань поки немає</p>';
-    }
-    html += '</div>';
-
-    expandRow.querySelector('.bill-expand-content').innerHTML = html;
-    if (versions.length >= 2) setTimeout(() => showInlineDiff(id), 100);
-  } catch(e) {
-    expandRow.querySelector('.bill-expand-content').innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`;
-  }
-}
-
-function switchBillTab(id, btn, tab) {
-  const parent = btn.closest('.tabs');
-  parent.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll(`[id^="bill-tab-${id}-"]`).forEach(t => t.style.display = 'none');
-  document.getElementById(`bill-tab-${id}-${tab}`).style.display = 'block';
-}
-
-function showInlineDiff(id) {
-  const versions = window['_billVersions_' + id];
-  if (!versions || versions.length < 2) return;
-  const expandContent = document.querySelector(`.bill-expand-row[data-bill-id="${id}"] .bill-expand-content`);
-  if (!expandContent) return;
-  const oldSel = expandContent.querySelector('[data-role="ver-old"]');
-  const newSel = expandContent.querySelector('[data-role="ver-new"]');
-  if (!oldSel || !newSel) return;
-  const oldIdx = parseInt(oldSel.value);
-  const newIdx = parseInt(newSel.value);
-  const oldText = versions[oldIdx]?.plain_text || '';
-  const newText = versions[newIdx]?.plain_text || '';
-  document.getElementById(`diff-old-${id}`).innerHTML = inlineDiff(oldText, newText, true);
-  document.getElementById(`diff-new-${id}`).innerHTML = inlineDiff(newText, oldText, false);
-}
-
-function inlineDiff(text, other, isOld) {
-  const lines = text.split('\n');
-  const otherLines = new Set(other.split('\n').map(l => l.trim()));
-  return lines.map(line => {
-    const trimmed = line.trim();
-    if (!trimmed) return escHtml(line);
-    if (!otherLines.has(trimmed)) {
-      return `<span class="${isOld ? 'removed' : 'added'}">${escHtml(line)}</span>`;
-    }
-    return escHtml(line);
-  }).join('\n');
-}
-
-function closeBillExpand() {
-  const existing = document.querySelector('.bill-expand-row');
-  if (existing) {
-    const id = existing.dataset.billId;
-    document.querySelector(`tr[data-bill-id="${id}"]`)?.classList.remove('active');
-    existing.remove();
-  }
-  expandedBillId = null;
-}
-
-function toggleVoteBlock(header) {
-  const block = header.closest('.vote-block');
-  block.classList.toggle('expanded');
-}
-
-function filterBillDeputies(btn, type) {
-  const wrap = btn.closest('.vote-factions-inner');
-  wrap.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  wrap.querySelectorAll('.deputy-row').forEach(row => {
-    if (type === 'all') {
-      row.style.display = '';
-    } else {
-      row.style.display = row.dataset.vc === type ? '' : 'none';
-    }
+// ===== TABS =====
+$$('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $$('.tab-btn').forEach(b => b.classList.remove('active'));
+    $$('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    $('#tab-' + btn.dataset.tab).classList.add('active');
   });
-}
+});
 
-function reanalyzeBill(id) {
-  const statusEl = document.getElementById(`reanalyze-status-${id}`);
-  statusEl.textContent = '⏳ Запуск аналізу...';
-  statusEl.style.color = 'var(--orange)';
-
-  fetch(API + `/api/bills/${id}/analyze`, { method: 'POST' })
-    .then(r => r.json())
-    .then(d => {
-      statusEl.textContent = '✅ Аналіз запущено. Оновіть сторінку через 2-3 хв.';
-      statusEl.style.color = 'var(--green)';
-      let attempts = 0;
-      const poll = setInterval(() => {
-        attempts++;
-        if (attempts > 20) { clearInterval(poll); return; }
-        fetch(API + `/api/bills/${id}/analyze`)
-          .then(r => r.json())
-          .then(s => {
-            if (s.status === 'done') {
-              clearInterval(poll);
-              statusEl.textContent = '✅ Аналіз завершено! Оновіть сторінку.';
-              statusEl.style.color = 'var(--green)';
-            } else if (s.status === 'error') {
-              clearInterval(poll);
-              statusEl.textContent = '❌ Помилка аналізу';
-              statusEl.style.color = 'var(--red)';
-            }
-          }).catch(() => {});
-      }, 15000);
-    })
-    .catch(e => {
-      statusEl.textContent = '❌ Помилка: ' + e.message;
-      statusEl.style.color = 'var(--red)';
-    });
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const s = dateStr.replace('T', ' ').slice(0, 10);
-  if (s.length === 10 && s[4] === '-' && s[7] === '-') {
-    return s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4);
-  }
-  return dateStr;
-}
-
-// === DEPUTIES ===
-async function loadDeputies() {
-  document.querySelector('#sec-deputies .section-loading')?.remove();
-  const search = document.getElementById('dep-search').value;
-  const faction = document.getElementById('dep-faction').value;
-  const sort = document.getElementById('dep-sort').value;
-  const tbody = document.querySelector('#deputies-table tbody');
-  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
-  let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
-  if (search) url += `&search=${encodeURIComponent(search)}`;
-  if (faction) url += `&faction=${encodeURIComponent(faction)}`;
-  // Pass sort to server; server handles py/pda/vkp/conversion/name
-  if (sort) url += `&sort=${sort}`;
-  try {
-    const data = await api(url);
-    depsTotal = data.total || 0;
-    document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
-    tbody.innerHTML = (data.deputies||[]).map(d => `<tr class="clickable" data-deputy-name="${attr(d.name)}">
-      <td><strong>${escHtml(d.name)}</strong></td>
-      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
-      <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
-        ${d.totalBills||0}/${d.totalLaws||0}<br>
-        <span style="font-size:11px">${d.conversion||0}%</span>
-      </td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.py||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.pda||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td>
-        <div class="kpd-bar">
-          <div class="kpd-track"><div class="kpd-fill" style="width:${d.vkp||0}%;background:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}"></div></div>
-          <span class="kpd-value" style="color:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}">${d.vkp||0}%${!d.dataSufficient ? ' *' : ''}</span>
-        </div>
-      </td>
-      <td>${d.total||0}</td>
-    </tr>`).join('');
-  } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);text-align:center">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
-    console.error('Deputies error:', e);
-  }
-}
-function depsPage(d) { depsOffset = Math.max(0, depsOffset + d * PAGE); loadDeputies(); }
-
-// === DEPUTY DETAIL ===
-async function showDeputy(name, votesOffset) {
-  showSection('deputy-detail');
-  const el = document.getElementById('deputy-detail-content');
-  el.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
-  try {
-    votesOffset = votesOffset || 0;
-    const votesLimit = 50;
-    const data = await api(`/api/deputies/${encodeURIComponent(name)}?limit=${votesLimit}&offset=${votesOffset}`);
-    const d = data.deputy;
-    const votes = data.votes || [];
-    const votesTotal = data.votesTotal || 0;
-    const stats = data.stats || {};
-
-    let html = `
-      <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}</h2>
-        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
-        ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
-          <div class="stat-card">
-            <div class="stat-label">ПЯ (Індекс явки)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ПДА (Діяльне участь)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ВКП (Зважений КПД)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
-          </div>
-        </div>
-      </div>`;
-
-    // Voting history with filters
-    if (votesTotal > 0) {
-      html += `<div class="card">
-        <div class="card-header"><div class="card-title">Історія голосувань (${votesTotal})</div></div>
-        <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap" id="dep-votes-filters">
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--green)">
-            <input type="checkbox" checked data-filter="yes"> За
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--red)">
-            <input type="checkbox" checked data-filter="no"> Проти
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--orange)">
-            <input type="checkbox" checked data-filter="abstain"> Утримався
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;color:var(--muted)">
-            <input type="checkbox" checked data-filter="not_present"> Не був
-          </label>
-        </div>
-        <div class="table-wrap"><table id="dep-votes-table"><thead><tr><th>Дата</th><th>Закон</th><th>Фракція</th><th>Рішення</th><th>Результат</th></tr></thead><tbody>`;
-      html += votes.map(v => {
-        const label = v.vote_label || v.vote_code || '?';
-        const color = v.vote_code === 'yes' ? 'var(--green)' : v.vote_code === 'no' ? 'var(--red)' : v.vote_code === 'abstain' ? 'var(--orange)' : 'var(--muted)';
-        return `<tr data-vote="${v.vote_code}">
-          <td style="font-size:12px">${escHtml(v.vote_date||'')}</td>
-          <td>${v.bill_number ? '#'+escHtml(v.bill_number) : escHtml((v.vote_title||'').substring(0,50))}</td>
-          <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(v.mp_faction)}"></span>${escHtml(v.mp_faction||'—')}</td>
-          <td style="color:${color};font-weight:600">${escHtml(label)}</td>
-          <td style="font-size:12px;color:var(--text2)">${escHtml(v.vote_title||'')}</td>
-        </tr>`;
-      }).join('');
-      html += `</tbody></table></div>`;
-
-      // Pagination
-      const totalPages = Math.ceil(votesTotal / votesLimit);
-      const currentPage = Math.floor(votesOffset / votesLimit) + 1;
-      if (totalPages > 1) {
-        html += `<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;font-size:13px">
-          ${currentPage > 1 ? `<button onclick="showDeputy('${escHtml(name)}',${(currentPage-2)*votesLimit})" style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer">← Назад</button>` : ''}
-          <span style="color:var(--text2)">Сторінка ${currentPage} з ${totalPages}</span>
-          ${currentPage < totalPages ? `<button onclick="showDeputy('${escHtml(name)}',${currentPage*votesLimit})" style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg);color:var(--text);cursor:pointer">Далі →</button>` : ''}
-        </div>`;
-      }
-      html += `</div>`;
-    } else {
-      html += `<div class="card"><p style="color:var(--text2)">Даних про голосування поки немає</p></div>`;
-    }
-
-    el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }
-}
-
-function filterDepVotes(checkbox) {
-  const filter = checkbox.dataset.filter;
-  const checked = checkbox.checked;
-  document.querySelectorAll('#dep-votes-table tbody tr').forEach(row => {
-    if (row.dataset.vote === filter) {
-      row.style.display = checked ? '' : 'none';
-    }
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const list = $('#dashBillList');
+  if (!list) return;
+  list.innerHTML = '';
+  BILLS.slice().sort((a,b) => {
+    const pd = d => { const [dd,mm,yy]=d.date.split('.'); return new Date('20'+yy,mm-1,dd); };
+    return pd(b) - pd(a);
+  }).slice(0,5).forEach(b => {
+    list.appendChild(el('div', {className:'bill-item', onclick:()=>toggleBillDetail(b.id)},
+      el('div', {className:'bill-item-header'},
+        el('span', {className:'bill-number'}, '#'+b.number),
+        el('span', {className:'bill-title'}, b.title.slice(0,60)+(b.title.length>60?'...':'')),
+        el('span', {style:'background:rgba(46,204,113,0.2);color:#2ecc71', className:'bill-status'}, b.type||'Закон')
+      ),
+      el('div', {className:'bill-meta'},
+        el('span', {}, '📅 '+b.date),
+        el('span', {}, '🗳️ '+b.votes.length+' голосувань')
+      )
+    ));
   });
+  renderCalendar();
 }
 
-// === SCHEDULE ===
-// === SCHEDULE ===
-let scheduleYear, scheduleMonthNum;
-(function initScheduleDate() {
-  const now = new Date();
-  scheduleYear = now.getFullYear();
-  scheduleMonthNum = now.getMonth() + 1;
-})();
-
-const MONTH_NAMES = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтня','Листопад','Грудень'];
-const DAY_NAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
-
-const SCH_COLORS = {
-  plenary: '#f1c40f', coordination: '#9b59b6', committee: '#27ae60',
-  voter_work: '#3498db', extraordinary: '#e67e22', question_day: '#e74c3c', holiday: '#95a5a6'
-};
-const SCH_LABELS = {
-  plenary: 'Пленарне', coordination: 'Погоджувальна', committee: 'Комітет',
-  voter_work: 'Виборці', extraordinary: 'Позачергове', question_day: 'Запитання', holiday: 'Свято'
-};
-
-function scheduleMonth(dir) {
-  scheduleMonthNum += dir;
-  if (scheduleMonthNum > 12) { scheduleMonthNum = 1; scheduleYear++; }
-  if (scheduleMonthNum < 1) { scheduleMonthNum = 12; scheduleYear--; }
-  loadSchedule();
-}
-
-async function loadSchedule() {
-  const label = document.getElementById('schedule-month-label');
-  if (label) label.textContent = MONTH_NAMES[scheduleMonthNum - 1] + ' ' + scheduleYear;
-
-  const mm = String(scheduleMonthNum).padStart(2, '0');
-  const monthParam = scheduleYear + '-' + mm;
-
-  try {
-    const data = await api('/api/schedule?month=' + monthParam);
-    renderCalendar(data.schedule || []);
-    renderCommittees(data.committees || []);
-  } catch(e) {
-    console.error('Schedule error:', e);
-    document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
+function renderCalendar() {
+  const cal = $('#dashCalendar');
+  if (!cal) return;
+  const now = new Date(), year = now.getFullYear(), month = now.getMonth();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const monthNames = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'];
+  const votingDays = new Set();
+  BILLS.forEach(b => { if(b.date){const [dd,mm]=b.date.split('.');if(parseInt(mm)===month+1)votingDays.add(parseInt(dd));} });
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span style="font-weight:600">${monthNames[month]} ${year}</span></div>`;
+  html += '<div class="cal-grid">';
+  ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'].forEach(d => html += `<div class="cal-header">${d}</div>`);
+  const offset = firstDay===0?6:firstDay-1;
+  for(let i=0;i<offset;i++) html += '<div></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const cls = d===now.getDate()?'cal-day today':votingDays.has(d)?'cal-day vote':'cal-day';
+    html += `<div class="${cls}">${d}</div>`;
   }
-
-  // Bills for voting (same as before)
-  try {
-    const upcoming = await api('/api/bills?limit=10&stage=2&sort=registration_date&order=DESC');
-    const ub = document.getElementById('upcoming-bills');
-    if (upcoming.bills?.length) {
-      ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
-        <tr class="clickable" data-bill-id="${b.id}">
-          <td><strong>${escHtml(b.bill_number)}</strong></td>
-          <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}</td>
-          <td>${escHtml(b.current_status||'')}</td>
-          <td style="font-size:12px;color:var(--text2)">${formatDate(b.registration_date)||''}</td>
-        </tr>`).join('')}</tbody></table></div>`;
-    } else {
-      ub.innerHTML = '<p style="color:var(--text2)">Закони на голосування поки відсутні</p>';
-    }
-  } catch(e) {}
-}
-
-function renderCalendar(events) {
-  const cal = document.getElementById('schedule-calendar');
-  const firstDay = new Date(scheduleYear, scheduleMonthNum - 1, 1);
-  const lastDay = new Date(scheduleYear, scheduleMonthNum, 0);
-  const daysInMonth = lastDay.getDate();
-  let startDow = firstDay.getDay() - 1; // Mon=0
-  if (startDow < 0) startDow = 6;
-
-  // Group events by date
-  const byDate = {};
-  events.forEach(ev => {
-    if (!byDate[ev.date]) byDate[ev.date] = [];
-    byDate[ev.date].push(ev);
-  });
-
-  let html = '<table style="width:100%;border-collapse:collapse;text-align:center">';
-  html += '<tr>' + DAY_NAMES.map(d => `<th style="padding:6px;font-size:13px;color:var(--text2)">${d}</th>`).join('') + '</tr>';
-
-  let day = 1;
-  for (let row = 0; row < 6; row++) {
-    if (day > daysInMonth) break;
-    html += '<tr>';
-    for (let col = 0; col < 7; col++) {
-      if (row === 0 && col < startDow || day > daysInMonth) {
-        html += '<td style="padding:4px;height:60px"></td>';
-      } else {
-        const dateStr = scheduleYear + '-' + String(scheduleMonthNum).padStart(2,'0') + '-' + String(day).padStart(2,'0');
-        const dayEvents = byDate[dateStr] || [];
-        const isToday = new Date().toISOString().slice(0,10) === dateStr;
-        const todayStyle = isToday ? 'font-weight:bold;color:#fff;background:#1a73e8;border-radius:4px;' : '';
-        const dots = dayEvents.map(ev => {
-          const c = SCH_COLORS[ev.event_type] || '#888';
-          return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
-        }).join('');
-        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}">
-          <div style="font-size:13px;${todayStyle}">${day}</div>
-          <div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${dots}</div>
-        </td>`;
-        day++;
-      }
-    }
-    html += '</tr>';
-  }
-  html += '</table>';
+  html += '</div>';
   cal.innerHTML = html;
 }
 
-function renderCommittees(committees) {
-  const el = document.getElementById('schedule-committees');
-  if (!committees.length) {
-    el.innerHTML = '<p style="color:var(--text2);padding:12px">Графік засідань комітетів на цей місяць відсутній</p>';
-    return;
-  }
-  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Дата</th><th>Комітет</th><th>Питання</th></tr></thead><tbody>${committees.map(c => `
-    <tr>
-      <td style="white-space:nowrap">${escHtml(c.meeting_date)}</td>
-      <td>${escHtml(c.committee_name)}</td>
-      <td style="font-size:13px">${escHtml((c.topic||'').substring(0,100))}</td>
-    </tr>`).join('')}</tbody></table></div>`;
+// ===== BILLS =====
+function renderBills(filter) {
+  const container = $('#billListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  BILLS.filter(b => !filter || b.number.includes(filter) || b.title.toLowerCase().includes(filter.toLowerCase()))
+  .sort((a,b) => { const pd=d=>{const [dd,mm,yy]=d.date.split('.');return new Date('20'+yy,mm-1,dd);}; return pd(b)-pd(a); })
+  .forEach(b => {
+    const item = el('div', {className:'bill-item'},
+      el('div', {className:'bill-item-header'},
+        el('span', {className:'bill-number'}, '#'+b.number),
+        el('span', {className:'bill-title'}, b.title),
+        el('span', {style:'background:rgba(46,204,113,0.2);color:var(--accent-green)', className:'bill-status'}, b.type||'Закон')
+      ),
+      el('div', {className:'bill-meta'},
+        el('span', {}, '📅 '+b.date),
+        el('span', {}, '🗳️ '+b.votes.length+' голосувань')
+      )
+    );
+    item.addEventListener('click', () => toggleBillDetail(b.id));
+    container.appendChild(item);
+  });
 }
 
-// === EVENT DELEGATION ===
-document.addEventListener('click', e => {
-  const target = e.target;
+// ===== BILL DETAIL =====
+let selectedBillId = null;
 
-  // Nav buttons
-  const navBtn = target.closest('nav button[data-section]');
-  if (navBtn) { showSection(navBtn.dataset.section); return; }
-
-  // Back button
-  const backBtn = target.closest('.back-btn[data-section]');
-  if (backBtn) { showSection(backBtn.dataset.section); return; }
-
-  // Pagination
-  const pageBtn = target.closest('.back-btn[data-page]');
-  if (pageBtn) {
-    const dir = parseInt(pageBtn.dataset.page);
-    if (pageBtn.dataset.list === 'deputies') {
-      depsPage(dir);
-    } else {
-      billsPage(dir);
-    }
-    return;
-  }
-
-  // Bill rows (threats + bills + upcoming)
-  const billRow = target.closest('tr[data-bill-id].clickable');
-  if (billRow) {
-    const id = parseInt(billRow.dataset.billId);
-    toggleBillExpand(billRow, id);
-    return;
-  }
-
-  // Deputy rows
-  const depRow = target.closest('tr[data-deputy-name].clickable');
-  if (depRow) {
-    showDeputy(depRow.dataset.deputyName);
-    return;
-  }
-
-  // Bill expand close
-  if (target.closest('[data-action="close-expand"]')) {
-    closeBillExpand();
-    return;
-  }
-
-  // Re-analyze button
-  const reanalyzeBtn = target.closest('[data-action="reanalyze"]');
-  if (reanalyzeBtn) {
-    reanalyzeBill(parseInt(reanalyzeBtn.dataset.billId));
-    return;
-  }
-
-  // Tab buttons in bill expand
-  const tabBtn = target.closest('.tabs button[data-tab]');
-  if (tabBtn) {
-    const tabs = tabBtn.closest('.tabs');
-    const id = parseInt(tabs.dataset.billId);
-    switchBillTab(id, tabBtn, tabBtn.dataset.tab);
-    return;
-  }
-
-  // Vote block header
-  const voteHeader = target.closest('.vote-block-header');
-  if (voteHeader) {
-    toggleVoteBlock(voteHeader);
-    return;
-  }
-
-  // Filter buttons in vote deputies
-  const filterBtn = target.closest('.vote-factions-inner .filter-btn');
-  if (filterBtn) {
-    filterBillDeputies(filterBtn, filterBtn.dataset.filter);
-    return;
-  }
-});
-
-// Version select change delegation
-document.addEventListener('change', e => {
-  const verSel = e.target.closest('[data-role="ver-old"], [data-role="ver-new"]');
-  if (verSel) {
-    const id = parseInt(verSel.dataset.billId);
-    showInlineDiff(id);
-    return;
-  }
-});
-
-// Deputy vote filter checkboxes
-document.addEventListener('change', e => {
-  const cb = e.target.closest('#dep-votes-filters input[type="checkbox"]');
-  if (cb) { filterDepVotes(cb); }
-});
-
-// === INIT ===
-function init() {
-  // Bind filter inputs
-  document.getElementById('bill-search').addEventListener('input', debouncedLoadBills);
-  document.getElementById('bill-stage').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-status').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-analyzed').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-threats').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-sort').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-date-from').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
-  document.getElementById('dep-search').addEventListener('input', debouncedLoadDeputies);
-  document.getElementById('dep-faction').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
-  document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
-  document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
-
-  // Load initial data
-  loadDashboard();
-
-  // Load statuses for filter
-  api('/api/statuses').then(d => {
-    const sel = document.getElementById('bill-status');
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = 'Всі закони';
-    sel.appendChild(allOpt);
-    (d.statuses||[]).forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.current_status;
-      opt.textContent = `${s.current_status} (${s.count})`;
-      sel.appendChild(opt);
-    });
-  }).catch(()=>{});
-
-  // Load factions for filter
-  api('/api/factions').then(d => {
-    const sel = document.getElementById('dep-faction');
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = 'Всі депутати';
-    sel.appendChild(allOpt);
-    (d.factions||[]).forEach(f => {
-      const opt = document.createElement('option');
-      opt.value = f;
-      opt.textContent = `${f}`;
-      opt.style.borderLeft = `4px solid ${factionColor(f)}`;
-      opt.style.paddingLeft = '8px';
-      sel.appendChild(opt);
-    });
-  }).catch(()=>{});
-}
-
-// === EU ALIGNMENT ===
-const EU_CLUSTERS = [
-  {
-    id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
-    status: 'opened', statusText: 'Відкрито 15.06.2026',
-    chapters: [23, 24, 5, 18, 32],
-    chapterNames: {23:'Судова система та основоположні права',24:'Правосуддя, свобода та безпека',5:'Публічні закупівлі',18:'Статистика',32:'Фінансовий контроль'}
-  },
-  {
-    id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [1, 2, 3, 4, 6, 7, 8, 9, 28],
-    chapterNames: {1:'Вільний рух товарів',2:'Вільний рух капіталів',3:'Вільний рух осіб',4:'Вільний рух послуг',6:'Корпоративне право',7:'Інтелектуальна власність',8:'Конкурентна політика',9:'Фінансові послуги',28:'Захист прав споживачів та здоров\'я'}
-  },
-  {
-    id: 3, name: 'Конкурентоспроможність та інклюзивне зростання', nameEn: 'Competitiveness & Inclusive Growth', icon: '📈',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [10, 16, 17, 19, 20, 25, 26, 29],
-    chapterNames: {10:'Цифрова трансформація та ЗМІ',16:'Оподаткування',17:'Економічна та грошово-кредитна політика',19:'Соціальна політика та зайнятість',20:'Промислова політика та підприємництво',25:'Наука та дослідження',26:'Освіта та культура',29:'Митний союз'}
-  },
-  {
-    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda & Sustainable Connectivity', icon: '🌿',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [14, 15, 21, 27],
-    chapterNames: {14:'Транспортна політика',15:'Енергетика',21:'Трансєвропейські мережі',27:'Охорона навколишнього середовища'}
-  },
-  {
-    id: 5, name: 'Ресурси, сільське господарство та згуртованість', nameEn: 'Resources, Agriculture & Cohesion', icon: '🌾',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [11, 12, 13, 22, 33],
-    chapterNames: {11:'Сільське господарство',12:'Безпечність харчових продуктів',13:'Риболовство',22:'Регіональна політика',33:'Фінансові та бюджетні положення'}
-  },
-  {
-    id: 6, name: 'Зовнішні зв\'язки', nameEn: 'External Relations', icon: '🌍',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [30, 31],
-    chapterNames: {30:'Зовнішні зв\'язки',31:'Зовнішня політика, безпека та оборона'}
-  }
-];
-
-let euChaptersData = {};
-let euOverallData = null;
-
-function loadEUAlignment() {
-  api('/api/eu-alignment').then(data => {
-    euOverallData = data;
-    renderEUOverallScore(data.overall, data.signed, data.inProcess);
-    if (data.chapters) {
-      euChaptersData = {};
-      for (const ch of data.chapters) euChaptersData[ch.chapter_id] = ch;
-    }
-    renderEUClusters();
-    if (data.lastUpdated) {
-      document.getElementById('eu-last-updated').textContent =
-        'Останнє оновлення: ' + new Date(data.lastUpdated).toLocaleString('uk-UA');
-    }
-  }).catch(e => {
-    document.getElementById('eu-overall-score').innerHTML =
-      '<div style="color:var(--text2);padding:20px">Дані EU Alignment поки недоступні</div>';
+function toggleBillDetail(id) {
+  if (selectedBillId === id) { $('#billDetailPanel').classList.remove('open'); selectedBillId = null; return; }
+  selectedBillId = id;
+  const bill = BILLS.find(b => b.id === id);
+  if (!bill) return;
+  const panel = $('#billDetailPanel');
+  
+  let votesHtml = '';
+  bill.votes.forEach((v, vi) => {
+    const total = v.za+v.proti+v.utr+v.ne+v.vid || 1;
+    const bw = p => Math.max(0, Math.round(p/total*100));
+    votesHtml += `<div class="vote-block" data-vote-idx="${vi}">
+      <div class="vote-block-header">
+        <div class="vote-block-title">Голосування #${vi+1}</div>
+        <div class="vote-block-summary">
+          <span class="vote-count za">✅ ${v.za} За</span>
+          <span class="vote-count proti">❌ ${v.proti} Проти</span>
+          <span class="vote-count utr">⏸️ ${v.utr} Утр</span>
+          <span class="vote-count ne">⬜ ${v.ne} Не голос</span>
+          <span class="vote-count vid">🚫 ${v.vid} Відсут</span>
+        </div>
+        <div class="vote-bar">
+          <div class="vote-bar-seg za" style="width:${bw(v.za)}%"></div>
+          <div class="vote-bar-seg proti" style="width:${bw(v.proti)}%"></div>
+          <div class="vote-bar-seg utr" style="width:${bw(v.utr)}%"></div>
+          <div class="vote-bar-seg ne" style="width:${bw(v.ne)}%"></div>
+          <div class="vote-bar-seg vid" style="width:${bw(v.vid)}%"></div>
+        </div>
+        <span class="vote-expand-hint">▼ Фракції</span>
+      </div>
+      <div class="vote-factions" id="vf-${vi}"></div>
+    </div>`;
   });
 
-  api('/api/eu-alignment/bills?limit=20').then(data => {
-    renderEUClassifiedBills(data.bills);
-  }).catch(() => {});
-
-  api('/api/eu-alignment/trend').then(data => {
-    renderEUTrend(data.trend);
-  }).catch(() => {});
-}
-
-function renderEUOverallScore(overall, signed, inProcess) {
-  if (!overall) {
-    document.getElementById('eu-overall-score').innerHTML =
-      '<div style="color:var(--text2);padding:20px">Немає даних для розрахунку</div>';
-    return;
-  }
-
-  const score = overall.weighted_score || 0;
-  const filled = Math.round(score / 100 * 50);
-  const bar = '█'.repeat(filled) + '░'.repeat(50 - filled);
-  let color = 'var(--red)';
-  let emoji = '🔴';
-  if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
-  else if (score > 40) { color = 'var(--orange)'; emoji = '🟡'; }
-
-  document.getElementById('eu-overall-score').innerHTML = `
-    <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
-    <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Загальний Alignment Score</div>
-    <div style="font-family:monospace;font-size:14px;letter-spacing:2px;color:${color};margin-bottom:20px">${bar}</div>
-    <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
-      <div><span style="color:var(--green)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
-      <div><span style="color:var(--blue)">●</span> Всього: ${overall.total_bills || 0} законів</div>
+  panel.innerHTML = `<button class="bill-detail-close" onclick="$('#billDetailPanel').classList.remove('open');selectedBillId=null;">✕</button>
+    <div style="margin-bottom:16px;">
+      <span style="font-weight:700;font-size:18px;">#${bill.number}</span>
+      <span style="font-size:13px;color:var(--text-secondary);margin-left:8px;">${bill.date}</span>
+      <span style="margin-left:10px;padding:2px 10px;border-radius:20px;font-size:11px;background:rgba(46,204,113,0.2);color:var(--accent-green);">${bill.type||'Закон'}</span>
     </div>
-  `;
-}
-
-function getClusterAlignment(cluster) {
-  let total = 0, count = 0;
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    if (ch && ch.alignment > 0) { total += ch.alignment; count++; }
-  }
-  return count > 0 ? total / count : 0;
-}
-
-function getClusterBills(cluster) {
-  let total = 0;
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    if (ch) total += ch.total_bills || 0;
-  }
-  return total;
-}
-
-function renderEUClusters() {
-  let html = '<div style="padding:4px 0">';
-  for (const cluster of EU_CLUSTERS) {
-    const avg = getClusterAlignment(cluster);
-    const bills = getClusterBills(cluster);
-    const filled = Math.round(avg / 100 * 20);
-    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
-    let color = 'var(--red)';
-    if (avg > 70) color = 'var(--green)';
-    else if (avg > 40) color = 'var(--orange)';
-
-    let statusBadge = '';
-    if (cluster.status === 'opened') statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
-    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Підготовка</span>';
-
-    html += `
-      <div class="eu-cluster" onclick="toggleCluster(${cluster.id})" style="border:1px solid var(--border);border-radius:8px;margin:6px 0;overflow:hidden;cursor:pointer;transition:all 0.2s">
-        <div style="display:flex;align-items:center;padding:12px 16px;background:var(--bg2)">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-right:12px;flex-shrink:0">${cluster.id}</div>
-          <div style="font-size:20px;margin-right:8px">${cluster.icon}</div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:14px">${cluster.name} <span style="font-weight:400;color:var(--text2);font-size:12px">${cluster.nameEn}</span>${statusBadge}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="font-family:monospace;color:${color};font-size:12px">${bar}</div>
-            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
-            <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
-          </div>
-        </div>
-        <div id="cluster-detail-${cluster.id}" style="display:none;border-top:1px solid var(--border)"></div>
-      </div>
-    `;
-  }
-  html += '</div>';
-  document.getElementById('eu-clusters').innerHTML = html;
-}
-
-function toggleCluster(clusterId) {
-  const detail = document.getElementById('cluster-detail-' + clusterId);
-  const arrow = document.getElementById('cluster-arrow-' + clusterId);
-  if (!detail) return;
-
-  if (detail.style.display === 'none') {
-    detail.style.display = 'block';
-    arrow.textContent = '▾';
-    renderClusterDetail(clusterId);
-  } else {
-    detail.style.display = 'none';
-    arrow.textContent = '▸';
-  }
-}
-
-function renderClusterDetail(clusterId) {
-  const cluster = EU_CLUSTERS.find(c => c.id === clusterId);
-  if (!cluster) return;
-
-  const detail = document.getElementById('cluster-detail-' + clusterId);
-  let html = '<div style="padding:4px 8px">';
-
-  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${cluster.statusText}</div>`;
-
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    const name = cluster.chapterNames[chId] || `Глава ${chId}`;
-    const alignment = ch ? ch.alignment : 0;
-    const bills = ch ? ch.total_bills : 0;
-    const keywords = ch ? ch.keywords_matched : 0;
-    const totalKw = ch ? ch.total_keywords : 0;
-
-    const filled = Math.round(alignment / 100 * 15);
-    const bar = '█'.repeat(filled) + '░'.repeat(15 - filled);
-    let color = 'var(--red)';
-    if (alignment > 70) color = 'var(--green)';
-    else if (alignment > 40) color = 'var(--orange)';
-
-    html += `
-      <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="event.stopPropagation();showChapterBills(${chId})">
-        <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:500">${escHtml(name)}</div>
-          <div style="font-size:11px;color:var(--text2)">${keywords}/${totalKw} ключових слів · ${bills} законів</div>
-        </div>
-        <div style="font-family:monospace;color:${color};font-size:12px;margin-right:8px">${bar}</div>
-        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${alignment.toFixed(1)}%</div>
-      </div>
-    `;
-  }
-
-  html += '</div>';
-  detail.innerHTML = html;
-}
-
-function showChapterBills(chapterId) {
-  api(`/api/eu-alignment/bills?chapter=${chapterId}&limit=15`).then(data => {
-    const bills = data.bills || [];
-    const ch = euChaptersData[chapterId];
-    const cluster = EU_CLUSTERS.find(c => c.chapters.includes(chapterId));
-    let html = '<div class="card"><div class="card-header">';
-    html += `<div class="card-title">Ch.${chapterId} — ${cluster ? cluster.chapterNames[chapterId] : ''} (${bills.length} законів)</div>`;
-    html += `<div style="cursor:pointer;font-size:18px" onclick="this.closest('.card').remove()">✕</div>`;
-    html += '</div>';
-
-    if (bills.length === 0) {
-      html += '<div style="padding:20px;color:var(--text2)">Немає класифікованих законів для цієї глави</div>';
-    } else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Відповідність</th></tr></thead><tbody>';
-      for (const b of bills) {
-        const conf = ((b.confidence || 0) * 100).toFixed(0);
-        let badgeClass = 'badge-low';
-        if (conf > 70) badgeClass = 'badge-high';
-        else if (conf > 40) badgeClass = 'badge-medium';
-
-        html += `<tr>
-          <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
-          <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
-          <td><span class="badge ${badgeClass}">${conf}%</span></td>
-        </tr>`;
-      }
-      html += '</tbody></table></div>';
-    }
-
-    html += '</div>';
-    const container = document.getElementById('eu-clusters');
-    const firstCard = container.parentElement.querySelector('.card');
-    firstCard.insertAdjacentHTML('afterend', html);
-  }).catch(() => {});
-}
-
-function renderEUClassifiedBills(bills) {
-  if (!bills || !bills.length) {
-    document.getElementById('eu-classified-bills').innerHTML =
-      '<div style="color:var(--text2);padding:16px">Немає класифікованих законів</div>';
-    return;
-  }
-
-  let html = '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Номер</th><th>Назва</th><th>EU Глава</th><th>Відповідність</th><th>Знайдені терміни</th>';
-  html += '</tr></thead><tbody>';
-
-  for (const b of bills) {
-    const conf = (b.confidence * 100).toFixed(0);
-    let badgeClass = 'badge-low';
-    if (conf > 70) badgeClass = 'badge-high';
-    else if (conf > 40) badgeClass = 'badge-medium';
-
-    let matched = '';
-    try {
-      const keywords = JSON.parse(b.matched_keywords || '[]');
-      matched = keywords.slice(0, 3).map(k => `<span class="badge badge-low" style="margin:1px">${escHtml(k)}</span>`).join('');
-      if (keywords.length > 3) matched += `<span style="color:var(--text2);font-size:11px"> +${keywords.length - 3}</span>`;
-    } catch(e) {}
-
-    html += `<tr>
-      <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
-      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
-      <td><span class="badge badge-medium">Ch. ${b.chapter_id}</span></td>
-      <td><span class="badge ${badgeClass}">${conf}%</span></td>
-      <td>${matched}</td>
-    </tr>`;
-  }
-  html += '</tbody></table></div>';
-  document.getElementById('eu-classified-bills').innerHTML = html;
-}
-
-function renderEUTrend(trend) {
-  if (!trend || trend.length < 2) {
-    document.getElementById('eu-trend-chart').innerHTML =
-      '<div style="color:var(--text2);padding:16px;text-align:center">Потрібно щонайменше 2 вимірювання для тренду</div>';
-    return;
-  }
-
-  // Get current data from the overall alignment
-  const signedScore = euOverallData?.signed?.score || 25.7;
-  const inProcessScore = euOverallData?.inProcess?.score || 26.7;
-  const signedBills = euOverallData?.signed?.bills || 4849;
-  const inProcessBills = euOverallData?.inProcess?.bills || 4558;
-
-  const w = 700, h = 320, padL = 55, padR = 30, padT = 30, padB = 80;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-
-  // Build data points from trend (deduplicate by score)
-  let dataPoints = [];
-  let seen = new Set();
-  for (let i = trend.length - 1; i >= 0; i--) {
-    const t = trend[i];
-    const key = `${t.weighted_score?.toFixed(1)}-${t.signed_bills}-${t.in_process_bills}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
-      dataPoints.unshift({
-        totalBills,
-        signedBills: t.signed_bills || 0,
-        inProcessBills: t.in_process_bills || 0,
-        score: t.weighted_score || 0,
-        signedScore: t.signed_score || 0,
-        inProcessScore: t.in_process_score || 0
-      });
-    }
-  }
-  if (dataPoints.length < 2) {
-    dataPoints = trend.slice().reverse().map(t => {
-      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
-      return {
-        totalBills,
-        signedBills: t.signed_bills || 0,
-        inProcessBills: t.in_process_bills || 0,
-        score: t.weighted_score || 0,
-        signedScore: t.signed_score || 0,
-        inProcessScore: t.in_process_score || 0
-      };
+    <p style="font-size:15px;margin-bottom:16px;">${bill.title}</p>
+    <div class="detail-section"><h3>🗳️ Результати голосувань</h3><p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Натисніть на голосування щоб побачити розбивку по фракціях</p>${votesHtml}</div>`;
+  
+  panel.classList.add('open');
+  
+  panel.querySelectorAll('.vote-block').forEach((block, vi) => {
+    block.querySelector('.vote-block-header').addEventListener('click', () => {
+      block.classList.toggle('expanded');
+      const fc = block.querySelector('.vote-factions');
+      if (block.classList.contains('expanded') && !fc.innerHTML) renderVoteFactions(bill, vi, fc);
     });
-  }
+  });
+}
 
-  // X-axis = total bills, Y-axis = percentage
-  const maxBills = Math.max(...dataPoints.map(d => d.totalBills), signedBills + inProcessBills);
-  const minBills = Math.min(...dataPoints.map(d => d.totalBills));
-  const billsRange = maxBills - minBills || 1;
-
-  // Colors
-  const greenColor = '#22c55e';
-  const blueColor = '#3b82f6';
-  const orangeColor = '#f59e0b';
-  const redColor = '#ef4444';
-
-  // Grid lines (Y-axis = percentages)
-  let gridLines = '';
-  for (let pct = 0; pct <= 100; pct += 20) {
-    const y = padT + chartH - (pct / 100) * chartH;
-    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
-    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text2)">${pct}%</text>`;
-  }
-
-  // Map data points to X positions
-  let signedPoints = [];
-  let inProcessPoints = [];
-  for (let i = 0; i < dataPoints.length; i++) {
-    const d = dataPoints[i];
-    const x = padL + ((d.totalBills - minBills) / billsRange) * chartW;
-    const ySigned = padT + chartH - (d.signedScore / 100) * chartH;
-    const yInProcess = padT + chartH - (d.inProcessScore / 100) * chartH;
-    signedPoints.push({ x, y: ySigned, score: d.signedScore, bills: d.totalBills });
-    inProcessPoints.push({ x, y: yInProcess, score: d.inProcessScore, bills: d.totalBills });
-  }
-
-  // Ensure current point is included (at maxBills)
-  const currentTotalBills = signedBills + inProcessBills;
-  const lastSigned = signedPoints[signedPoints.length - 1];
-  if (lastSigned && lastSigned.bills < currentTotalBills) {
-    const x = padL + chartW;
-    signedPoints.push({ x, y: padT + chartH - (signedScore / 100) * chartH, score: signedScore, bills: currentTotalBills });
-    inProcessPoints.push({ x, y: padT + chartH - (inProcessScore / 100) * chartH, score: inProcessScore, bills: currentTotalBills });
-  }
-
-  // Build SVG paths
-  const signedPath = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const inProcessPath = inProcessPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-
-  // Area between lines (potential zone)
-  const areaBetween = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') +
-    ' ' + inProcessPoints.slice().reverse().map(p => `L${p.x},${p.y}`).join(' ') + ' Z';
-
-  // Area under signed line
-  const areaUnderSigned = signedPath + ` L${signedPoints[signedPoints.length-1].x},${padT + chartH} L${signedPoints[0].x},${padT + chartH} Z`;
-
-  // Dots
-  let signedDots = '';
-  let inProcessDots = '';
-  for (let i = 0; i < signedPoints.length; i++) {
-    const sp = signedPoints[i];
-    const ip = inProcessPoints[i];
-    if (i === 0 || i === signedPoints.length - 1 || signedPoints.length <= 8) {
-      signedDots += `<circle cx="${sp.x}" cy="${sp.y}" r="5" fill="${greenColor}" stroke="var(--bg)" stroke-width="2"/>`;
-      signedDots += `<text x="${sp.x}" y="${sp.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${greenColor}">${sp.score.toFixed(1)}%</text>`;
-      inProcessDots += `<circle cx="${ip.x}" cy="${ip.y}" r="5" fill="${blueColor}" stroke="var(--bg)" stroke-width="2"/>`;
-      inProcessDots += `<text x="${ip.x}" y="${ip.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${blueColor}">${ip.score.toFixed(1)}%</text>`;
-    }
-  }
-
-  // X-axis bill count labels
-  let billLabels = '';
-  const numLabels = 5;
-  for (let i = 0; i <= numLabels; i++) {
-    const bills = Math.round(minBills + (billsRange * i / numLabels));
-    const x = padL + (i / numLabels) * chartW;
-    billLabels += `<text x="${x}" y="${h - padB + 20}" text-anchor="middle" font-size="9" fill="var(--text2)">${bills.toLocaleString()}</text>`;
-  }
-  billLabels += `<text x="${padL + chartW / 2}" y="${h - 8}" text-anchor="middle" font-size="10" fill="var(--text2)">Кількість законів</text>`;
-
-  // Metric cards
-  const gapPct = (inProcessScore - signedScore).toFixed(1);
-  const isPositive = inProcessScore >= signedScore;
-
-  document.getElementById('eu-trend-chart').innerHTML = `
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${greenColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📗 Прийняті закони</div>
-        <div style="font-size:18px;font-weight:700;color:${greenColor}">${signedScore.toFixed(1)}%</div>
-        <div style="font-size:11px;color:var(--text2)">${signedBills.toLocaleString()} законів</div>
+function renderVoteFactions(bill, voteIdx, container) {
+  const vote = bill.votes[voteIdx];
+  if (!vote || !vote.factions) return;
+  container.innerHTML = vote.factions.map(f => {
+    const safe = f.name.replace(/[^a-zA-Zа-яА-Я0-9]/g,'');
+    return `<div class="faction-detail-item">
+      <div class="faction-detail-header">
+        <span class="faction-color" style="background:${getFactionColor(f.name)}"></span>
+        <span class="faction-name">${f.name}</span>
+        <span class="faction-mini-stats">
+          <span class="mini-stat za">✅${f.za}</span>
+          <span class="mini-stat proti">❌${f.proti}</span>
+          <span class="mini-stat utr">⏸️${f.utr}</span>
+          <span class="mini-stat ne">⬜${f.ne}</span>
+          <span class="mini-stat vid">🚫${f.vid}</span>
+        </span>
+        <span class="faction-expand">▼</span>
       </div>
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${blueColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📘 В процесі</div>
-        <div style="font-size:18px;font-weight:700;color:${blueColor}">${inProcessScore.toFixed(1)}%</div>
-        <div style="font-size:11px;color:var(--text2)">${inProcessBills.toLocaleString()} законів</div>
-      </div>
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${isPositive ? orangeColor : redColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">⚡ Потенціал</div>
-        <div style="font-size:18px;font-weight:700;color:${isPositive ? orangeColor : redColor}">${isPositive ? '+' : ''}${gapPct}%</div>
-        <div style="font-size:11px;color:var(--text2)">${isPositive ? 'очікується додати' : 'втрачається'}</div>
-      </div>
-    </div>
-
-    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;display:block">
-      <defs>
-        <linearGradient id="euGradGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${greenColor}" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="${greenColor}" stop-opacity="0.02"/>
-        </linearGradient>
-        <linearGradient id="euGradBlue" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${blueColor}" stop-opacity="0.15"/>
-          <stop offset="100%" stop-color="${blueColor}" stop-opacity="0.02"/>
-        </linearGradient>
-        <linearGradient id="euGradPotential" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${orangeColor}" stop-opacity="0.2"/>
-          <stop offset="100%" stop-color="${orangeColor}" stop-opacity="0.02"/>
-        </linearGradient>
-      </defs>
-
-      ${gridLines}
-
-      <!-- Potential zone -->
-      <path d="${areaBetween}" fill="url(#euGradPotential)" opacity="0.6"/>
-
-      <!-- Area under in-process -->
-      <path d="${inProcessPath} L${inProcessPoints[inProcessPoints.length-1].x},${padT + chartH} L${inProcessPoints[0].x},${padT + chartH} Z" fill="url(#euGradBlue)" opacity="0.4"/>
-
-      <!-- Area under signed -->
-      <path d="${areaUnderSigned}" fill="url(#euGradGreen)"/>
-
-      <!-- In-process line (dashed) -->
-      <polyline points="${inProcessPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${blueColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8,4" opacity="0.8"/>
-
-      <!-- Signed line (solid) -->
-      <polyline points="${signedPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${greenColor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-
-      ${signedDots}
-      ${inProcessDots}
-
-      <!-- Legend -->
-      <line x1="${padL}" y1="${h - 30}" x2="${padL + 20}" y2="${h - 30}" stroke="${greenColor}" stroke-width="3"/>
-      <text x="${padL + 25}" y="${h - 26}" font-size="10" fill="var(--text2)">Прийняті</text>
-      <line x1="${padL + 90}" y1="${h - 30}" x2="${padL + 110}" y2="${h - 30}" stroke="${blueColor}" stroke-width="2.5" stroke-dasharray="8,4"/>
-      <text x="${padL + 115}" y="${h - 26}" font-size="10" fill="var(--text2)">В процесі</text>
-
-      ${billLabels}
-    </svg>
-  `;
+      <div class="faction-deputies" id="fd-${bill.id}-${voteIdx}-${safe}"></div>
+    </div>`;
+  }).join('');
+  
+  container.querySelectorAll('.faction-detail-header').forEach(fh => {
+    fh.addEventListener('click', async () => {
+      const item = fh.parentElement;
+      const dc = item.querySelector('.faction-deputies');
+      item.classList.toggle('open');
+      if (item.classList.contains('open') && !dc.innerHTML) {
+        const fname = fh.querySelector('.faction-name').textContent;
+        try {
+          const res = await fetch(`/api/deputies/${bill.id}/${vote.g_id}`);
+          const deps = await res.json();
+          const fd = deps.filter(d => d.faction === fname);
+          const sc = v => v==='За'?'za':v==='Проти'?'proti':v==='Утримався'?'utr':v==='Не голосував'?'ne':'vid';
+          dc.innerHTML = fd.map(d => `<div class="deputy-row"><span class="deputy-name">${d.name}</span><span class="deputy-vote ${sc(d.vote)}">${d.vote}</span></div>`).join('');
+        } catch(e) { dc.innerHTML = '<div class="deputy-row"><span>Помилка</span></div>'; }
+      }
+    });
+  });
 }
 
-// === THEME ===
-function applyTheme(dark) {
-  document.documentElement.classList.toggle('dark', dark);
-  localStorage.setItem('theme', dark ? 'dark' : 'light');
-}
-function toggleTheme() {
-  const isDark = document.documentElement.classList.contains('dark');
-  applyTheme(!isDark);
-}
-// Apply saved theme or respect system preference
-const savedTheme = localStorage.getItem('theme');
-if (savedTheme) {
-  applyTheme(savedTheme === 'dark');
-} else {
-  applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches);
+// ===== DEPUTIES =====
+function renderDeputies(filter, factionFilter) {
+  const tbody = $('#deputiesBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  let deps = ALL_DEPUTIES;
+  if (filter) { const f = filter.toLowerCase(); deps = deps.filter(d => d.name.toLowerCase().includes(f) || d.faction.toLowerCase().includes(f)); }
+  if (factionFilter) deps = deps.filter(d => d.faction_id == factionFilter);
+  deps.forEach(d => {
+    tbody.appendChild(el('tr', {}, el('td',{},d.name), el('td',{},d.faction), el('td',{},'-'), el('td',{},'-')));
+  });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Search
+$('#billSearch')?.addEventListener('input', function() { renderBills(this.value); });
+$('#depSearch')?.addEventListener('input', function() { renderDeputies(this.value, $('#depFactionFilter')?.value||''); });
+$('#depFactionFilter')?.addEventListener('change', function() { renderDeputies($('#depSearch')?.value||'', this.value); });
+
+// Populate faction filter
+const facSel = $('#depFactionFilter');
+if (facSel) FACTIONS.forEach(f => { const o = document.createElement('option'); o.value = f.id; o.textContent = f.name; facSel.appendChild(o); });
+
+// ===== INIT =====
+async function init() {
+  await loadData();
+  renderDashboard();
+  renderBills('');
+  renderDeputies('', '');
+}
+init();
 </script>
 </body>
 </html>
