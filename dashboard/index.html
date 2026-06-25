@@ -327,7 +327,7 @@ tr.clickable { cursor: pointer; }
         <option value="2">🔴🟠 Високий + середній</option>
       </select>
       <select id="bill-sort">
-        <option value="status_changed_at">За зміною статусу ↓</option>
+        <option value="updated_at" selected>За зміною статусу ↓</option>
         <option value="toxicity">За toxicity ↓</option>
         <option value="significance">За значимістю ↓</option>
         <option value="updated_at">За оновленням ↓</option>
@@ -615,7 +615,7 @@ async function loadDashboard() {
     `;
 
     tbody.innerHTML = (threats.bills||[]).map(b => {
-      const age = b.status_changed_at ? daysSince(b.status_changed_at) : null;
+      const age = b.updated_at ? daysSince(b.updated_at) : null;
       return `<tr class="clickable" data-bill-id="${b.id}">
         <td><strong>${escHtml(b.bill_number)}</strong></td>
         <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}${(b.title||'').length>60?'...':''}</td>
@@ -624,7 +624,7 @@ async function loadDashboard() {
         <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
         <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
         <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-        <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
+        <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Активних законів немає</td></tr>';
   } catch(e) {
@@ -651,7 +651,7 @@ async function loadBills() {
   const status = document.getElementById('bill-status').value;
   const analyzed = document.getElementById('bill-analyzed').value;
   const threats = document.getElementById('bill-threats').value;
-  const sortBy = document.getElementById('bill-sort').value || 'status_changed_at';
+  const sortBy = document.getElementById('bill-sort').value || 'updated_at';
   const dateFrom = document.getElementById('bill-date-from').value;
   const dateTo = document.getElementById('bill-date-to').value;
   const tbody = document.querySelector('#bills-table tbody');
@@ -678,7 +678,7 @@ async function loadBills() {
       <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
       <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
       <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}</td>
+      <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}</td>
     </tr>`).join('');
     // Auto-expand if goToBill was called while loading
     if (_pendingGoToBill) {
@@ -756,7 +756,7 @@ async function toggleBillExpand(row, id) {
       <div><span style="color:var(--text2)">Статус:</span> <strong>${escHtml(b.current_status||'new')}</strong></div>
       <div><span style="color:var(--text2)">Комітет:</span> ${escHtml(b.committee||'—')}</div>
       <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
-      <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
+      <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.updated_at||b.updated_at)}</div>
       ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
       ${b.url && b.url.startsWith('http') ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
     </div>`;
