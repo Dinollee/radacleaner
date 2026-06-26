@@ -59,7 +59,7 @@ def calc_kpi_v6():
             COALESCE(m.total_laws, 0) as total_laws,
             COALESCE(m.committee_score, 0) as committee_score,
             COALESCE(m.bill_quality_score, 0) as quality,
-            COALESCE(m.request_count, 0) as requests
+            COALESCE(m.requests_with_response, 0) as requests
         FROM mps m
         WHERE m.end_date IS NULL OR m.end_date = ''
         ORDER BY m.name
