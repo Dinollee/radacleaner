@@ -114,6 +114,11 @@ tr.clickable { cursor: pointer; }
 .risk-dot.r-unknown { background: var(--text2); }
 .sch-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 
+/* Former deputy styling */
+tr.former-deputy td { opacity: 0.55; }
+tr.former-deputy:hover td { opacity: 0.75; }
+.badge-former { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(154,165,180,0.2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
+
 /* Progress bar */
 .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
@@ -368,6 +373,11 @@ tr.clickable { cursor: pointer; }
     <div class="filters">
       <input type="text" id="dep-search" placeholder="Пошук депутата...">
       <select id="dep-faction"></select>
+      <select id="dep-status">
+        <option value="">Всі депутати</option>
+        <option value="active" selected>Діючі</option>
+        <option value="former">Вибулі</option>
+      </select>
       <select id="dep-sort">
         <option value="name">За ім'ям</option>
         <option value="lei">За LEI ↓</option>
@@ -1187,20 +1197,25 @@ async function loadDeputies() {
   document.querySelector('#sec-deputies .section-loading')?.remove();
   const search = document.getElementById('dep-search').value;
   const faction = document.getElementById('dep-faction').value;
+  const status = document.getElementById('dep-status').value;
   const sort = document.getElementById('dep-sort').value;
   const tbody = document.querySelector('#deputies-table tbody');
   tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
   let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (faction) url += `&faction=${encodeURIComponent(faction)}`;
-  // Pass sort to server; server handles py/pda/vkp/conversion/name
+  if (status) url += `&status=${status}`;
   if (sort) url += `&sort=${sort}`;
   try {
     const data = await api(url);
     depsTotal = data.total || 0;
     document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
-    tbody.innerHTML = (data.deputies||[]).map(d => `<tr class="clickable" data-deputy-name="${attr(d.name)}">
-      <td><strong>${escHtml(d.name)}</strong></td>
+    tbody.innerHTML = (data.deputies||[]).map(d => {
+      const isFormer = !!d.end_date;
+      const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
+      const formerBadge = isFormer ? '<span class="badge-former">Вибулий</span>' : '';
+      return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
+      <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
       <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
       <td>${getRoleBadge(d)}</td>
       <td><span class="lei-value ${leiClass(d.lei||0)}">${(d.lei||0).toFixed(1)}</span></td>
@@ -1218,7 +1233,8 @@ async function loadDeputies() {
       </td>
       <td>${toxBadge(d.avg_tox)}</td>
       <td>${d.total||0}</td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="10" style="color:var(--red);text-align:center">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
     console.error('Deputies error:', e);
@@ -1242,8 +1258,9 @@ async function showDeputy(name, votesOffset) {
 
     let html = `
       <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}</h2>
+        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:12px">Вибулий</span>' : ''}</h2>
         <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
+        ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
         <div style="margin-top:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
           <div class="stat-card">
@@ -1558,6 +1575,7 @@ function init() {
   document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('dep-search').addEventListener('input', debouncedLoadDeputies);
   document.getElementById('dep-faction').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
+  document.getElementById('dep-status').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 

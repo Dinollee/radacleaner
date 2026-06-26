@@ -315,6 +315,7 @@ app.get('/api/deputies', async (req, res) => {
     const offset = Number(req.query.offset) || 0;
     const search = req.query.search;
     const faction = req.query.faction;
+    const status = req.query.status;
     const sort = req.query.sort || 'name';
     const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
     const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox'].includes(sort) ? sort : 'name';
@@ -327,9 +328,11 @@ app.get('/api/deputies', async (req, res) => {
     let idx = 1;
     if (search) { where.push(`m.name ILIKE $${idx++}`); params.push(`%${search}%`); }
     if (faction) { where.push(`m.faction = $${idx++}`); params.push(faction); }
+    if (status === 'active') { where.push(`m.end_date IS NULL OR m.end_date = ''`); }
+    else if (status === 'former') { where.push(`m.end_date IS NOT NULL AND m.end_date != ''`); }
 
     const whereSQL = where.join(' AND ');
-    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, m.end_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
     const countResult = (await q(`SELECT COUNT(*) as total FROM mps m WHERE ${whereSQL}`, params))[0];
 
     const result = deputies.map(d => ({
