@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 """sync_mp_stats.py — Розрахунок статистики депутатів (ПЯ, ПДА, ВКП).
 
-Оновлено: N+1 усунуто. Замість 465×2=930 запитів тепер 3:
-  1. Агрегатний SELECT голосувань (JOIN votes.weight + vote_statuses)
-  2. Агрегатний SELECT законопроектів
-  3. Масовий UPDATE через CTE VALUES (один запит)
-
-ВКП вага береться з votes.weight (встановлюється окремим скриптом).
-При додаванні нових голосувань sync.py повинен оновлювати weight.
+Використовує rada_uid для об'єднання даних при зміні фамілії.
 """
 import sys
 import os
@@ -17,23 +11,24 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.d1_client import d1_query, d1_exec, d1_exec_sql, refresh_stats_cache
 from src.config import log
 
-MIN_VOTES = 5  # Мінімум голосувань для розрахунку
+MIN_VOTES = 5
 
 
 def _sql_str(s) -> str:
-    """Екранування для SQL-літералу text."""
     return "'" + str(s).replace("'", "''") + "'"
 
 
 def calculate_stats():
-    """Розраховує статистику для всіх депутатів та оновлює mps."""
+    """Розраховує статистику для всіх депутатів з урахуванням зміни фамілій."""
     log.info("=== Синхронізація статистики депутатів ===")
 
-    # ── 1. Агрегат голосувань по всіх депутатах ──────────────────────
-    # Вага береється з votes.weight (не ILIKE на льоту!)
+    # Голосування: групуємо по rada_uid (об'єднуємо стару/нову фамілію)
     vote_sql = """
         SELECT
-            mv.mp_name,
+            COALESCE(
+                (SELECT m.name FROM mps m WHERE m.rada_uid = mv.rada_uid LIMIT 1),
+                mv.mp_name
+            ) as resolved_name,
             COUNT(*) AS total_votes,
             SUM(CASE WHEN vs.code IN ('yes','no','abstain') THEN 1 ELSE 0 END)
                 AS attended_votes,
@@ -51,25 +46,31 @@ def calculate_stats():
         FROM mp_votes mv
         JOIN vote_statuses vs ON mv.status_id = vs.id
         JOIN votes v ON mv.vote_id = v.vote_id
-        GROUP BY mv.mp_name
+        GROUP BY resolved_name
     """
 
     vote_agg = d1_query(vote_sql)
     log.info("Vote aggregates: %d deputies", len(vote_agg))
 
-    # ── 2. Агрегат законопроектів ─────────────────────────────────────
-    bills_data = d1_query("""
-        SELECT mp_name, COUNT(*) as total_bills,
-               SUM(CASE WHEN is_law = 1 THEN 1 ELSE 0 END) as total_laws
-        FROM mp_bills
-        GROUP BY mp_name
-    """)
-    mp_bills = {r['mp_name']: (r['total_bills'], r['total_laws']) for r in bills_data}
+    # Законопроекти: групуємо по rada_uid
+    bills_sql = """
+        SELECT
+            COALESCE(
+                (SELECT m.name FROM mps m WHERE m.rada_uid = mb.rada_uid LIMIT 1),
+                mb.mp_name
+            ) as resolved_name,
+            COUNT(*) as total_bills,
+            SUM(CASE WHEN mb.is_law = 1 THEN 1 ELSE 0 END) as total_laws
+        FROM mp_bills mb
+        GROUP BY resolved_name
+    """
+    bills_data = d1_query(bills_sql)
+    mp_bills = {r['resolved_name']: (r['total_bills'], r['total_laws']) for r in bills_data}
 
-    # ── 3. Рахуємо метрики на Python (з агрегованих даних) ─────────────
+    # Рахуємо метрики
     stats_rows = []
     for r in vote_agg:
-        name = r['mp_name']
+        name = r['resolved_name']
         total = r['total_votes'] or 0
         attended = r['attended_votes'] or 0
         voted = r['voted_votes'] or 0
@@ -90,7 +91,7 @@ def calculate_stats():
         log.warning("No vote data to update")
         return 0
 
-    # ── 4. Масовий UPDATE через CTE VALUES (один запит) ────────────────
+    # Масовий UPDATE через CTE VALUES
     values_clauses = []
     for row in stats_rows:
         nm = _sql_str(row[0]) + "::text"
@@ -128,7 +129,6 @@ def calculate_stats():
     if ok:
         log.info("=== Updated %d deputies (batch CTE) ===", len(stats_rows))
     else:
-        # Fallback: по одному (як масовий не пройшов)
         log.warning("Batch CTE failed, falling back to per-deputy...")
         for row in stats_rows:
             d1_exec("raw_sql", {
@@ -144,7 +144,6 @@ def calculate_stats():
             })
         log.info("=== Updated %d deputies (fallback) ===", len(stats_rows))
 
-    # Оновлюємо кеш статистики дашборду
     refresh_stats_cache()
     return len(stats_rows)
 
