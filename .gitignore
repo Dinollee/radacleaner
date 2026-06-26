@@ -1,6 +1,7 @@
 .env
 __pycache__/
 *.pyc
+*.pyo
 worker/node_modules/
 worker/package-lock.json
 .wrangler/
@@ -15,3 +16,9 @@ data/*.sqlite
 *.deb
 test_gemini_5.py
 /tmp/
+venv/
+*.log
+*.egg-info/
+dist/
+build/
+=
