@@ -51,7 +51,12 @@ def calc_kpi_v6():
     cur.execute("""
         SELECT
             m.id, m.name, m.faction,
-            COALESCE(m.lei, 0) as lei,
+            COALESCE(
+                (SELECT SUM(50.0 * (b.significance + b.impact) / 10.0)
+                 FROM bill_sponsors bs
+                 JOIN bills b ON b.id = bs.bill_id AND b.stage = 5
+                 WHERE bs.rada_uid = m.rada_uid), 0
+            ) as lei_raw,
             COALESCE(m.py, 0) as py,
             COALESCE(m.pda, 0) as pda,
             COALESCE(m.vkp, 0) as vkp,
@@ -68,10 +73,11 @@ def calc_kpi_v6():
     deputies = []
     for row in cur.fetchall():
         dep_id, name, faction, lei, py, pda, vkp, total_bills, total_laws, committee_score, quality, requests = row
+        lei = float(lei) if lei else 0
         conv = (total_laws / total_bills * 100) if total_bills > 0 else 0
         deputies.append({
             "id": dep_id, "name": name, "faction": faction or "",
-            "lei": lei, "py": py, "pda": pda, "vkp": vkp, 
+            "lei": lei, "py": py, "pda": pda, "vkp": vkp,
             "conv": conv, "committee_score": committee_score,
             "quality": quality, "requests": requests,
         })
