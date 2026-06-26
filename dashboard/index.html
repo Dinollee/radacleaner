@@ -379,17 +379,18 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <option value="former">Вибулі</option>
       </select>
       <select id="dep-sort">
-        <option value="name">За ім'ям</option>
+        <option value="kpi_score" selected>За KPI Score ↓</option>
         <option value="lei">За LEI ↓</option>
-        <option value="avg_tox" selected>За токсичністю ↓</option>
-        <option value="conversion">За конверсією ↓</option>
         <option value="py">За ПЯ ↓</option>
         <option value="pda">За ПДА ↓</option>
         <option value="vkp">За ВКП ↓</option>
+        <option value="conversion">За конверсією ↓</option>
+        <option value="avg_tox">За токсичністю ↓</option>
+        <option value="name">За ім'ям</option>
       </select>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Роль</th><th>LEI</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Tox</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Score</th><th>LEI</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Tox</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -1214,10 +1215,12 @@ async function loadDeputies() {
       const isFormer = !!d.end_date;
       const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
       const formerBadge = isFormer ? '<span class="badge-former">Вибулий</span>' : '';
+      const kpiScore = d.kpiScore || 0;
+      const kpiColor = kpiScore >= 70 ? 'var(--green)' : kpiScore >= 40 ? 'var(--orange)' : 'var(--red)';
       return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
       <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
       <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
-      <td>${getRoleBadge(d)}</td>
+      <td style="font-weight:700;color:${kpiColor}">${kpiScore.toFixed(1)}</td>
       <td><span class="lei-value ${leiClass(d.lei||0)}">${(d.lei||0).toFixed(1)}</span></td>
       <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
         ${d.totalBills||0}/${d.totalLaws||0}<br>
@@ -1262,25 +1265,30 @@ async function showDeputy(name, votesOffset) {
         <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
         ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
+        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+          <div class="stat-card" style="border:2px solid ${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}">
+            <div class="stat-label">KPI Score</div>
+            <div class="stat-value" style="color:${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}; font-size:32px">${(stats.kpiScore||0).toFixed(1)}</div>
+            <div style="font-size:11px;color:var(--text2)">Ранг: #${stats.kpiRank||'—'}</div>
+          </div>
           <div class="stat-card">
             <div class="stat-label">LEI</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? (stats.lei||0) >= 50 ? 'var(--green)' : (stats.lei||0) >= 20 ? 'var(--orange)' : 'var(--text2)' : 'var(--muted)'}">${(stats.lei||0).toFixed(1)}</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">ПЯ (Індекс явки)</div>
+            <div class="stat-label">ПЯ (Явка)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">ПДА (Діяльне участь)</div>
+            <div class="stat-label">ПДА (Участь)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">ВКП (Зважений КПД)</div>
+            <div class="stat-label">ВКП</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Avg Toxicity</div>
+            <div class="stat-label">Tox</div>
             <div class="stat-value">${toxBadge(stats.avg_tox)}</div>
           </div>
         </div>
