@@ -183,6 +183,12 @@ def main():
     log.info("NIGHT BATCH DONE | total=%d ok=%d skip=%d err=%d | %.0fs (%.1fm)",
              total, s["ok"], s["skip"], s["err"], elapsed, elapsed / 60)
     log.info("=" * 60)
+    
+    # Run full sync after analysis
+    log.info("Running sync_all...")
+    import subprocess
+    from pathlib import Path
+    subprocess.run([sys.executable, str(Path(__file__).parent / "sync_all.py")])
 
 
 if __name__ == "__main__":

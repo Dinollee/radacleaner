@@ -114,6 +114,11 @@ tr.clickable { cursor: pointer; }
 .risk-dot.r-unknown { background: var(--text2); }
 .sch-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 
+/* Former deputy styling */
+tr.former-deputy td { opacity: 0.55; }
+tr.former-deputy:hover td { opacity: 0.75; }
+.badge-former { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; background: rgba(154,165,180,0.2); color: var(--muted); margin-left: 6px; vertical-align: middle; }
+
 /* Progress bar */
 .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
@@ -231,6 +236,21 @@ tr.clickable { cursor: pointer; }
 .toxicity-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .toxicity-label { font-size: 10px; color: var(--text2); }
 
+/* Deputy KPI styles */
+.tox-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.tox-badge.tox-low { background: rgba(34,197,94,0.12); color: #22c55e; }
+.tox-badge.tox-medium { background: rgba(245,158,11,0.12); color: #f59e0b; }
+.tox-badge.tox-high { background: rgba(239,68,68,0.12); color: #ef4444; }
+.role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+.role-badge.role-leader { background: rgba(124,58,237,0.12); color: var(--purple); }
+.role-badge.role-active { background: rgba(34,197,94,0.12); color: var(--green); }
+.role-badge.role-moderate { background: rgba(59,130,246,0.12); color: var(--blue); }
+.role-badge.role-low { background: rgba(156,163,175,0.12); color: var(--text2); }
+.lei-value { font-weight: 700; font-size: 13px; }
+.lei-value.lei-high { color: var(--green); }
+.lei-value.lei-medium { color: var(--orange); }
+.lei-value.lei-low { color: var(--text2); }
+
 /* Vote block (best.html pattern) */
 .vote-block { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; transition: border-color 0.2s; }
 .vote-block:hover { border-color: rgba(74,158,255,0.3); }
@@ -327,7 +347,7 @@ tr.clickable { cursor: pointer; }
         <option value="2">🔴🟠 Високий + середній</option>
       </select>
       <select id="bill-sort">
-        <option value="status_changed_at">За зміною статусу ↓</option>
+        <option value="updated_at" selected>За зміною статусу ↓</option>
         <option value="toxicity">За toxicity ↓</option>
         <option value="significance">За значимістю ↓</option>
         <option value="updated_at">За оновленням ↓</option>
@@ -353,16 +373,24 @@ tr.clickable { cursor: pointer; }
     <div class="filters">
       <input type="text" id="dep-search" placeholder="Пошук депутата...">
       <select id="dep-faction"></select>
+      <select id="dep-status">
+        <option value="">Всі депутати</option>
+        <option value="active" selected>Діючі</option>
+        <option value="former">Вибулі</option>
+      </select>
       <select id="dep-sort">
-        <option value="name">За ім'ям</option>
-        <option value="conversion">За конверсією ↓</option>
+        <option value="kpi_score" selected>За KPI Score ↓</option>
+        <option value="lei">За LEI ↓</option>
         <option value="py">За ПЯ ↓</option>
         <option value="pda">За ПДА ↓</option>
         <option value="vkp">За ВКП ↓</option>
+        <option value="conversion">За конверсією ↓</option>
+        <option value="avg_tox">За токсичністю ↓</option>
+        <option value="name">За ім'ям</option>
       </select>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Score</th><th>LEI</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Tox</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -590,7 +618,7 @@ async function loadDashboard() {
 
     const [stats, threats] = await Promise.all([
       api('/api/stats'),
-      api(`/api/bills?limit=20&sort=status_changed_at&order=DESC&updated_after=${d120}&threats=2`),
+      api(`/api/bills?limit=20&sort=updated_at&order=DESC&updated_after=${d120}&threats=2`),
     ]);
 
     // Оновлюємо хедер (завжди видимий)
@@ -615,7 +643,7 @@ async function loadDashboard() {
     `;
 
     tbody.innerHTML = (threats.bills||[]).map(b => {
-      const age = b.status_changed_at ? daysSince(b.status_changed_at) : null;
+      const age = b.updated_at ? daysSince(b.updated_at) : null;
       return `<tr class="clickable" data-bill-id="${b.id}">
         <td><strong>${escHtml(b.bill_number)}</strong></td>
         <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}${(b.title||'').length>60?'...':''}</td>
@@ -624,7 +652,7 @@ async function loadDashboard() {
         <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
         <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
         <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-        <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
+        <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
       </tr>`;
     }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Активних законів немає</td></tr>';
   } catch(e) {
@@ -651,7 +679,7 @@ async function loadBills() {
   const status = document.getElementById('bill-status').value;
   const analyzed = document.getElementById('bill-analyzed').value;
   const threats = document.getElementById('bill-threats').value;
-  const sortBy = document.getElementById('bill-sort').value || 'status_changed_at';
+  const sortBy = document.getElementById('bill-sort').value || 'updated_at';
   const dateFrom = document.getElementById('bill-date-from').value;
   const dateTo = document.getElementById('bill-date-to').value;
   const tbody = document.querySelector('#bills-table tbody');
@@ -678,7 +706,7 @@ async function loadBills() {
       <td>${riskBadge(b.risk_level, b.has_analysis)}</td>
       <td>${b.has_analysis ? '<span title="LLM проаналізовано">🧠</span>' : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
       <td>${b.has_analysis ? metricsWidget(b) : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
-      <td style="font-size:12px;color:var(--text2)">${formatDate(b.status_changed_at || b.updated_at)}</td>
+      <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}</td>
     </tr>`).join('');
     // Auto-expand if goToBill was called while loading
     if (_pendingGoToBill) {
@@ -756,7 +784,7 @@ async function toggleBillExpand(row, id) {
       <div><span style="color:var(--text2)">Статус:</span> <strong>${escHtml(b.current_status||'new')}</strong></div>
       <div><span style="color:var(--text2)">Комітет:</span> ${escHtml(b.committee||'—')}</div>
       <div><span style="color:var(--text2)">Реєстрація:</span> ${formatDate(b.registration_date)||'—'}</div>
-      <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.status_changed_at||b.updated_at)}</div>
+      <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.updated_at||b.updated_at)}</div>
       ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
       ${b.url && b.url.startsWith('http') ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
     </div>`;
@@ -1145,26 +1173,55 @@ function formatDate(dateStr) {
   return dateStr;
 }
 
+function getRoleBadge(d) {
+  if (d.lei >= 50) return '<span class="role-badge role-leader">Лідер</span>';
+  if (d.lei >= 20) return '<span class="role-badge role-active">Активний</span>';
+  if (d.lei >= 5) return '<span class="role-badge role-moderate">Помірний</span>';
+  return '<span class="role-badge role-low">Пасивний</span>';
+}
+
+function toxBadge(tox) {
+  if (tox == null || tox === 0) return '<span style="color:var(--text2);font-size:11px">—</span>';
+  const pct = Math.round(tox * 100);
+  let cls = tox >= 0.5 ? 'tox-high' : tox >= 0.25 ? 'tox-medium' : 'tox-low';
+  return `<span class="tox-badge ${cls}">${pct}%</span>`;
+}
+
+function leiClass(lei) {
+  if (lei >= 50) return 'lei-high';
+  if (lei >= 20) return 'lei-medium';
+  return 'lei-low';
+}
+
 // === DEPUTIES ===
 async function loadDeputies() {
   document.querySelector('#sec-deputies .section-loading')?.remove();
   const search = document.getElementById('dep-search').value;
   const faction = document.getElementById('dep-faction').value;
+  const status = document.getElementById('dep-status').value;
   const sort = document.getElementById('dep-sort').value;
   const tbody = document.querySelector('#deputies-table tbody');
-  tbody.innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="10"><div class="loading"><div class="spinner"></div> Завантаження...</div></td></tr>';
   let url = `/api/deputies?limit=${PAGE}&offset=${depsOffset}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
   if (faction) url += `&faction=${encodeURIComponent(faction)}`;
-  // Pass sort to server; server handles py/pda/vkp/conversion/name
+  if (status) url += `&status=${status}`;
   if (sort) url += `&sort=${sort}`;
   try {
     const data = await api(url);
     depsTotal = data.total || 0;
     document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
-    tbody.innerHTML = (data.deputies||[]).map(d => `<tr class="clickable" data-deputy-name="${attr(d.name)}">
-      <td><strong>${escHtml(d.name)}</strong></td>
+    tbody.innerHTML = (data.deputies||[]).map(d => {
+      const isFormer = !!d.end_date;
+      const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
+      const formerBadge = isFormer ? '<span class="badge-former">Вибулий</span>' : '';
+      const kpiScore = d.kpiScore || 0;
+      const kpiColor = kpiScore >= 70 ? 'var(--green)' : kpiScore >= 40 ? 'var(--orange)' : 'var(--red)';
+      return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
+      <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
       <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
+      <td style="font-weight:700;color:${kpiColor}">${kpiScore.toFixed(1)}</td>
+      <td><span class="lei-value ${leiClass(d.lei||0)}">${(d.lei||0).toFixed(1)}</span></td>
       <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
         ${d.totalBills||0}/${d.totalLaws||0}<br>
         <span style="font-size:11px">${d.conversion||0}%</span>
@@ -1177,10 +1234,12 @@ async function loadDeputies() {
           <span class="kpd-value" style="color:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}">${d.vkp||0}%${!d.dataSufficient ? ' *' : ''}</span>
         </div>
       </td>
+      <td>${toxBadge(d.avg_tox)}</td>
       <td>${d.total||0}</td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
   } catch(e) {
-    tbody.innerHTML = '<tr><td colspan="7" style="color:var(--red);text-align:center">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="color:var(--red);text-align:center">Помилка завантаження: ' + escHtml(e.message) + '</td></tr>';
     console.error('Deputies error:', e);
   }
 }
@@ -1202,21 +1261,35 @@ async function showDeputy(name, votesOffset) {
 
     let html = `
       <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}</h2>
+        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:12px">Вибулий</span>' : ''}</h2>
         <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
+        ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
+          <div class="stat-card" style="border:2px solid ${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}">
+            <div class="stat-label">KPI Score</div>
+            <div class="stat-value" style="color:${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}; font-size:32px">${(stats.kpiScore||0).toFixed(1)}</div>
+            <div style="font-size:11px;color:var(--text2)">Ранг: #${stats.kpiRank||'—'}</div>
+          </div>
           <div class="stat-card">
-            <div class="stat-label">ПЯ (Індекс явки)</div>
+            <div class="stat-label">LEI</div>
+            <div class="stat-value" style="color:${stats.dataSufficient ? (stats.lei||0) >= 50 ? 'var(--green)' : (stats.lei||0) >= 20 ? 'var(--orange)' : 'var(--text2)' : 'var(--muted)'}">${(stats.lei||0).toFixed(1)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ПЯ (Явка)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">ПДА (Діяльне участь)</div>
+            <div class="stat-label">ПДА (Участь)</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">ВКП (Зважений КПД)</div>
+            <div class="stat-label">ВКП</div>
             <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Tox</div>
+            <div class="stat-value">${toxBadge(stats.avg_tox)}</div>
           </div>
         </div>
       </div>`;
@@ -1510,6 +1583,7 @@ function init() {
   document.getElementById('bill-date-to').addEventListener('change', () => { billsOffset = 0; loadBills(); });
   document.getElementById('dep-search').addEventListener('input', debouncedLoadDeputies);
   document.getElementById('dep-faction').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
+  document.getElementById('dep-status').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
