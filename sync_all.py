@@ -6,7 +6,8 @@
   1. Фракції депутатів (sync_mp_factions.py)
   2. Статистику голосувань (sync_mp_stats.py)
   3. Комітети (sync_committee_members.py)
-  4. KPI Score (calc_deputy_kpi_v5.py)
+  4. KPI Score (calc_deputy_kpi_v6.py)
+    ("Sync deputy requests", "sync_deputy_requests.py"),
   5. LEI (calc_deputy_kpi.py)
 """
 import subprocess
@@ -39,7 +40,8 @@ def main():
         ("Sync MP stats", "sync_mp_stats.py"),
         ("Sync committee members", "sync_committee_members.py"),
         ("Calculate LEI", "calc_deputy_kpi.py"),
-        ("Calculate KPI Score v4", "calc_deputy_kpi_v5.py"),
+        ("Calculate KPI Score v6", "calc_deputy_kpi_v6.py"),
+        ("Sync deputy requests", "sync_deputy_requests.py"),
     ]
     
     errors = []
