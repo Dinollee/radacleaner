@@ -36,11 +36,11 @@ calc_bill_quality.py → mps (bill_quality_score, avg_risk_score, authorship_rat
 calc_deputy_kpi_v10.py → mps (kpi_score, kpi_rank, lei)
 ```
 
-## KPI v10 Formula (DECIDED 2026-06-30)
+## KPI v10 Formula (UPDATED 2026-06-30)
 
 ```
 Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
-      + (0.20×Quality + 0.15×Committee + 0.10×Conv + 0.10×RiskPenalty) × att_mult
+      + (0.15×Quality + 0.10×Committee + 0.10×Conv + 0.10×RiskPenalty + 0.10×Requests) × att_mult
 ```
 
 ### Metrics
@@ -50,10 +50,11 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 | LEI | `log(1+adopted_weighted) / log(1+total×kpb)` | **weighted by order** | Legislative effectiveness (own + co-authored) | 0.20 |
 | ПЯ | `attended/total × 100` | all | Attendance rate | 0.15 |
 | ПДА | `voted/attended × 100` | all | Voting activity | 0.10 |
-| Quality | `AVG((significance + impact) / 2)` | **weighted by order** | Bill importance (REWARD) | 0.20 |
-| Committee | `committee_score` | all | Committee role weight | 0.15 |
+| Quality | `AVG((significance + impact) / 2)` | **weighted by order** | Bill importance (REWARD) | 0.15 |
+| Committee | `committee_score` | all | Committee role weight | 0.10 |
 | Conv | `adopted_weighted/total_bills × kpb × 100` | **weighted by order** | Bill → law conversion (weighted) | 0.10 |
 | RiskPenalty | `100 - AVG(risk_score) × 20` | **weighted by order** | Danger to democracy (PENALTY) | 0.10 |
+| Requests | `requests_with_response` | all | Constituent responses (REWARD) | 0.10 |
 
 ### Attendance multiplier (applied to Quality, Committee, Conv, RiskPenalty)
 
@@ -70,7 +71,9 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 - **LEI & Conv use weighted adopted count:** same weights as Quality. Co-authored adopted bills contribute to LEI/Conv with reduced weight.
 - **Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed → neutral 50 (not normalized, stays 50).
 - **Committee threshold:** If total_primary = 0 → committee_weight × 0.5
+- **Committee roles:** chair=10, vice_chair=7, secretary=5, subcommittee_head=5, member=3
 - **LEI sync:** `mps.lei` stores v9 values (updated after each KPI calculation)
+- **Requests:** uses `requests_with_response` (not total requests)
 
 ### Dashboard metric
 - `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
