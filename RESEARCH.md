@@ -314,6 +314,34 @@ Analysis:
 
 **Report to Architect:** Table + analysis of stability, logic, and ideology alignment.
 
+### DECISION (2026-06-30): Zero attendance floor + Requests threshold
+
+**Problem 1:** Zero_Attendance score = 29.9 (too high for ПЯ=0%)
+**Problem 2:** Deputy with ПЯ=0% cannot submit requests, but Requests metric still counts
+
+**Decision:**
+- Score = 0 if ПЯ < 10% (hard floor — no work = no score)
+- Requests_effective = 0 if ПЯ < 30% (can't submit requests without attending)
+- att_mult + ПЯ/ПДА double penalty: FEATURE, keep as-is
+
+**Final formula:**
+```
+Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
+      + (0.15×Quality + 0.10×Committee + 0.10×Conv
+         + 0.10×RiskPenalty + 0.10×Requests_effective) × att_mult
+
+where:
+  att_mult = 0.3  if ПЯ < 30%
+  att_mult = 0.6  if 30% ≤ ПЯ < 50%
+  att_mult = 0.85 if 50% ≤ ПЯ < 70%
+  att_mult = 1.0  if ПЯ ≥ 70%
+
+  Requests_effective = 0 if ПЯ < 30%
+  Requests_effective = Requests if ПЯ ≥ 30%
+
+  Score = 0 if ПЯ < 10%
+```
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
