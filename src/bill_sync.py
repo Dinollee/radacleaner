@@ -125,7 +125,12 @@ def check_and_download(url: str, local_path: str, filename: str):
         if e.code == 304:
             log.info("[304] Not modified. ETag: %s", old_etag)
             update_last_checked(filename)
-            return False, None
+            # Читаємо з кешу ( для оновлення author_sponsors)
+            try:
+                with open(local_path, "rb") as f:
+                    return False, f.read()
+            except FileNotFoundError:
+                return False, None
         else:
             log.error("[ERROR] HTTP %d: %s", e.code, e.read().decode()[:200])
             return False, None
@@ -287,6 +292,34 @@ def process_full_data(data: bytes) -> int:
                     "params": [correct_url, bn],
                 })
 
+        # Витягуємо авторів з initiators (якщо ще немає в bill_sponsors)
+        existing_sponsors = d1_query(
+            "SELECT 1 FROM bill_sponsors WHERE bill_id=? LIMIT 1", [db_id]
+        )
+        if not existing_sponsors:
+            initiators = b.get("initiators", [])
+            if initiators:
+                for i, init in enumerate(initiators):
+                    mp_data = init.get("mp") or {}
+                    person = mp_data.get("person") or {}
+                    rada_uid = person.get("id")
+                    surname = person.get("surname", "")
+                    firstname = person.get("firstname", "")
+                    patronymic = person.get("patronymic", "")
+                    full_name = f"{surname} {firstname[0]}.{patronymic[0]}." if firstname and patronymic else surname
+
+                    # Знаходимо mp_id через rada_uid
+                    mp_id = None
+                    if rada_uid:
+                        mp_rows = d1_query("SELECT id FROM mps WHERE rada_uid=?", [rada_uid])
+                        if mp_rows:
+                            mp_id = mp_rows[0]["id"]
+
+                    d1_exec("raw_sql", {
+                        "sql": "INSERT INTO bill_sponsors (bill_id, mp_id, mp_name, rada_uid, sponsor_order) VALUES (?, ?, ?, ?, ?)",
+                        "params": [db_id, mp_id, full_name, rada_uid, i],
+                    })
+
         stage = row.get("stage", 0) or 0
         if stage >= 4:
             continue
@@ -360,7 +393,7 @@ def main() -> None:
         log.info("=== Sync billinfo_full (%s) ===", datetime.now())
         fi = FILES["billinfo_full"]
         downloaded, data = check_and_download(fi["url"], fi["local"], "billinfo_full")
-        if downloaded and data:
+        if data:  # Process even from cache (downloaded=False means 304, data from cache)
             updated = process_full_data(data)
             log.info("Updated %d bill statuses", updated)
             recalc_stages()
