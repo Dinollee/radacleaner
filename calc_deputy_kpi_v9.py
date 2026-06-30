@@ -136,12 +136,18 @@ def calc_kpi_v9():
         # Committee weight: halved for legislators with no primary bills
         comm_eff = committee_score * 0.5 if total_primary == 0 else committee_score
 
+        # Requests threshold: can't submit requests without attending
+        requests_eff = requests if py >= 30 else 0
+
+        # Zero attendance floor: no work = no score
+        score = 0.0 if py < 10 else None  # placeholder, calculated later
+
         deputies.append({
             "id": dep_id, "name": name, "faction": faction or "",
             "lei": lei, "py": py, "pda": pda,
             "conv": conv, "committee_score": comm_eff,
             "quality": quality, "risk_penalty": risk_penalty,
-            "requests": requests, "att_mult": att_mult, "kpb": kpb, "total_primary": total_primary,
+            "requests": requests_eff, "att_mult": att_mult, "kpb": kpb, "total_primary": total_primary,
         })
 
     # Count faction sizes
@@ -209,17 +215,21 @@ def calc_kpi_v9():
             rp_n = rp_global[i]
             req_n = req_global[i]
 
-        score = (
-            WEIGHTS["lei"] * lei_n +
-            WEIGHTS["py"] * py_n +
-            WEIGHTS["pda"] * pda_n +
-            WEIGHTS["quality"] * qual_n * d["att_mult"] +
-            WEIGHTS["committee"] * comm_n * d["att_mult"] +
-            WEIGHTS["conv"] * conv_n * d["att_mult"] +
-            WEIGHTS["risk_penalty"] * rp_n * d["att_mult"] +
-            WEIGHTS["requests"] * req_n * d["att_mult"]
-        )
-        d["score"] = round(score, 2)
+        # Zero attendance floor
+        if d["py"] < 10:
+            d["score"] = 0.0
+        else:
+            score = (
+                WEIGHTS["lei"] * lei_n +
+                WEIGHTS["py"] * py_n +
+                WEIGHTS["pda"] * pda_n +
+                WEIGHTS["quality"] * qual_n * d["att_mult"] +
+                WEIGHTS["committee"] * comm_n * d["att_mult"] +
+                WEIGHTS["conv"] * conv_n * d["att_mult"] +
+                WEIGHTS["risk_penalty"] * rp_n * d["att_mult"] +
+                WEIGHTS["requests"] * req_n * d["att_mult"]
+            )
+            d["score"] = round(score, 2)
 
     # Rank within faction
     for faction, indices in factions.items():
