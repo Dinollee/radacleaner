@@ -83,7 +83,8 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 | Script | Purpose |
 |---|---|
 | sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI v10 → requests |
-| sync_bills.py | Fetch bills from RADA API |
+| bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**) |
+| scrape_sponsors.py | Fallback: scrape authors from HTML bill cards |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
@@ -92,11 +93,17 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 | sync_deputy_requests.py | Deputy parliamentary requests |
 | calc_msi_kpb.py | MSI + K_pb (political barrier) calculation |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
-| calc_deputy_kpi_v10.py | KPI v10 score calculation (current) |
+| calc_deputy_kpi_v9.py | KPI v10 score calculation (current) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
+
+## Data sources
+- **billinfo_list-skl9.json** — bill list (15K records, no authors)
+- **billinfo-skl9.json** — full bill data (130MB, has `initiators` field with authors)
+- Both from `data.rada.gov.ua/ogd/zpr/skl9/`
+- Updated daily (usually overnight)
 
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM)

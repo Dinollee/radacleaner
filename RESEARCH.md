@@ -358,6 +358,28 @@ where:
 
 **Future option:** Teamwork metric (co-authorship) may be added to KPI later with weight 0.05-0.10. For now, not included.
 
+### TASK (2026-06-30): Extract authors from billinfo_full JSON
+
+**Problem:** Only 2,033 of 15,184 bills have sponsor data (13%). LEI counts only primary authorship, but most bills have no sponsor data. 4,700 adopted bills have no authors.
+
+**Root cause:** `scrape_sponsors.py` only processes analyzed bills. `process_full_data` sees `initiators` in JSON but doesn't extract them.
+
+**Solution:** Add author extraction to `process_full_data` in `bill_sync.py`.
+
+**What to do:**
+1. In `process_full_data`, when processing each bill from JSON:
+   - Check `b.get("initiators", [])`
+   - If bill already has entries in `bill_sponsors` → skip
+   - If not → insert authors with `sponsor_order` (0 for first, 1 for second, etc.)
+2. Map `person.id` from JSON to `mps.rada_uid`
+3. Set `sponsor_order` based on position in initiators list (0 = primary author)
+4. After extraction, run `calc_deputy_kpi_v9.py` to update LEI for all deputies
+
+**Files to change:**
+- `src/bill_sync.py` — add author extraction in `process_full_data`
+
+**Expected result:** All 15K+ bills will have author data, LEI will be accurate.
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
