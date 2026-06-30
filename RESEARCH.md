@@ -148,7 +148,66 @@ Not in KPI score itself, but displayed on dashboard as profile indicator.
 
 **Verification:** After fix, Бондар В.В. (0 analyzed bills) should have risk_penalty = 50 (neutral), not 100.
 
+### DECISION (2026-06-30): Progressive attendance penalty
+
+**Problem:** ПЯ and ПДА are additive (0.15×ПЯ + 0.10×ПДА). Deputy with ПЯ=33% gets only 7.95 fewer points than one with ПЯ=86%. Too small a gap for 53% attendance difference.
+
+**HR logic:** Discipline is mandatory, not optional. Low attendance should penalize more heavily.
+
+**Decision — progressive multiplier:**
+```
+ПЯ < 30%  → multiplier 0.3 (70% penalty)
+ПЯ 30-50% → multiplier 0.6 (40% penalty)
+ПЯ 50-70% → multiplier 0.85 (15% penalty)
+ПЯ > 70%  → multiplier 1.0 (no penalty)
+```
+
+Applied to: Quality, Committee, Conv, RiskPenalty (not to ПЯ/ПДА themselves — they're already attendance metrics).
+
+**Effect:** Бондар (ПЯ=33%) gets multiplier 0.6 on all other metrics → Score drops ~20 points.
+
+### DECISION (2026-06-30): Committee weight for legislators without bills
+
+**Problem:** Committee_score=10 for institutional leaders (Speaker, deputies) without any bills. Стефанчук: committee=10, but primary_bills=22, adopted=7. Бондар: committee=10, primary_bills=2, adopted=1.
+
+**Decision:** If total_primary = 0, committee_weight = 0.5 (halved). These are institutional roles, not legislative.
+
+**Note:** Стефанчук actually has primary_bills=22, so he IS a legislator. The rule only affects deputies with ZERO primary bills.
+
+### BUG (2026-06-30): LEI in DB (v8) ≠ LEI in KPI (v9)
+
+**Problem:** `mps.lei` column stores v8 values (calculated from total_bills), but KPI v9 calculates LEI in Python using primary_bills only. The database value is stale and misleading.
+
+**Evidence:**
+- Устінова: db_lei=42 (v8, total_bills=304), v9_lei=0.42 (primary_bills=5)
+- Скороход: db_lei=8.2 (v8, total_bills=214), v9_lei=0.24 (primary_bills=18)
+
+**Fix options:**
+1. Update `mps.lei` after v9 calculation (sync value)
+2. Remove `mps.lei` column entirely (KPI calculates in Python)
+3. Add separate `mps.lei_v9` column
+
+**DECIDED:** Option 1 — update `mps.lei` with v9 values. Old LEI was wrong, no point keeping it.
+
+### DECISION (2026-06-30): LEI formula — volume vs conversion
+
+**Current formula:** `LEI = log(1+adopted) / log(1+total×kpb)`
+
+**Problem:** Logarithmic scale favors absolute numbers over conversion rate:
+- 100 bills, 35 adopted (35%) → LEI = 0.79
+- 10 bills, 3.5 adopted (35%) → LEI = 0.65
+- Same conversion, different LEI
+
+**Proposal A (current):** Keep logarithmic — rewards volume + conversion. Rationale: deputies who submit MORE bills and get them passed are more effective.
+
+**Proposal B (linear conversion):** `LEI = (adopted/total) × kpb × 100`. Pure conversion rate. Rationale: quality over quantity.
+
+**Proposal C (hybrid):** `LEI = log(1+adopted) × (adopted/total)`. Combines both. Rationale: rewards conversion, but absolute numbers still matter.
+
+**Recommendation:** Proposal A (keep current) is acceptable. The logarithmic formula already penalizes spam (high total with low adoption = low LEI). The issue was v8 using ALL bills vs v9 using only primary — that's the real fix.
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
 3. RiskPenalty formula: linear `100 - risk×20` or threshold-based (risk>3 = -20 penalty)?
+4. LEI formula: change to favor conversion over volume? Current: log(1+adopted)/log(1+total×kpb). Alternative: (adopted/total)×kpb (linear conversion).

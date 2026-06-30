@@ -114,12 +114,25 @@ def calc_kpi_v9():
         else:
             risk_penalty = 50  # neutral for deputies with no analyzed bills
 
+        # Progressive attendance multiplier (applied to non-attendance metrics)
+        if py < 30:
+            att_mult = 0.3
+        elif py < 50:
+            att_mult = 0.6
+        elif py < 70:
+            att_mult = 0.85
+        else:
+            att_mult = 1.0
+
+        # Committee weight: halved for legislators with no primary bills
+        comm_eff = committee_score * 0.5 if total_primary == 0 else committee_score
+
         deputies.append({
             "id": dep_id, "name": name, "faction": faction or "",
             "lei": lei, "py": py, "pda": pda,
-            "conv": conv, "committee_score": committee_score,
+            "conv": conv, "committee_score": comm_eff,
             "quality": quality, "risk_penalty": risk_penalty,
-            "kpb": kpb,
+            "att_mult": att_mult, "kpb": kpb, "total_primary": total_primary,
         })
 
     # Count faction sizes
@@ -187,10 +200,10 @@ def calc_kpi_v9():
             WEIGHTS["lei"] * lei_n +
             WEIGHTS["py"] * py_n +
             WEIGHTS["pda"] * pda_n +
-            WEIGHTS["quality"] * qual_n +
-            WEIGHTS["committee"] * comm_n +
-            WEIGHTS["conv"] * conv_n +
-            WEIGHTS["risk_penalty"] * rp_n
+            WEIGHTS["quality"] * qual_n * d["att_mult"] +
+            WEIGHTS["committee"] * comm_n * d["att_mult"] +
+            WEIGHTS["conv"] * conv_n * d["att_mult"] +
+            WEIGHTS["risk_penalty"] * rp_n * d["att_mult"]
         )
         d["score"] = round(score, 2)
 
@@ -211,9 +224,10 @@ def save_kpi_v9(deputies):
         cur.execute("""
             UPDATE mps SET
                 kpi_score = %s,
-                kpi_rank = %s
+                kpi_rank = %s,
+                lei = %s
             WHERE id = %s
-        """, (d["score"], d.get("rank", 0), d["id"]))
+        """, (d["score"], d.get("rank", 0), round(d["lei"], 4), d["id"]))
 
     conn.commit()
     cur.close()
