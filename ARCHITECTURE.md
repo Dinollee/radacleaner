@@ -59,20 +59,10 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 **Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed bills gets neutral 50/50.
 **Dashboard metric:** `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
 
-| Metric | Source | Meaning |
-|--------|--------|---------|
-| LEI | `adopted² / total_bills × kpb` | Legislative effectiveness |
-| ПЯ | `attended/total × 100` | Attendance rate |
-| ПДА | `voted/attended × 100` | Voting activity |
-| Quality | `mps.bill_quality_score` | Bill quality (significance+impact avg) |
-| Committee | `mps.committee_score` | Committee role weight |
-| Conv | `adopted/total_bills × kpb × 100` | Bill → law conversion rate |
-| Impact | `avg_tox × 100` | Avg toxicity of authored bills |
-
 ## Key scripts
 | Script | Purpose |
 |---|---|
-| sync_all.py | Master pipeline: factions → stats → committees → LEI → KPI |
+| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI v9 → requests |
 | sync_bills.py | Fetch bills from RADA API |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
@@ -81,7 +71,8 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 | sync_committee_members.py | Committee assignments |
 | sync_deputy_requests.py | Deputy parliamentary requests |
 | calc_msi_kpb.py | MSI + K_pb (political barrier) calculation |
-| calc_deputy_kpi_v8.py | KPI score calculation (current) |
+| calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
+| calc_deputy_kpi_v9.py | KPI v9 score calculation (current) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
@@ -89,7 +80,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM)
-- **mps** — 389 active + 53 former deputies. rada_uid = stable identity key
+- **mps** — 389 active + 53 former deputies. rada_uid = stable identity key. Has: kpi_score, kpi_rank, bill_quality_score, avg_risk_score, authorship_ratio
 - **mp_votes** — 7.5M voting records
 - **mp_bills** — bills authored by deputies
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id)
