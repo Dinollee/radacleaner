@@ -73,7 +73,8 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 - **Committee threshold:** If total_primary = 0 → committee_weight × 0.5
 - **Committee roles:** chair=10, vice_chair=7, secretary=5, subcommittee_head=5, member=3
 - **LEI sync:** `mps.lei` stores v9 values (updated after each KPI calculation)
-- **Requests:** uses `requests_with_response` (not total requests)
+- **Requests:** uses `requests_with_response` (not total requests). **Threshold:** ПЯ < 30% → requests = 0
+- **Zero attendance floor:** ПЯ < 10% → Score = 0
 
 ### Dashboard metric
 - `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
