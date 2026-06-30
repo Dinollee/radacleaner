@@ -107,6 +107,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM)
+- **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
 - **mps** — 389 active + 53 former deputies. rada_uid = stable identity key
   - kpi_score, kpi_rank — KPI v10 results
   - lei — Legislative Effectiveness Index (v9 values, synced)
