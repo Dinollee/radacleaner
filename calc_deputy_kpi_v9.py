@@ -55,7 +55,7 @@ def calc_kpi_v9():
     conn = get_db()
     cur = conn.cursor()
 
-    # LEI and Conv use only primary authorship (order=0)
+    # LEI and Conv use weighted adopted count
     cur.execute("""
         SELECT
             m.id, m.name, m.faction,
@@ -66,12 +66,18 @@ def calc_kpi_v9():
             m.avg_risk_score as avg_risk,
             COALESCE(m.bills_analyzed_count, 0) as analyzed,
             COALESCE(m.kpb, 1.0) as kpb,
+            -- Weighted adopted count (same weights as Quality)
             COALESCE(
-                (SELECT COUNT(*)
-                 FROM bill_sponsors bs
-                 JOIN bills b ON b.id = bs.bill_id AND b.stage = 4
-                 WHERE bs.rada_uid = m.rada_uid AND bs.sponsor_order = 0), 0
-            ) as adopted_primary,
+                (SELECT SUM(CASE
+                    WHEN bs.sponsor_order = 0 THEN 1.0
+                    WHEN bs.sponsor_order = 1 THEN 0.7
+                    WHEN bs.sponsor_order = 2 THEN 0.5
+                    ELSE 0.3
+                END)
+                FROM bill_sponsors bs
+                JOIN bills b ON b.id = bs.bill_id AND b.stage = 4
+                WHERE bs.rada_uid = m.rada_uid), 0
+            ) as adopted_weighted,
             COALESCE(
                 (SELECT COUNT(*)
                  FROM bill_sponsors bs
@@ -85,10 +91,10 @@ def calc_kpi_v9():
     deputies = []
     for row in cur.fetchall():
         dep_id, name, faction, py, pda, committee_score, quality, \
-            avg_risk, analyzed, kpb, adopted_primary, total_primary = row
+            avg_risk, analyzed, kpb, adopted_weighted, total_primary = row
 
         total_primary = int(total_primary or 0)
-        adopted_primary = int(adopted_primary or 0)
+        adopted_weighted = float(adopted_weighted or 0)
         kpb = float(kpb or 1.0)
         avg_risk = float(avg_risk) if avg_risk is not None else None
         analyzed = int(analyzed or 0)
@@ -96,15 +102,15 @@ def calc_kpi_v9():
 
         kpb_eff = max(kpb, 0.1)
 
-        # LEI: logarithmic with political barrier (order=0 only)
-        if total_primary > 0 and adopted_primary > 0:
-            lei = math.log(1 + adopted_primary) / math.log(1 + total_primary * kpb_eff)
+        # LEI: logarithmic with political barrier (weighted adopted)
+        if total_primary > 0 and adopted_weighted > 0:
+            lei = math.log(1 + adopted_weighted) / math.log(1 + total_primary * kpb_eff)
         else:
             lei = 0.0
 
-        # Conversion: linear with political barrier (order=0 only)
+        # Conversion: linear with political barrier (weighted adopted)
         if total_primary > 0:
-            conv = (adopted_primary / total_primary) * kpb_eff * 100
+            conv = (adopted_weighted / total_primary) * kpb_eff * 100
         else:
             conv = 0.0
 

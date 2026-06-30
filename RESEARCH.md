@@ -206,6 +206,27 @@ Applied to: Quality, Committee, Conv, RiskPenalty (not to ПЯ/ПДА themselves
 
 **Recommendation:** Proposal A (keep current) is acceptable. The logarithmic formula already penalizes spam (high total with low adoption = low LEI). The issue was v8 using ALL bills vs v9 using only primary — that's the real fix.
 
+### DECISION (2026-06-30): LEI should use weighted adopted count
+
+**Problem:** LEI uses only primary authorship (order=0). Deputy who co-authored 1 adopted bill gets LEI=0. Example: Безугла: 0 adopted as primary → LEI=0, but she co-authored 1 adopted bill.
+
+**Evidence:**
+- Безугла: adopted_primary=0, adopted_weighted=0.3 → LEI 0.00 → 0.25
+- Підласа: adopted_primary=1, adopted_weighted=1.6 → LEI 0.37 → 0.51
+
+**Decision:** Use weighted adopted count for LEI, same weights as Quality:
+```
+adopted_weighted = Σ(weight) для принятых законов
+  order=0 → 1.0
+  order=1 → 0.7
+  order=2 → 0.5
+  order≥3 → 0.3
+```
+
+**Formula:** `LEI = log(1+adopted_weighted) / log(1+total_primary×kpb)`
+
+**Effect:** Co-authored adopted bills now contribute to LEI, but with reduced weight. Pure co-authors get some credit, but less than primary authors.
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
