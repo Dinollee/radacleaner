@@ -342,6 +342,22 @@ where:
   Score = 0 if ПЯ < 10%
 ```
 
+### DECISION (2026-06-30): LEI = hardcore primary authorship
+
+**Problem:** Top 3 deputies (Батенко, Корнієнко, Герасимов) get 100% of LEI from co-authorship. They authored 0 laws, but co-authored many. LEI should measure personal legislative effectiveness, not team contributions.
+
+**Evidence:**
+- Батенко: LEI=1.550, but primary_adopted=0 (100% from co-authorship)
+- Корнієнко: LEI=1.675, but primary_adopted=0 (100% from co-authorship)
+- Марусяк: LEI=1.577, primary_adopted=1 (100% from primary authorship)
+
+**Decision:**
+- LEI = `log(1+adopted_primary) / log(1+total_primary×kpb)` — only primary authorship
+- Co-authorship removed from LEI/Conv
+- Co-authorship data preserved in `authorship_ratio` for dashboard display
+
+**Future option:** Teamwork metric (co-authorship) may be added to KPI later with weight 0.05-0.10. For now, not included.
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
