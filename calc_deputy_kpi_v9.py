@@ -62,8 +62,8 @@ def calc_kpi_v9():
             COALESCE(m.py, 0) as py,
             COALESCE(m.pda, 0) as pda,
             COALESCE(m.committee_score, 0) as committee_score,
-            COALESCE(m.bill_quality_score, 50) as quality,
-            COALESCE(m.avg_risk_score, 0) as avg_risk,
+            COALESCE(m.bill_quality_score, NULL) as quality,
+            m.avg_risk_score as avg_risk,
             COALESCE(m.bills_analyzed_count, 0) as analyzed,
             COALESCE(m.kpb, 1.0) as kpb,
             COALESCE(
@@ -90,8 +90,9 @@ def calc_kpi_v9():
         total_primary = int(total_primary or 0)
         adopted_primary = int(adopted_primary or 0)
         kpb = float(kpb or 1.0)
-        avg_risk = float(avg_risk or 0)
+        avg_risk = float(avg_risk) if avg_risk is not None else None
         analyzed = int(analyzed or 0)
+        quality = float(quality) if quality is not None else None
 
         kpb_eff = max(kpb, 0.1)
 
@@ -126,13 +127,24 @@ def calc_kpi_v9():
     for d in deputies:
         faction_sizes[d["faction"]] = faction_sizes.get(d["faction"], 0) + 1
 
+    # Helper: normalize with NULL handling (NULL → 50 neutral)
+    def normalize_with_null(values):
+        """Normalize list where None means 'no data' → neutral 50."""
+        non_null = [v for v in values if v is not None]
+        if not non_null:
+            return [50.0] * len(values)
+        mn, mx = min(non_null), max(non_null)
+        if mx == mn:
+            return [50.0 if v is None else 50.0 for v in values]
+        return [50.0 if v is None else (v - mn) / (mx - mn) * 100 for v in values]
+
     # Global normalization
     lei_global = normalize([d["lei"] for d in deputies])
     py_global = normalize([d["py"] for d in deputies])
     pda_global = normalize([d["pda"] for d in deputies])
     conv_global = normalize([d["conv"] for d in deputies])
     comm_global = normalize([d["committee_score"] for d in deputies])
-    qual_global = normalize([d["quality"] for d in deputies])
+    qual_global = normalize_with_null([d["quality"] for d in deputies])
     rp_global = normalize([d["risk_penalty"] for d in deputies])
 
     # Faction normalization
@@ -145,7 +157,7 @@ def calc_kpi_v9():
     pda_faction = {f: normalize([deputies[i]["pda"] for i in idx]) for f, idx in factions.items()}
     conv_faction = {f: normalize([deputies[i]["conv"] for i in idx]) for f, idx in factions.items()}
     comm_faction = {f: normalize([deputies[i]["committee_score"] for i in idx]) for f, idx in factions.items()}
-    qual_faction = {f: normalize([deputies[i]["quality"] for i in idx]) for f, idx in factions.items()}
+    qual_faction = {f: normalize_with_null([deputies[i]["quality"] for i in idx]) for f, idx in factions.items()}
     rp_faction = {f: normalize([deputies[i]["risk_penalty"] for i in idx]) for f, idx in factions.items()}
 
     # Apply hybrid normalization
@@ -221,4 +233,5 @@ if __name__ == "__main__":
     print(f"  {'Name':<25} {'Faction':<20} {'Score':<8} {'LEI':<8} {'Quality':<8} {'Risk':<8} {'Comm':<8}")
     print("-" * 110)
     for d in top:
-        print(f"  {d['name']:<25} {d['faction']:<20} {d['score']:<8.1f} {d['lei']:<8.3f} {d['quality']:<8.2f} {d['risk_penalty']:<8.1f} {d['committee_score']:<8.1f}")
+        q = f"{d['quality']:<8.2f}" if d['quality'] is not None else f"{'N/A':<8}"
+        print(f"  {d['name']:<25} {d['faction']:<20} {d['score']:<8.1f} {d['lei']:<8.3f} {q} {d['risk_penalty']:<8.1f} {d['committee_score']:<8.1f}")

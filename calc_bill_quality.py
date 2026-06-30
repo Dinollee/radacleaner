@@ -75,10 +75,10 @@ def calc_quality_risk_authorship():
         SELECT
             m.id,
             m.rada_uid,
-            COALESCE(da.weighted_quality, 50) as quality,
+            COALESCE(da.weighted_quality, NULL) as quality,
             COALESCE(da.avg_significance, 0) as avg_sig,
             COALESCE(da.avg_impact, 0) as avg_imp,
-            COALESCE(da.avg_risk, 0) as avg_risk,
+            da.avg_risk,  -- NULL for unanalyzed (not 0!)
             COALESCE(da.analyzed_count, 0) as analyzed,
             COALESCE(dau.total_bills, 0) as total_bills,
             COALESCE(dau.primary_bills, 0) as primary_bills,
@@ -105,8 +105,10 @@ def calc_quality_risk_authorship():
                 bills_analyzed_count = %s,
                 authorship_ratio = %s
             WHERE id = %s
-        """, (round(quality, 2), round(avg_sig, 2), round(avg_imp, 2),
-              round(avg_risk, 2), analyzed, round(authorship_ratio, 4), mp_id))
+        """, (round(quality, 2) if quality is not None else None,
+              round(avg_sig, 2), round(avg_imp, 2),
+              round(avg_risk, 2) if avg_risk is not None else None,
+              analyzed, round(authorship_ratio, 4), mp_id))
         updated += 1
 
     conn.commit()
