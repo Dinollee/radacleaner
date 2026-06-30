@@ -227,6 +227,36 @@ adopted_weighted = Σ(weight) для принятых законов
 
 **Effect:** Co-authored adopted bills now contribute to LEI, but with reduced weight. Pure co-authors get some credit, but less than primary authors.
 
+### TASK (2026-06-30): Fix committee roles parsing + deputy appeals
+
+**Problem 1: 168 "chairs"**
+- `sync_committee_members.py` parses "Голова" → chair
+- But "Голова підкомітету" is NOT a committee chair
+- Real: 23 committee chairs, ~145 subcommittee chairs
+-committee_score incorrectly gives 10 to subcommittee chairs
+
+**Fix:**
+1. Update `sync_committee_members.py` to distinguish:
+   - "Голова Комітету" (without "підкомітету") → chair (score=10)
+   - "Голова підкомітету" → subcommittee_head (score=5)
+2. Re-run sync to fix roles
+3. Update `mps.committee_score` from committee_members
+
+**Problem 2: Deputy appeals not in KPI**
+- `mps.request_count` and `mps.requests_with_response` exist
+- Currently NOT used in KPI v10
+- User decided: use `requests_with_response` (not total requests)
+
+**Fix:**
+1. Add `requests_with_response` to KPI formula
+2. Weight: 0.10 (same as Conv)
+3. Metric: `requests_with_response / total_deputies` normalized 0-100
+
+**Files to change:**
+- `sync_committee_members.py` — fix role parsing
+- `calc_deputy_kpi_v9.py` — add requests metric
+- `calc_bill_quality.py` — update committee_score from committee_members
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
