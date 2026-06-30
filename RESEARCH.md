@@ -257,6 +257,63 @@ adopted_weighted = Σ(weight) для принятых законов
 - `calc_deputy_kpi_v9.py` — add requests metric
 - `calc_bill_quality.py` — update committee_score from committee_members
 
+### TASK (2026-06-30): Virtual KPI formula testing
+
+**Goal:** Test KPI v10 formula stability and logical consistency using virtual (mock) deputy data.
+
+**What to do:**
+1. Create a Python script `test_kpi_formula.py` that generates 10-15 virtual deputies with extreme/edge-case metrics
+2. Calculate KPI score for each using the v10 formula
+3. Output a table showing: name, each metric (raw), normalized values, final score
+4. Test these scenarios:
+
+**Scenario A: "Ideal legislator"**
+- High LEI (many adopted bills), high Quality, high Committee, high Requests
+- ПЯ=95%, ПДА=100%
+- Expected: Score > 80
+
+**Scenario B: "Absentee with good bills"**
+- High Quality (good laws), but ПЯ=25%
+- Expected: Score < 40 (progressive penalty kicks in)
+
+**Scenario C: "Rubber stamp"**
+- High attendance (ПЯ=95%), high ПДА (100%), but low Quality (bad laws)
+- Expected: Score moderate (attendance helps, but bad laws hurt)
+
+**Scenario D: "Institutional leader"**
+- Committee chair (10), but total_primary=0, no bills
+- Expected: Score moderate (committee halved)
+
+**Scenario E: "Co-author specialist"**
+- Low primary bills, but high weighted adopted (many co-authored)
+- Expected: LEI > 0 (weighted adopted works)
+
+**Scenario F: "Protest voter"**
+- High attendance, but abstains 50% of time (low ПДА)
+- Expected: Score penalized
+
+**Output format:**
+```
+Virtual Deputy Test Results
+==========================
+
+Name              | LEI   | ПЯ    | ПДА   | Qual  | Comm  | Conv  | Risk  | Req   | Score
+------------------+-------+-------+-------+-------+-------+-------+-------+-------+------
+Ideal_Legislator  | 1.200 | 95.0  | 100.0 | 4.50  | 10    | 45.0  | 20.0  | 25    | XX.X
+Absentee_Good     | 0.800 | 25.0  | 90.0  | 4.20  | 7     | 35.0  | 25.0  | 10    | XX.X
+...
+
+Analysis:
+1. Stability: Are scores within 0-100? No extreme outliers?
+2. Logic: Does progressive penalty work correctly?
+3. Ideology: Does the formula reward good behavior and penalize bad?
+```
+
+**Files to create:**
+- `test_kpi_formula.py` — virtual testing script
+
+**Report to Architect:** Table + analysis of stability, logic, and ideology alignment.
+
 ### Open questions
 1. Should Quality weight stay at 20% or adjust?
 2. Should we add a "recency" factor (recent bills weighted higher)?
