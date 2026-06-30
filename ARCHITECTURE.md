@@ -47,12 +47,12 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 
 | Metric | Source | Filter | Meaning | Weight |
 |--------|--------|--------|---------|--------|
-| LEI | `log(1+adopted) / log(1+total×kpb)` | **order=0 only** | Legislative effectiveness (own bills) | 0.20 |
+| LEI | `log(1+adopted_weighted) / log(1+total×kpb)` | **weighted by order** | Legislative effectiveness (own + co-authored) | 0.20 |
 | ПЯ | `attended/total × 100` | all | Attendance rate | 0.15 |
 | ПДА | `voted/attended × 100` | all | Voting activity | 0.10 |
 | Quality | `AVG((significance + impact) / 2)` | **weighted by order** | Bill importance (REWARD) | 0.20 |
 | Committee | `committee_score` | all | Committee role weight | 0.15 |
-| Conv | `adopted/total_bills × kpb × 100` | **order=0 only** | Own bill → law conversion | 0.10 |
+| Conv | `adopted_weighted/total_bills × kpb × 100` | **weighted by order** | Bill → law conversion (weighted) | 0.10 |
 | RiskPenalty | `100 - AVG(risk_score) × 20` | **weighted by order** | Danger to democracy (PENALTY) | 0.10 |
 
 ### Attendance multiplier (applied to Quality, Committee, Conv, RiskPenalty)
@@ -67,6 +67,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 ### Special rules
 
 - **Quality weights by sponsor_order:** 0→1.0, 1→0.7, 2→0.5, ≥3→0.3
+- **LEI & Conv use weighted adopted count:** same weights as Quality. Co-authored adopted bills contribute to LEI/Conv with reduced weight.
 - **Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed → neutral 50 (not normalized, stays 50).
 - **Committee threshold:** If total_primary = 0 → committee_weight × 0.5
 - **LEI sync:** `mps.lei` stores v9 values (updated after each KPI calculation)
