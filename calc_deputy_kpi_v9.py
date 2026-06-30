@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-KPI v9: Quality/Risk separation + Authorship split.
+KPI v10: Quality/Risk separation + Authorship split + Committee fix + Requests.
 
 Formula (0-100):
   Score = 0.20×norm(LEI) + 0.15×norm(ПЯ) + 0.10×norm(ПДА)
-        + 0.20×norm(Quality) + 0.15×norm(Committee)
-        + 0.10×norm(Conv) + 0.10×norm(RiskPenalty)
+        + 0.15×norm(Quality) + 0.10×norm(Committee)
+        + 0.10×norm(Conv) + 0.10×norm(RiskPenalty) + 0.10×norm(Requests)
 
-Key changes from v8:
-  - LEI & Conv: only order=0 bills (primary authorship)
-  - Quality: pre-calculated by calc_bill_quality.py (weighted by sponsor_order)
-  - RiskPenalty: 100 - avg_risk_score × 20 (replaces Impact)
-  - Impact metric REMOVED (was rewarding dangerous laws)
+Key changes from v9:
+  - Committee roles fixed: chair=22 (was 168), subcommittee_head=146 (new)
+  - Requests: requests_with_response added (weight 0.10)
+  - Quality weight reduced 0.20 → 0.15
+  - Committee weight reduced 0.15 → 0.10
 """
 import math
 import psycopg2
@@ -25,10 +25,11 @@ WEIGHTS = {
     "lei": 0.20,
     "py": 0.15,
     "pda": 0.10,
-    "quality": 0.20,
-    "committee": 0.15,
+    "quality": 0.15,
+    "committee": 0.10,
     "conv": 0.10,
     "risk_penalty": 0.10,
+    "requests": 0.10,
 }
 
 MIN_FACTION_SIZE = 10
@@ -66,6 +67,7 @@ def calc_kpi_v9():
             m.avg_risk_score as avg_risk,
             COALESCE(m.bills_analyzed_count, 0) as analyzed,
             COALESCE(m.kpb, 1.0) as kpb,
+            COALESCE(m.requests_with_response, 0) as requests,
             -- Weighted adopted count (same weights as Quality)
             COALESCE(
                 (SELECT SUM(CASE
@@ -91,7 +93,7 @@ def calc_kpi_v9():
     deputies = []
     for row in cur.fetchall():
         dep_id, name, faction, py, pda, committee_score, quality, \
-            avg_risk, analyzed, kpb, adopted_weighted, total_primary = row
+            avg_risk, analyzed, kpb, requests, adopted_weighted, total_primary = row
 
         total_primary = int(total_primary or 0)
         adopted_weighted = float(adopted_weighted or 0)
@@ -99,6 +101,7 @@ def calc_kpi_v9():
         avg_risk = float(avg_risk) if avg_risk is not None else None
         analyzed = int(analyzed or 0)
         quality = float(quality) if quality is not None else None
+        requests = int(requests or 0)
 
         kpb_eff = max(kpb, 0.1)
 
@@ -138,7 +141,7 @@ def calc_kpi_v9():
             "lei": lei, "py": py, "pda": pda,
             "conv": conv, "committee_score": comm_eff,
             "quality": quality, "risk_penalty": risk_penalty,
-            "att_mult": att_mult, "kpb": kpb, "total_primary": total_primary,
+            "requests": requests, "att_mult": att_mult, "kpb": kpb, "total_primary": total_primary,
         })
 
     # Count faction sizes
@@ -165,6 +168,7 @@ def calc_kpi_v9():
     comm_global = normalize([d["committee_score"] for d in deputies])
     qual_global = normalize_with_null([d["quality"] for d in deputies])
     rp_global = normalize([d["risk_penalty"] for d in deputies])
+    req_global = normalize([d["requests"] for d in deputies])
 
     # Faction normalization
     factions = {}
@@ -178,6 +182,7 @@ def calc_kpi_v9():
     comm_faction = {f: normalize([deputies[i]["committee_score"] for i in idx]) for f, idx in factions.items()}
     qual_faction = {f: normalize_with_null([deputies[i]["quality"] for i in idx]) for f, idx in factions.items()}
     rp_faction = {f: normalize([deputies[i]["risk_penalty"] for i in idx]) for f, idx in factions.items()}
+    req_faction = {f: normalize([deputies[i]["requests"] for i in idx]) for f, idx in factions.items()}
 
     # Apply hybrid normalization
     for i, d in enumerate(deputies):
@@ -193,6 +198,7 @@ def calc_kpi_v9():
             comm_n = comm_faction[d["faction"]][pos]
             qual_n = qual_faction[d["faction"]][pos]
             rp_n = rp_faction[d["faction"]][pos]
+            req_n = req_faction[d["faction"]][pos]
         else:
             lei_n = lei_global[i]
             py_n = py_global[i]
@@ -201,6 +207,7 @@ def calc_kpi_v9():
             comm_n = comm_global[i]
             qual_n = qual_global[i]
             rp_n = rp_global[i]
+            req_n = req_global[i]
 
         score = (
             WEIGHTS["lei"] * lei_n +
@@ -209,7 +216,8 @@ def calc_kpi_v9():
             WEIGHTS["quality"] * qual_n * d["att_mult"] +
             WEIGHTS["committee"] * comm_n * d["att_mult"] +
             WEIGHTS["conv"] * conv_n * d["att_mult"] +
-            WEIGHTS["risk_penalty"] * rp_n * d["att_mult"]
+            WEIGHTS["risk_penalty"] * rp_n * d["att_mult"] +
+            WEIGHTS["requests"] * req_n * d["att_mult"]
         )
         d["score"] = round(score, 2)
 
