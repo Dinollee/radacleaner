@@ -31,19 +31,19 @@ LLM Analysis (rag_engine.py → risk_assessments)
   ↓
 bill_sponsors (rada_uid → links bill to deputy)
   ↓
-mps (bill_quality_score, avg_bill_significance, avg_bill_impact, avg_bill_toxicity, bills_analyzed_count)
+calc_bill_quality.py → mps (bill_quality_score, avg_risk_score, authorship_ratio)
   ↓
-KPI v9 Score (0-100)
+calc_deputy_kpi_v10.py → mps (kpi_score, kpi_rank, lei)
 ```
 
-**Quality** = `AVG((significance + impact) / 2)` — reward: higher = better
-**RiskPenalty** = `100 - AVG(risk_score) × 20` — penalty: higher risk = lower score
-
-## KPI v9 Formula (DECIDED 2026-06-30)
+## KPI v10 Formula (DECIDED 2026-06-30)
 
 ```
-Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee + 0.10×Conv + 0.10×RiskPenalty
+Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
+      + (0.20×Quality + 0.15×Committee + 0.10×Conv + 0.10×RiskPenalty) × att_mult
 ```
+
+### Metrics
 
 | Metric | Source | Filter | Meaning | Weight |
 |--------|--------|--------|---------|--------|
@@ -55,14 +55,29 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 | Conv | `adopted/total_bills × kpb × 100` | **order=0 only** | Own bill → law conversion | 0.10 |
 | RiskPenalty | `100 - AVG(risk_score) × 20` | **weighted by order** | Danger to democracy (PENALTY) | 0.10 |
 
-**Quality weights by sponsor_order:** 0→1.0, 1→0.7, 2→0.5, ≥3→0.3
-**Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed bills gets neutral 50/50.
-**Dashboard metric:** `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
+### Attendance multiplier (applied to Quality, Committee, Conv, RiskPenalty)
+
+```
+ПЯ < 30%  → att_mult = 0.3 (70% penalty)
+ПЯ 30-50% → att_mult = 0.6 (40% penalty)
+ПЯ 50-70% → att_mult = 0.85 (15% penalty)
+ПЯ > 70%  → att_mult = 1.0 (no penalty)
+```
+
+### Special rules
+
+- **Quality weights by sponsor_order:** 0→1.0, 1→0.7, 2→0.5, ≥3→0.3
+- **Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed → neutral 50 (not normalized, stays 50).
+- **Committee threshold:** If total_primary = 0 → committee_weight × 0.5
+- **LEI sync:** `mps.lei` stores v9 values (updated after each KPI calculation)
+
+### Dashboard metric
+- `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
 
 ## Key scripts
 | Script | Purpose |
 |---|---|
-| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI v9 → requests |
+| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI v10 → requests |
 | sync_bills.py | Fetch bills from RADA API |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
@@ -72,7 +87,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 | sync_deputy_requests.py | Deputy parliamentary requests |
 | calc_msi_kpb.py | MSI + K_pb (political barrier) calculation |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
-| calc_deputy_kpi_v9.py | KPI v9 score calculation (current) |
+| calc_deputy_kpi_v10.py | KPI v10 score calculation (current) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
@@ -80,10 +95,16 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА + 0.20×Quality + 0.15×Committee 
 
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM)
-- **mps** — 389 active + 53 former deputies. rada_uid = stable identity key. Has: kpi_score, kpi_rank, bill_quality_score, avg_risk_score, authorship_ratio
+- **mps** — 389 active + 53 former deputies. rada_uid = stable identity key
+  - kpi_score, kpi_rank — KPI v10 results
+  - lei — Legislative Effectiveness Index (v9 values, synced)
+  - bill_quality_score — weighted quality (NULL = no analyzed bills)
+  - avg_risk_score — average risk (NULL = no analyzed bills)
+  - authorship_ratio — primary_bills / total_bills
+  - bills_analyzed_count — count of bills with risk_assessments
 - **mp_votes** — 7.5M voting records
 - **mp_bills** — bills authored by deputies
-- **bill_sponsors** — deputy↔bill links (rada_uid, mp_id)
+- **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
 - **risk_assessments** — LLM analysis results (significance, impact, risk_score, toxicity, overall_score)
 - **committee_members** — committee assignments
 - **eu_alignment_overall / eu_alignment_chapters** — EU alignment scores
