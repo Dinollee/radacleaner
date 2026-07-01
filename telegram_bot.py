@@ -349,6 +349,20 @@ def main():
         print("TG_BOT_TOKEN not set!")
         return
 
+    # PID lock — prevent multiple instances
+    pid_file = Path("/tmp/telegram_bot.pid")
+    if pid_file.exists():
+        old_pid = pid_file.read_text().strip()
+        import subprocess
+        try:
+            subprocess.run(["kill", "-0", old_pid], check=True)
+            print(f"Another bot instance running (PID {old_pid}). Exiting.")
+            return
+        except (subprocess.CalledProcessError, ProcessLookupError):
+            pid_file.unlink()
+
+    pid_file.write_text(str(os.getpid()))
+
     app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", cmd_start))
@@ -373,7 +387,10 @@ def main():
     ]))
 
     print("Bot started...")
-    app.run_polling(drop_pending_updates=True)
+    try:
+        app.run_polling(drop_pending_updates=True)
+    finally:
+        pid_file.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
