@@ -1255,56 +1255,100 @@ async function showDeputy(name, votesOffset) {
     const votesTotal = data.votesTotal || 0;
     const stats = data.stats || {};
 
+    // KPI v11 values from deputy object (not stats)
+    const kpi = d.kpi_v11_score || 0;
+    const eff = d.kpi_v11_effectiveness || 0;
+    const disc = d.kpi_v11_discipline || 0;
+    const res = d.kpi_v11_efficiency || 0;
+    const ctrl = d.kpi_v11_control || 0;
+    const qual = d.kpi_v11_quality || 0;
+    const warnings = d.signal_warnings || [];
+    const strengths = d.signal_strengths || [];
+    const features = d.signal_features || [];
+    const shannon = d.shannon_diversity || 0;
+
+    // SVG Pentagon radar chart
+    const cx=120, cy=120, r=90;
+    const axes = [
+      {label:'Дисципліна', val:disc, angle:-90},
+      {label:'Законодавство', val:eff, angle:-18},
+      {label:'Результативн.', val:res, angle:54},
+      {label:'Контроль', val:ctrl, angle:126},
+      {label:'Якість', val:qual, angle:198}
+    ];
+    const toXY = (angle, radius) => ({
+      x: cx + radius * Math.cos(angle * Math.PI / 180),
+      y: cy + radius * Math.sin(angle * Math.PI / 180)
+    });
+    const gridPaths = [0.2, 0.4, 0.6, 0.8, 1.0].map(f => {
+      return axes.map((a, i) => {
+        const p = toXY(a.angle, r * f);
+        return `${i===0?'M':'L'}${p.x},${p.y}`;
+      }).join(' ') + 'Z';
+    });
+    const dataPath = axes.map((a, i) => {
+      const p = toXY(a.angle, r * a.val / 100);
+      return `${i===0?'M':'L'}${p.x},${p.y}`;
+    }).join(' ') + 'Z';
+    const dataPoints = axes.map(a => toXY(a.angle, r * a.val / 100));
+
+    let radarSvg = `<svg viewBox="0 0 240 240" width="240" height="240" style="display:block;margin:0 auto">
+      ${gridPaths.map(p => `<path d="${p}" fill="none" stroke="var(--border)" stroke-width="0.5"/>`).join('')}
+      ${axes.map((a, i) => {
+        const p = toXY(a.angle, r);
+        return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="var(--border)" stroke-width="0.5"/>
+          <text x="${toXY(a.angle, r+18).x}" y="${toXY(a.angle, r+18).y}" text-anchor="middle" dominant-baseline="middle" fill="var(--text2)" font-size="9">${a.label}</text>`;
+      }).join('')}
+      <path d="${dataPath}" fill="rgba(52,152,219,0.15)" stroke="var(--blue)" stroke-width="2"/>
+      ${dataPoints.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="var(--blue)"/>`).join('')}
+      ${dataPoints.map((p, i) => `<text x="${p.x}" y="${p.y-8}" text-anchor="middle" fill="var(--blue)" font-size="9" font-weight="600">${axes[i].val.toFixed(0)}</text>`).join('')}
+    </svg>`;
+
     let html = `
       <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:12px">Вибулий</span>' : ''}</h2>
-        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
-        ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
-        ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px">
-          <!-- KPI v11 Components -->
-          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
-            ${[
-              {label:'Законодавство', val:stats.kpiEff||0},
-              {label:'Дисципліна', val:stats.kpiDisc||0},
-              {label:'Результативність', val:stats.kpiRes||0},
-              {label:'Контроль', val:stats.kpiCtrl||0},
-              {label:'Якість', val:stats.kpiQual||0}
-            ].map(c => {
-              const color = c.val >= 70 ? 'var(--green)' : c.val >= 40 ? 'var(--orange)' : 'var(--red)';
-              return `<div style="text-align:center;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
-                <div style="font-size:11px;color:var(--text2);margin-bottom:4px">${c.label}</div>
-                <div style="font-size:24px;font-weight:700;color:${color}">${c.val.toFixed(0)}</div>
-                <div style="width:100%;height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden">
-                  <div style="width:${c.val}%;height:100%;background:${color};border-radius:2px"></div>
-                </div>
-              </div>`;
-            }).join('')}
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+          <div>
+            <h2 style="font-size:22px;margin:0">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:11px">Вибулий</span>' : ''}</h2>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">
+              <span class="faction-dot" style="background:${factionColor(d.faction)}"></span> ${escHtml(d.faction||'—')}
+            </div>
           </div>
-
-          <!-- Profile -->
-          ${d.committee ? `<div style="margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Комітет:</span> <strong>${escHtml(d.committee)}</strong></div>` : ''}
-          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin-bottom:12px">
-            <span>Спеціалізація: <strong>${d.shannon < 2 ? 'Дуже вузька' : d.shannon < 3 ? 'Вузька' : d.shannon < 4.5 ? 'Середня' : 'Широка'}</strong> (H=${(d.shannon||0).toFixed(1)})</span>
-            <span>EU: <strong>${(d.euRatio||0).toFixed(0)}%</strong></span>
-            <span>Стиль: <strong>${(d.authorshipRatio||0) > 0.5 ? 'Індивідуальний' : (d.authorshipRatio||0) > 0.2 ? 'Змішаний' : 'Колективний'}</strong></span>
-            <span>Законів: <strong>${d.totalBills||0}</strong> (прийнято ${d.totalLaws||0})</span>
+          <div style="margin-left:auto;text-align:center">
+            <div style="font-size:36px;font-weight:800;color:${kpi>=70?'var(--green)':kpi>=40?'var(--orange)':'var(--red)'}">${kpi.toFixed(0)}</div>
+            <div style="font-size:11px;color:var(--text2)">KPI v11 · #${d.kpi_v11_rank||'—'}</div>
           </div>
-
-          <!-- Signals -->
-          ${(d.signalWarnings||[]).length ? `<div style="padding:8px 12px;background:rgba(231,76,60,0.1);border:1px solid var(--red);border-radius:6px;margin-bottom:8px">
-            <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px">⚠️ Попередження</div>
-            ${d.signalWarnings.map(s => `<div style="font-size:12px;color:var(--text)">⚠ ${escHtml(s)}</div>`).join('')}
-          </div>` : ''}
-          ${(d.signalStrengths||[]).length ? `<div style="padding:8px 12px;background:rgba(46,204,113,0.1);border:1px solid var(--green);border-radius:6px;margin-bottom:8px">
-            <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px">✓ Сильні сторони</div>
-            ${d.signalStrengths.map(s => `<div style="font-size:12px;color:var(--text)">✓ ${escHtml(s)}</div>`).join('')}
-          </div>` : ''}
-          ${(d.signalFeatures||[]).length ? `<div style="padding:8px 12px;background:rgba(52,152,219,0.1);border:1px solid var(--blue);border-radius:6px;margin-bottom:8px">
-            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">ℹ Особливості</div>
-            ${d.signalFeatures.map(s => `<div style="font-size:12px;color:var(--text)">ℹ ${escHtml(s)}</div>`).join('')}
-          </div>` : ''}
         </div>
+
+        <!-- Radar Chart -->
+        <div style="background:var(--bg2);border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px;text-align:center">Компоненти KPI</div>
+          ${radarSvg}
+        </div>
+
+        <!-- Profile -->
+        <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:13px">
+            <div><span style="color:var(--text2)">Спеціалізація:</span> <strong>${shannon<2?'Дуже вузька':shannon<3?'Вузька':shannon<4.5?'Середня':'Широка'}</strong> <span style="color:var(--muted)">(H=${shannon.toFixed(1)})</span></div>
+            <div><span style="color:var(--text2)">Стиль:</span> <strong>${(d.authorship_ratio||0)>0.5?'Індивідуальний':(d.authorship_ratio||0)>0.2?'Змішаний':'Колективний'}</strong></div>
+            <div><span style="color:var(--text2)">Законів:</span> <strong>${d.total_bills||0}</strong> (прийнято ${d.total_laws||0})</div>
+            <div><span style="color:var(--text2)">EU:</span> <strong>${d.eu_integration_score?d.eu_integration_score.toFixed(1):'0'}</strong></div>
+            <div><span style="color:var(--text2)">ПЯ:</span> <strong>${d.py||0}%</strong></div>
+            <div><span style="color:var(--text2)">ПДА:</span> <strong>${d.pda||0}%</strong></div>
+            <div><span style="color:var(--text2)">ВКП:</span> <strong>${d.vkp||0}%</strong></div>
+            <div><span style="color:var(--text2)">LEI:</span> <strong>${(d.lei||0).toFixed(1)}</strong></div>
+          </div>
+        </div>
+
+        <!-- Signals -->
+        ${(warnings.length||strengths.length||features.length) ? `
+        <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Аналітичні сигнали</div>
+          ${warnings.length ? `<div style="margin-bottom:8px">${warnings.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(231,76,60,0.12);color:var(--red);border:1px solid rgba(231,76,60,0.2)">⚠ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+          ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+          ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+        </div>` : ''}
       </div>`;
 
     // Voting history with filters
