@@ -379,18 +379,23 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <option value="former">Вибулі</option>
       </select>
       <select id="dep-sort">
-        <option value="kpi_score" selected>За KPI Score ↓</option>
-        <option value="lei">За LEI ↓</option>
-        <option value="py">За ПЯ ↓</option>
-        <option value="pda">За ПДА ↓</option>
-        <option value="vkp">За ВКП ↓</option>
-        <option value="conversion">За конверсією ↓</option>
-        <option value="avg_tox">За токсичністю ↓</option>
+        <option value="kpi_v11_score" selected>За KPI ↓</option>
+        <option value="kpi_v11_effectiveness">За Законодавством ↓</option>
+        <option value="kpi_v11_discipline">За Дисципліною ↓</option>
+        <option value="kpi_v11_efficiency">За Результативністю ↓</option>
+        <option value="kpi_v11_control">За Контролем ↓</option>
+        <option value="kpi_v11_quality">За Якістю ↓</option>
         <option value="name">За ім'ям</option>
       </select>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Score</th><th>LEI</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Tox</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="deputies-table"><thead><tr>
+        <th>Ім'я</th><th>Фракція</th>
+        <th style="text-align:center;font-size:15px">KPI</th>
+        <th style="font-size:11px">Законодав.</th><th style="font-size:11px">Дисципліна</th>
+        <th style="font-size:11px">Результат.</th><th style="font-size:11px">Контроль</th>
+        <th style="font-size:11px">Якість</th>
+      </tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -1214,28 +1219,19 @@ async function loadDeputies() {
     tbody.innerHTML = (data.deputies||[]).map(d => {
       const isFormer = !!d.end_date;
       const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
-      const formerBadge = isFormer ? '<span class="badge-former">Вибулий</span>' : '';
-      const kpiScore = d.kpiScore || 0;
-      const kpiColor = kpiScore >= 70 ? 'var(--green)' : kpiScore >= 40 ? 'var(--orange)' : 'var(--red)';
+      const formerBadge = isFormer ? ' <span class="badge-former" style="font-size:10px">Вибулий</span>' : '';
+      const kpi = d.kpiV11 || 0;
+      const kpiColor = kpi >= 70 ? 'var(--green)' : kpi >= 40 ? 'var(--orange)' : 'var(--red)';
+      const bar = (val) => `<div style="display:flex;align-items:center;gap:4px"><div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${val}%;height:100%;background:${val>=70?'var(--green)':val>=40?'var(--orange)':'var(--red)'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--text2);width:28px;text-align:right">${val.toFixed(0)}</span></div>`;
       return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
       <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
-      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
-      <td style="font-weight:700;color:${kpiColor}">${kpiScore.toFixed(1)}</td>
-      <td><span class="lei-value ${leiClass(d.lei||0)}">${(d.lei||0).toFixed(1)}</span></td>
-      <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
-        ${d.totalBills||0}/${d.totalLaws||0}<br>
-        <span style="font-size:11px">${d.conversion||0}%</span>
-      </td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.py||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.pda||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td>
-        <div class="kpd-bar">
-          <div class="kpd-track"><div class="kpd-fill" style="width:${d.vkp||0}%;background:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}"></div></div>
-          <span class="kpd-value" style="color:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}">${d.vkp||0}%${!d.dataSufficient ? ' *' : ''}</span>
-        </div>
-      </td>
-      <td>${toxBadge(d.avg_tox)}</td>
-      <td>${d.total||0}</td>
+      <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
+      <td style="text-align:center"><span style="font-size:20px;font-weight:800;color:${kpiColor}">${kpi.toFixed(0)}</span></td>
+      <td>${bar(d.kpiEff||0)}</td>
+      <td>${bar(d.kpiDisc||0)}</td>
+      <td>${bar(d.kpiRes||0)}</td>
+      <td>${bar(d.kpiCtrl||0)}</td>
+      <td>${bar(d.kpiQual||0)}</td>
     </tr>`;
     }).join('');
   } catch(e) {
@@ -1265,32 +1261,49 @@ async function showDeputy(name, votesOffset) {
         <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
         ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
         ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
-          <div class="stat-card" style="border:2px solid ${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}">
-            <div class="stat-label">KPI Score</div>
-            <div class="stat-value" style="color:${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}; font-size:32px">${(stats.kpiScore||0).toFixed(1)}</div>
-            <div style="font-size:11px;color:var(--text2)">Ранг: #${stats.kpiRank||'—'}</div>
+        <div style="margin-top:16px">
+          <!-- KPI v11 Components -->
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+            ${[
+              {label:'Законодавство', val:stats.kpiEff||0},
+              {label:'Дисципліна', val:stats.kpiDisc||0},
+              {label:'Результативність', val:stats.kpiRes||0},
+              {label:'Контроль', val:stats.kpiCtrl||0},
+              {label:'Якість', val:stats.kpiQual||0}
+            ].map(c => {
+              const color = c.val >= 70 ? 'var(--green)' : c.val >= 40 ? 'var(--orange)' : 'var(--red)';
+              return `<div style="text-align:center;padding:12px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
+                <div style="font-size:11px;color:var(--text2);margin-bottom:4px">${c.label}</div>
+                <div style="font-size:24px;font-weight:700;color:${color}">${c.val.toFixed(0)}</div>
+                <div style="width:100%;height:4px;background:var(--border);border-radius:2px;margin-top:6px;overflow:hidden">
+                  <div style="width:${c.val}%;height:100%;background:${color};border-radius:2px"></div>
+                </div>
+              </div>`;
+            }).join('')}
           </div>
-          <div class="stat-card">
-            <div class="stat-label">LEI</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? (stats.lei||0) >= 50 ? 'var(--green)' : (stats.lei||0) >= 20 ? 'var(--orange)' : 'var(--text2)' : 'var(--muted)'}">${(stats.lei||0).toFixed(1)}</div>
+
+          <!-- Profile -->
+          ${d.committee ? `<div style="margin-bottom:8px;font-size:13px"><span style="color:var(--text2)">Комітет:</span> <strong>${escHtml(d.committee)}</strong></div>` : ''}
+          <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--text2);margin-bottom:12px">
+            <span>Спеціалізація: <strong>${d.shannon < 2 ? 'Дуже вузька' : d.shannon < 3 ? 'Вузька' : d.shannon < 4.5 ? 'Середня' : 'Широка'}</strong> (H=${(d.shannon||0).toFixed(1)})</span>
+            <span>EU: <strong>${(d.euRatio||0).toFixed(0)}%</strong></span>
+            <span>Стиль: <strong>${(d.authorshipRatio||0) > 0.5 ? 'Індивідуальний' : (d.authorshipRatio||0) > 0.2 ? 'Змішаний' : 'Колективний'}</strong></span>
+            <span>Законів: <strong>${d.totalBills||0}</strong> (прийнято ${d.totalLaws||0})</span>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">ПЯ (Явка)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ПДА (Участь)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ВКП</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Tox</div>
-            <div class="stat-value">${toxBadge(stats.avg_tox)}</div>
-          </div>
+
+          <!-- Signals -->
+          ${(d.signalWarnings||[]).length ? `<div style="padding:8px 12px;background:rgba(231,76,60,0.1);border:1px solid var(--red);border-radius:6px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--red);margin-bottom:4px">⚠️ Попередження</div>
+            ${d.signalWarnings.map(s => `<div style="font-size:12px;color:var(--text)">⚠ ${escHtml(s)}</div>`).join('')}
+          </div>` : ''}
+          ${(d.signalStrengths||[]).length ? `<div style="padding:8px 12px;background:rgba(46,204,113,0.1);border:1px solid var(--green);border-radius:6px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:4px">✓ Сильні сторони</div>
+            ${d.signalStrengths.map(s => `<div style="font-size:12px;color:var(--text)">✓ ${escHtml(s)}</div>`).join('')}
+          </div>` : ''}
+          ${(d.signalFeatures||[]).length ? `<div style="padding:8px 12px;background:rgba(52,152,219,0.1);border:1px solid var(--blue);border-radius:6px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:4px">ℹ Особливості</div>
+            ${d.signalFeatures.map(s => `<div style="font-size:12px;color:var(--text)">ℹ ${escHtml(s)}</div>`).join('')}
+          </div>` : ''}
         </div>
       </div>`;
 
