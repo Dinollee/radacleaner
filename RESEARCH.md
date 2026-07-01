@@ -524,18 +524,41 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 | 4.2 | LLM classification: news sentiment + fake detection | OPEN | Dashboard |
 | 4.3 | Store in `news_mentions` table (bill_id, source, url, sentiment, is_fake) | OPEN | Dashboard |
 
-### GROUP 5: Telegram Notifications
-**Goal:** Automated alerts for high-risk bills, daily digest, deputy alerts.
+### GROUP 5: Telegram Bot + Notifications
+**Goal:** Interactive bot with menu + automated alerts.
 
-**Subtasks:**
-| # | Task | Status | Blocks |
-|---|------|--------|--------|
-| 5.1 | High-risk alert: toxicity > 0.7 → instant Telegram message | OPEN | — |
-| 5.2 | Daily digest: top 5 bills + top 3 deputies + EU score change | OPEN | — |
-| 5.3 | Weekly digest: trends, new fakes, EU progress | OPEN | — |
-| 5.4 | Deputy alert: if a tracked deputy's bill gets high risk → notify | OPEN | — |
+**Current state (verified 2026-07-01):**
+- Token: `8652716469:AAEOaydcpNzoaqRl5h9tGLkxTZJmMh-DH9U`, chat_id=349941927
+- `send_message()` works ✅
+- `format_risk_message()` / `format_status_message()` — auto-triggered ✅
 
-**Dependencies:** Group 2 (EU score), Group 4 (fakes).
+**Implementation order (step by step):**
+
+| # | Task | Status | What it does |
+|---|------|--------|-------------|
+| 5.1 | ~~Bill info by number~~ | ✅ DONE | `/bill 14332` → title, status, risk, authors |
+| 5.2 | ~~Bot menu + /start~~ | ✅ DONE | Inline keyboard with 4 buttons |
+| 5.3 | High-risk alert | OPEN | toxicity > 0.7 → instant message (auto, no user action) |
+| 5.4 | Daily digest | OPEN | Top 5 bills + top 3 deputies + EU score (cron at 08:00) |
+| 5.5 | Deputy search | OPEN | User sends name → deputy profile with KPI |
+| 5.6 | Weekly digest | OPEN | Trends, EU progress (cron at Monday 08:00) |
+
+**Task 5.1 — Bill Info (first to implement):**
+- User sends `/bill 14332` or presses "Пошук закону" button
+- Bot asks "Введіть номер закону"
+- User sends number
+- Bot queries: `bills` (title, status, toxicity), `risk_assessments` (LLM analysis, risks), `bill_sponsors` (author)
+- Response format:
+```
+📜 #14332 — Податковий кодекс (звільнення ДП від боргу)
+📊 Статус: Закон підписано | Стадія: 5/5
+⚠️ Ризик: medium (toxicity=0.22)
+📝 Аналіз: Закон звільняє 3 держпідприємства від стягнення податкового боргу...
+👤 Автор: Волинець М.Я. та ін.
+🔗 https://itd.rada.gov.ua/billinfo/Bills/Card/...
+```
+
+**Dependencies:** Group 2 (EU score) — ✅ done.
 
 ### GROUP 6: Digest Design + Social Media
 **Goal:** Digest format for Telegram, Twitter, Facebook.

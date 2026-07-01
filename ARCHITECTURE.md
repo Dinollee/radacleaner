@@ -97,6 +97,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
+| telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 
 ## Data sources
