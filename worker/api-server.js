@@ -318,7 +318,7 @@ app.get('/api/deputies', async (req, res) => {
     const status = req.query.status;
     const sort = req.query.sort || 'name';
     const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score','eu_integration_score'].includes(sort) ? sort : 'name';
+    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score','eu_integration_score','kpi_v11_score','kpi_v11_effectiveness','kpi_v11_discipline','kpi_v11_efficiency','kpi_v11_control','kpi_v11_quality'].includes(sort) ? sort : 'name';
     const sortCol = safeSort === 'conversion'
       ? `CASE WHEN m.total_bills > 0 THEN m.total_laws::float / m.total_bills ELSE 0 END`
       : `m.${safeSort}`;
