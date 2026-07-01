@@ -819,35 +819,14 @@ SVG radar chart (5 осей) + progress bars під ним + значок риз
 
 ### Implementation plan
 
-**Step 0: Створити конфіг ваг**
-- `kpi_weights.json` — ваги KPI компонент (для калібрування)
+**Step 0: ~~Створити конфіг ваг~~** ✅ DONE
+**Step 1: ~~Додати нові колонки в mps~~** ✅ DONE
+**Step 2: ~~Агрегувати дані~~** ✅ DONE
+**Step 3: ~~Перерахувати KPI v11~~** ✅ DONE
+**Step 4: ~~Оновити API~~** ✅ DONE
+**Step 5: ~~Оновити Telegram бот~~** ✅ DONE
 
-**Step 1: Додати нові колонки в mps**
-- `documents_count` — кількість документів по законах депутата
-- `adoption_rate` — % прийнятих законів (stage=4 / total)
-- `shannon_diversity` — entropy по agenda_category
-- `unique_coauthors` — кількість унікальних співавторів
-
-**Step 2: Агрегувати дані**
-- `documents_count` ← bill_documents (COUNT per bill_sponsors)
-- `adoption_rate` ← bills.stage=4 / total_bills per deputy
-- `shannon_diversity` ← Shannon entropy по agenda_category
-- `unique_coauthors` ← COUNT(DISTINCT mp_id) per deputy
-
-**Step 3: Перерахувати KPI v11**
-- Нова формула з 5 осями + RiskPenalty множник
-- Перезаписати kpi_score, kpi_rank в mps
-
-**Step 4: Оновити API**
-- `/api/deputies` — повертає нові поля + 5 осей
-- `/api/deputies/:id` — профіль депутата
-
-**Step 5: Оновити Telegram бот**
-- `/dep <name>` — progress bars 5 осей + значок ризику
-
-**Step 6: Оновити дашборд**
-- SVG radar chart 5 осей
-- Progress bars під ним
+**Step 6: Оновити дашборд** — OPEN (наступна задача)
 
 ### Plan A: Axes filling (NOT FINAL — discussion ongoing)
 

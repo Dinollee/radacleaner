@@ -62,6 +62,16 @@ def parse_mp_cards(html):
     return pattern.findall(html)
 
 
+def full_name_to_initials(full_name):
+    """Конвертує 'Юрчишин Петро Васильович' → 'Юрчишин П.В.'"""
+    parts = full_name.strip().split()
+    if len(parts) < 2:
+        return full_name
+    last_name = parts[0]
+    initials = ''.join(f"{p[0]}." for p in parts[1:] if p)
+    return f"{last_name} {initials}"
+
+
 def sync_factions():
     log.info("Fetching deputy list from RADA...")
     active_html = fetch_url("https://people.rada.gov.ua/go/vr-mps")
@@ -83,24 +93,23 @@ def sync_factions():
         faction = parse_faction_name(raw_faction)
         factions_count[faction] = factions_count.get(faction, 0) + 1
 
-        parts = full_name.strip().split()
-        if len(parts) < 1:
+        db_name = full_name_to_initials(full_name)
+        if not db_name:
             continue
-        last_name = parts[0]
 
         try:
             d1_exec("raw_sql", {
-                "sql": "UPDATE mps SET faction = ?, start_date = ?, end_date = ? WHERE name LIKE ?",
+                "sql": "UPDATE mps SET faction = ?, start_date = ?, end_date = ? WHERE name = ?",
                 "params": [
                     faction,
                     start_date if start_date else None,
                     end_date if end_date else None,
-                    f"%{last_name}%",
+                    db_name,
                 ],
             })
             total_updated += 1
         except Exception as e:
-            log.warning("Update failed for %s: %s", last_name, str(e)[:100])
+            log.warning("Update failed for %s: %s", db_name, str(e)[:100])
 
     log.info("Faction distribution:")
     for f, c in sorted(factions_count.items(), key=lambda x: -x[1]):
