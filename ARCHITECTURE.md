@@ -7,17 +7,21 @@
 - **Cloudflare Pages** — dashboard (dashboard/)
 - **Cloudflare Tunnel** — exposes API as api.dino.pp.ua
 - **LLM** — `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter (primary), NVIDIA API (secondary), Gemini gemma-4 (backup). See `scripts/test_llm_providers.py`.
+- **Telegram Bot** — `telegram_bot.py` (python-telegram-bot v22), systemd `telegram-bot.service`
 
 ## Directory layout
 ```
-src/              — shared Python modules (db, llm_client, helpers)
+src/              — shared Python modules (db, llm_client, helpers, telegram_notifier, prompts)
 worker/           — Express API server (api-server.js)
-dashboard/        — Cloudflare Pages frontend (index.html, dashboard.js)
+dashboard/        — Cloudflare Pages frontend (index.html)
 data/             — SQLite backup (superseded by PG)
 migrations/       — SQL migration files
-scripts/          — utility scripts
+scripts/          — utility scripts (test_llm_providers.py, test_kpi_formula.py)
 systemd/          — .service unit files
 tests/            — tests
+kpi_weights.json  — KPI v11 component weights (configurable)
+telegram_bot.py   — Telegram bot (interactive commands)
+calc_kpi_v11.py   — KPI v11 calculation (three-level system)
 ```
 
 ## Data flow: Bill Assessment → Deputy KPI
@@ -33,70 +37,66 @@ bill_sponsors (rada_uid → links bill to deputy)
   ↓
 calc_bill_quality.py → mps (bill_quality_score, avg_risk_score, authorship_ratio)
   ↓
-calc_deputy_kpi_v10.py → mps (kpi_score, kpi_rank, lei)
+calc_kpi_v11.py → mps (kpi_v11_score, kpi_v11_*, signal_*, shannon_diversity, adoption_rate)
 ```
 
-## KPI v10 Formula (UPDATED 2026-06-30)
+## KPI v11 — Three-Level System (UPDATED 2026-07-01)
 
-```
-Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
-      + (0.15×Quality + 0.10×Committee + 0.10×Conv + 0.10×RiskPenalty + 0.10×Requests) × att_mult
-```
+### Level 1: KPI (performance)
 
-### Metrics
+`KPI = 0.25×Ефективність + 0.25×Дисципліна + 0.20×Результативність + 0.15×Контроль + 0.15×Якість`
 
-| Metric | Source | Filter | Meaning | Weight |
-|--------|--------|--------|---------|--------|
-| LEI | `log(1+adopted_primary) / log(1+total×kpb)` | **order=0 only** | Legislative effectiveness (own bills only) | 0.20 |
-| ПЯ | `attended/total × 100` | all | Attendance rate | 0.15 |
-| ПДА | `voted/attended × 100` | all | Voting activity | 0.10 |
-| Quality | `AVG((significance + impact) / 2)` | **weighted by order** | Bill importance (REWARD) | 0.15 |
-| Committee | `committee_score` | all | Committee role weight | 0.10 |
-| Conv | `adopted_primary/total_bills × kpb × 100` | **order=0 only** | Own bill → law conversion | 0.10 |
-| RiskPenalty | `100 - AVG(risk_score) × 20` | **weighted by order** | Danger to democracy (PENALTY) | 0.10 |
-| Requests | `requests_with_response` | all | Constituent responses (REWARD) | 0.10 |
+Weights stored in `kpi_weights.json` (configurable for calibration).
 
-### Attendance multiplier (applied to Quality, Committee, Conv, RiskPenalty)
+| Component | Metrics | Source |
+|-----------|---------|--------|
+| Ефективність | LEI (primary only) | bill_sponsors + bills.stage=4 |
+| Дисципліна | ПЯ + ПДА + ВКП | mp_votes |
+| Результативність | Conv (primary) + adoption_rate | bills.stage=4 / total |
+| Контроль | requests_with_response + committee_score | deputy_requests + committee_members |
+| Якість | bill_quality_score × 20 + documents_count | risk_assessments + bill_documents |
 
-```
-ПЯ < 30%  → att_mult = 0.3 (70% penalty)
-ПЯ 30-50% → att_mult = 0.6 (40% penalty)
-ПЯ 50-70% → att_mult = 0.85 (15% penalty)
-ПЯ > 70%  → att_mult = 1.0 (no penalty)
-```
+### Level 2: Profile (description, doesn't affect KPI)
 
-### Special rules
+| Metric | Source | Format |
+|--------|--------|--------|
+| Committee | committee_members | "Оборона" |
+| Specialization | Shannon H | "Вузька"/"Середня"/"Широка" |
+| Shannon Diversity | entropy formula | 0-7 |
+| EU ratio | eu_euro_bills / total_bills | "6%" |
+| Authorship style | authorship_ratio | "Індивідуальний"/"Колективний" |
+| Top topic | top agenda_category | "Безпека" |
+| Bills/Laws | total_bills, total_laws (stage=4) | "47/12" |
 
-- **Quality weights by sponsor_order:** 0→1.0, 1→0.7, 2→0.5, ≥3→0.3
-- **LEI & Conv = PRIMARY authorship only:** adopted_primary (order=0). Co-authorship NOT counted.
-- **Analysis coverage:** Quality/RiskPenalty skip unanalyzed bills. Deputy with 0 analyzed → neutral 50 (not normalized, stays 50).
-- **Committee threshold:** If total_primary = 0 → committee_weight × 0.5
-- **Committee roles:** chair=10, vice_chair=7, secretary=5, subcommittee_head=5, member=3
-- **LEI sync:** `mps.lei` stores v9 values (updated after each KPI calculation)
-- **Requests:** uses `requests_with_response` (not total requests). **Threshold:** ПЯ < 30% → requests = 0
-- **Zero attendance floor:** ПЯ < 10% → Score = 0
+### Level 3: Signals (auto-generated insights)
 
-### Dashboard metric
-- `authorship_ratio = primary_bills / total_bills` (profile indicator, not in score)
+Three categories:
+- ⚠ Warnings: spam, no committee work, narrow specialization, high urgent ratio
+- ✓ Strengths: high quality, stable specialization, high efficiency, high discipline
+- ℹ Features: collective authorship, narrow expert, EU profile
+
+### Dashboard: SVG radar chart (pentagon) + profile + signals
+
+### Auto-recalculation
+- `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats → calc_kpi_v11
 
 ## Key scripts
 | Script | Purpose |
 |---|---|
-| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI v10 → requests |
-| bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**) |
-| scrape_sponsors.py | Fallback: scrape authors from HTML bill cards |
+| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI → requests |
+| bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**, isUrgent, isEuro) |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
-| sync_mp_stats.py | Voting stats per deputy |
+| sync_mp_stats.py | Voting stats per deputy (ПЯ/ПДА/ВКП) |
 | sync_committee_members.py | Committee assignments |
-| sync_deputy_requests.py | Deputy parliamentary requests (matches by first+patronymic initials) |
-| calc_msi_kpb.py | MSI + K_pb (political barrier) calculation |
+| sync_deputy_requests.py | Deputy requests (matches by first+patronymic initials) |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
-| calc_deputy_kpi_v9.py | KPI v10 score calculation (current) |
+| calc_kpi_v11.py | **KPI v11**: three-level system (KPI + Profile + Signals) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
+| telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 
@@ -109,23 +109,22 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
-- **mps** — 460 deputies (389 active + former). rada_uid = stable identity key. 6 name changes tracked in deputy_aliases.
-  - kpi_score, kpi_rank — KPI v10 results
-  - lei — Legislative Effectiveness Index (v9 values, synced)
-  - bill_quality_score — weighted quality (NULL = no analyzed bills)
-  - avg_risk_score — average risk (NULL = no analyzed bills)
-  - authorship_ratio — primary_bills / total_bills
-  - bills_analyzed_count — count of bills with risk_assessments
-  - eu_integration_score — EU focus (isEuro×2 + eu_risk + state_aid×3) / total
-  - eu_euro_bills, eu_risk_bills, eu_state_aid_bills — EU breakdown
-  - requests_with_response — deputy requests with responses
+- **mps** — 460 deputies. rada_uid = stable identity key. 6 name changes in deputy_aliases.
+  - kpi_v11_score, kpi_v11_rank — KPI v11 results
+  - kpi_v11_effectiveness/discipline/efficiency/control/quality — 5 components
+  - signal_warnings, signal_strengths, signal_features — JSONB signal arrays
+  - lei, bill_quality_score, avg_risk_score — quality metrics
+  - authorship_ratio, adoption_rate, shannon_diversity, unique_coauthors — profile
+  - eu_integration_score, eu_euro_bills, eu_risk_bills, eu_state_aid_bills — EU
+  - requests_with_response, committee_score — interaction
+  - documents_count — bill document richness
+- **bills** — 15K+ bills. Has: is_urgent, is_euro (from JSON), toxicity, risk_score
 - **mp_votes** — 7.5M voting records
-- **mp_bills** — bills authored by deputies
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
-- **risk_assessments** — LLM analysis results (significance, impact, risk_score, toxicity, overall_score)
-- **committee_members** — committee assignments
+- **risk_assessments** — LLM analysis results
+- **committee_members** — 385 members, 24 committees
 - **eu_alignment_overall / eu_alignment_chapters** — EU alignment scores
-- **deputy_aliases** — name change history
+- **deputy_aliases** — name change history (6 entries)
 
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
@@ -154,9 +153,20 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 - Free tier: 1500 req/day (quota may be exhausted by nightly batch)
 - Prefer OpenRouter route for same model: `google/gemma-4-31b-it:free`
 
+## Systemd Services
+| Service | Timer | Purpose |
+|---------|-------|---------|
+| `radacleaner-api` | — | Express API (port 8788) |
+| `radacleaner-tunnel` | — | Cloudflare Tunnel |
+| `telegram-bot` | — | Telegram bot polling |
+| `radacleaner-mpstats` | every 6h | factions + stats + **KPI v11 recalc** |
+| `night-batch` | 21:00-08:00 | LLM analysis (nemotron-super) |
+| `sync_bills` | periodic | Bill sync from RADA |
+| `radacleaner-votesync` | every 6h | Voting records sync |
+
 ## Roadmap
-See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph, execution order.
-Current status: Authors extracted (99.95%), LLM migrated to nemotron-super. Next: analyze remaining 9,257 bills.
+See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
+Current status: KPI v11 implemented (three-level system), Telegram bot running, EU Score done.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
