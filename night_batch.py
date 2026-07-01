@@ -41,16 +41,10 @@ def fetch_bills(stages: list[int], limit: int) -> list[dict]:
     """
 
     sql = f"""
-        WITH targets AS (
-            SELECT b.id FROM bills b
-            WHERE b.stage IN ({stage_list})
-              AND b.toxicity IS NULL
-            {sabotage_sub if 72 in stages or True else ''}
-        )
         SELECT b.id, b.bill_number, b.title, b.current_status, b.url, b.stage
         FROM bills b
-        JOIN targets t ON t.id = b.id
-        WHERE b.toxicity IS NULL
+        WHERE b.stage IN ({stage_list})
+          AND NOT EXISTS (SELECT 1 FROM risk_assessments ra WHERE ra.bill_id = b.id)
         ORDER BY
             CASE b.stage
                 WHEN 2 THEN 1
