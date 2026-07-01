@@ -7,7 +7,7 @@ import psycopg2
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, BotCommand
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, filters,
@@ -281,7 +281,6 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
     # Register bot commands menu
-    from telegram import BotCommand
     import asyncio
     bot = Bot(token=token)
     asyncio.run(bot.set_my_commands([
