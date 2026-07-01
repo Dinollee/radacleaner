@@ -280,6 +280,18 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
+    # Register bot commands menu
+    from telegram import BotCommand
+    import asyncio
+    bot = Bot(token=token)
+    asyncio.run(bot.set_my_commands([
+        BotCommand("start", "Запустити бота"),
+        BotCommand("bill", "Інформація про закон (напр. /bill 14332)"),
+        BotCommand("top", "Топ депутатів за KPI"),
+        BotCommand("eu", "Топ за євроінтеграцією"),
+        BotCommand("help", "Довідка"),
+    ]))
+
     print("Bot started...")
     app.run_polling(drop_pending_updates=True)
 
