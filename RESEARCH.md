@@ -434,7 +434,7 @@ where:
 | 1.1 | ~~Extract authors from JSON~~ | ✅ DONE | — |
 | 1.2 | Night batch: auto-fills 9,257 bills overnight (no action needed) | AUTO | Quality/RiskPenalty accuracy |
 | 1.3 | ~~Sync deputy requests~~ | ✅ DONE | — |
-| 1.4 | Virtual KPI formula testing (`test_kpi_formula.py`) | OPEN | Confidence in formula |
+| 1.4 | ~~Virtual KPI formula testing~~ | ✅ DONE | — |
 | 1.5 | ~~Fix 6 duplicate rada_uid + committee sync~~ | ✅ DONE | — |
 | 1.6 | ~~Extract isUrgent + isEuro from billinfo_full JSON~~ | ✅ DONE | — |
 
@@ -540,8 +540,21 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 | 5.2 | ~~Bot menu + /start~~ | ✅ DONE | Inline keyboard with 4 buttons |
 | 5.3 | High-risk alert | OPEN | toxicity > 0.7 → instant message (auto, no user action) |
 | 5.4 | Daily digest | OPEN | Top 5 bills + top 3 deputies + EU score (cron at 08:00) |
-| 5.5 | Deputy search | OPEN | User sends name → deputy profile with KPI |
+| 5.5 | Deputy profile | OPEN | `/dep <name>` → KPI pentagon (progress bars) |
 | 5.6 | Weekly digest | OPEN | Trends, EU progress (cron at Monday 08:00) |
+
+**Deputy profile format (Telegram):**
+```
+🏛️ Юрчишин П.В. — KPI 72.4
+
+📊 Дисципліна       ████████░░ 82
+🏛️ Авторство        ██████░░░░ 63
+⚡ Результативність  █████░░░░░ 48
+🤝 Взаємодія        ████████░░ 79
+🎯 Профільність     █████████░ 91
+
+⚠️ Ризики: 🟡 середні (toxicity=0.22)
+```
 
 **Task 5.1 — Bill Info (first to implement):**
 - User sends `/bill 14332` or presses "Пошук закону" button
@@ -709,3 +722,288 @@ Group 7 (KPI UX) ←──独立 (no deps) ──┘
 **Remaining concerns:**
 - Pagination: `Take=500` — deputies with 500+ requests may have truncated data
 - Compare top requesters (Яценко: 218, Геращенко: 130, Фріз: 118) with RADA ITD website manually
+
+---
+
+## KPI Redesign: Pentagon + RiskPenalty (v11)
+
+### Problem with v10.1
+Зважена сума з 8 метрик = одне число. Користувач бачить "KPI = 67" але не розуміє ЧОМУ. Формула з мультиплікаторами (att_mult, committee halving) — незрозуміла для звичайного виборця.
+
+### Critique of hexagon approach (from agent analysis)
+
+**1. Дублювання осей "Законотворчість" + "Вплив":**
+LEI та Conv — виробні від total_bills і adopted. Депутат з багатьма законами отримує 100/100 по ОБОМ осям → симетричне роздуття форми. ❌ Неприйнятно.
+
+**2. Ось "Євроінтеграція" = дискримінація:**
+is_euro є тільки у 274/460 депутатів. ~200 депутатів (оборона, аграрка) отримують 0 по цій осі просто тому їх комітет не перетинається з ЄС. ❌ Неприйнятно як окрема ось.
+
+**3. Ось "Ризики" ломає візуалізацію:**
+На radar chart "чим більша площа — тим краще". Високий ризик = пік = виглядає як "ефективність". ❌ Неприйнятно.
+
+### Solution: Pentagon (5 clean axes) + RiskPenalty as multiplier
+
+```
+                    ▲
+                    │
+    5. ПРОФІЛЬНІСТЬ ◄──────────► 2. АВТОРСТВО
+    (Спеціалізація) │            (LEI + Quality + Docs)
+                    │
+                    ▼
+      4. ВЗАЄМОДІЯ ◄───┴───► 3. РЕЗУЛЬТАТИВНІСТЬ
+  (Requests+Committee)       (Conv + adoption_rate)
+
+  1. ДИСЦІПЛІНА = top axis (py + pda + vkp)
+
+  ⚠️ ШТРАФ: Final = Base × (1 - RiskPenalty)
+```
+
+**Axis mapping:**
+
+| Axis | Metrics | Data coverage | What it shows |
+|------|---------|---------------|---------------|
+| 1. Дисципліна | py, pda, vkp | 460/460 (100%) | Ходить? Голосує? Дисципліна фракції? |
+| 2. Авторство | lei, bill_quality_score, documents_count | 357/460 (78%) | Пише закони? Які вони? Наскільки ретельно? |
+| 3. Результативність | conv, adoption_rate | 357/460 (78%) | Дожимає закони до підпису? Швидко чи повільно? |
+| 4. Взаємодія | requests, committee, co_authors, authorship_ratio | 305/460 (66%) | Працює з колами? Допомагає виборцям? Лобіює? |
+| 5. Профільність | agenda_diversity, eu_as_ratio | 357/460 (78%) | Спеціалізується чи розпорошує зусилля? |
+
+**RiskPenalty (виведена з гексагона):**
+- `RiskPenalty = 1 - (avg_risk_score / 5)` → від 0.0 (максимальний ризик) до 1.0 (без ризиків)
+- Візуально: 🔴🟡🟢 значок під гексагоном
+- Формула: `Final KPI = Base × (1 - RiskPenalty)`
+
+**Formula v11:**
+```
+Base = 0.20×Дисципліна + 0.25×Авторство + 0.20×Результативність + 0.20×Взаємодія + 0.15×Профільність
+
+Final KPI = Base × (1 - RiskPenalty)
+```
+
+**Втрати (що прибираємо з v10.1):**
+- att_mult (progressive attendance multiplier) — прибираємо, бо Дисципліна вже є окремою осью
+- Committee halving for zero-legislators — прибираємо, бо Авторство = 0 і так видно
+- RiskPenalty як компонент суми — винесена в множник
+
+**Набуття (що додаємо):**
+- `documents_count` — якість підготовки документів (з bill_documents)
+- `adoption_rate` — швидкість проходження (з bill_passings)
+- `co_authors_count` — мережа впливу (з bill_sponsors)
+- `agenda_diversity` — різноманітність сфер діяльності (з agenda_category)
+
+### Telegram text representation
+
+```
+🏛️ Юрчишин П.В. — KPI 72.4
+
+📊 Дисципліна       ████████░░ 82
+🏛️ Авторство        ██████░░░░ 63
+⚡ Результативність  █████░░░░░ 48
+🤝 Взаємодія        ████████░░ 79
+🎯 Профільність     █████████░ 91
+
+⚠️ Ризики: 🟡 середні (toxicity=0.22)
+```
+
+### Dashboard representation
+SVG radar chart (5 осей) + progress bars під ним + значок ризику.
+
+### DECISIONS (CONFIRMED 2026-07-01)
+
+1. **Гексагон → Пентагон** — 5 чистих осей + RiskPenalty множник
+2. **RiskPenalty винесена з осі** — візуально: 🔴🟡🟢 значок під гексагоном
+3. **att_mult прибирається** — замінюється осью "Дисципліна"
+4. **Committee halving прибирається** — Авторство = 0 якщо немає законів
+5. **ЄС не окрема ось** — входить в "Профільність" як доля
+6. **Formula v11**: `Base = 0.20×Дисципліна + 0.25×Авторство + 0.20×Результативність + 0.20×Взаємодія + 0.15×Профільність`, `Final = Base × (1 - RiskPenalty)`
+
+### Implementation plan
+
+**Step 0: Створити конфіг ваг**
+- `kpi_weights.json` — ваги KPI компонент (для калібрування)
+
+**Step 1: Додати нові колонки в mps**
+- `documents_count` — кількість документів по законах депутата
+- `adoption_rate` — % прийнятих законів (stage=4 / total)
+- `shannon_diversity` — entropy по agenda_category
+- `unique_coauthors` — кількість унікальних співавторів
+
+**Step 2: Агрегувати дані**
+- `documents_count` ← bill_documents (COUNT per bill_sponsors)
+- `adoption_rate` ← bills.stage=4 / total_bills per deputy
+- `shannon_diversity` ← Shannon entropy по agenda_category
+- `unique_coauthors` ← COUNT(DISTINCT mp_id) per deputy
+
+**Step 3: Перерахувати KPI v11**
+- Нова формула з 5 осями + RiskPenalty множник
+- Перезаписати kpi_score, kpi_rank в mps
+
+**Step 4: Оновити API**
+- `/api/deputies` — повертає нові поля + 5 осей
+- `/api/deputies/:id` — профіль депутата
+
+**Step 5: Оновити Telegram бот**
+- `/dep <name>` — progress bars 5 осей + значок ризику
+
+**Step 6: Оновити дашборд**
+- SVG radar chart 5 осей
+- Progress bars під ним
+
+### Plan A: Axes filling (NOT FINAL — discussion ongoing)
+
+**Взаємодія (Interaction):**
+
+| Метрика | Джерело | Нормалізація | Coverage |
+|---------|---------|-------------|----------|
+| requests_with_response | deputy_requests | 0-100 (від max=28) | 305/391 (78%) |
+| committee_score | committee_members | 0-100 (з 0-10) | 383/391 (98%) |
+| authorship_ratio | bill_sponsors | 0-100 (з 0-0.77) | 352/391 (90%) |
+
+~~co_authors_count~~ — відхилено: медіана 388 з 391 депутата, всі співпрацюють з усіма. Не диференціює.
+
+Score = (requests_norm × 0.4 + committee_norm × 0.3 + authorship_norm × 0.3)
+
+**Профільність (Specialization):**
+
+| Метрика | Джерело | Формула | Coverage |
+|---------|---------|---------|----------|
+| agenda_diversity | agenda_category | Shannon entropy: H = -Σ(p_i × log2(p_i)) | 357/391 (91%) |
+| eu_ratio | is_euro (bills) | eu_bills / total_bills × 100 | 344/391 (88%) |
+
+**Shannon entropy interpretation:**
+- Низька H (1-3) = спеціаліст (одна-дві категорії) — "оборонець", "податківець"
+- Середня H (3-5) = збалансований (7-10 категорій)
+- Висока H (5-7) = універсал (все по трохи)
+
+**Проблема Plan A:** "краще" на осі "Профільність" — середня спеціалізація (10-11 категорій). Але як нормалізувати? Якщо max H = "краще", то універсал = краще за спеціаліста. Якщо min H = "краще", то спеціаліст = краще за універсала. Потрібен баланс.
+
+**Open question:** Як нормалізувати Профільність? Варіанти:
+- A) H = 3-5 = optimal (100), відхилення = -10 за кожен крок
+- B) H = min (спеціалізація) = краще (reward focus)
+- C) H = max (універсальність) = краще (reward breadth)
+- D) Не нормалізувати, показувати як інфографіку (спеціаліст/універсал)
+
+### Plan B: Three-level system (DISCUSSED — 2026-07-01)
+
+**Замість одного KPI — три рівні.**
+
+#### Рівень 1: KPI (як працює)
+
+Відповідає: «Наскільки добре депутат виконує свою роботу?»
+
+| Компонента | Метрики |
+|-----------|---------|
+| Законодавча ефективність | LEI (primary only) |
+| Дисципліна | ПЯ + ПДА + ВКП |
+| Результативність | Conv (primary) + adoption_rate (stage=4) |
+| Контрольна діяльність | requests_with_response + committee_score |
+| Якість авторства | bill_quality_score + documents_count |
+
+Formula: `KPI = Σ(component × weight)`
+
+**Ваги НЕ фіксуються** — зберігаються в конфігу (`kpi_weights.json`) для калібрування.
+
+```json
+{
+  "kpi_v11": {
+    "effectiveness": 0.25,
+    "discipline": 0.25,
+    "efficiency": 0.20,
+    "control": 0.15,
+    "quality": 0.15
+  }
+}
+```
+
+#### Рівень 2: Профіль (хто він)
+
+Не впливає на рейтинг. Опис депутата.
+
+| Показник | Джерело | Формат |
+|----------|---------|--------|
+| Комітет | committee_members | "Оборона", "Бюджет" |
+| Спеціалізація | Shannon H | "Вузька" / "Середня" / "Широка" |
+| Shannon Diversity | entropy(formula) | числове 0-7 |
+| EU ratio | eu_euro_bills / total_bills | "6%" |
+| Стиль авторства | authorship_ratio | "Індивідуальний" / "Колективний" |
+| Основна тема | top agenda_category | "Безпека" |
+| Законів | total_bills | "47" |
+| Прийнято | total_laws (stage=4) | "12" |
+
+#### Рівень 3: Аналітичні сигнали
+
+Автоматичні висновки. Не KPI, не профіль — **інсайти**.
+
+**Спочатку rule-based, потім LLM** (сигнали = вхідні дані для LLM-висновків).
+
+**Розділення на 3 категорії:**
+
+**⚠ Попередження (негативні сигнали):**
+
+| Сигнал | Умова |
+|--------|-------|
+| Законодавчий спам | total_bills > 200 AND total_laws < 10 |
+| Не працює в комітеті | committee_score = 0 AND total_bills > 0 |
+| Дуже вузька спеціалізація | Shannon H < 2 |
+| Аномально багато соавторств | authorship_ratio < 0.05 |
+| Висока доля термінових | urgent_ratio > 20% |
+| Висока доля технічних | is_procedural ratio > 50% |
+| Підписав 95% законів фракції | same-faction ratio > 95% |
+
+**✓ Сильні сторони (позитивні сигнали):**
+
+| Сигнал | Умова |
+|--------|-------|
+| Висока якість законів | bill_quality_score > 70 |
+| Стабільна спеціалізація | Shannon H < 3 AND total_bills > 10 |
+| Висока результативність | adoption_rate > 30% |
+| Висока дисципліна | ПЯ > 80% AND ПДА > 80% |
+
+**ℹ Цікаві особливості (нейтральні):**
+
+| Сигнал | Умова |
+|--------|-------|
+| Колективний стиль авторства | authorship_ratio < 0.15 |
+| Вузький експерт | Shannon H < 3 |
+| Євроінтеграційний профіль | eu_ratio > 15% |
+| Багато термінових законів | urgent_ratio > 15% |
+
+### Карточка депутата (фінальний формат)
+
+```
+═══════════════════════════════
+        Іван Петренко
+═══════════════════════════════
+
+KPI
+──────────────
+Законодавство      ████████░░ 82
+Дисципліна         █████████░ 95
+Контроль           ███████░░░ 71
+Результативність   █████████░ 88
+Загальний KPI      █████████░ 84
+
+Профіль
+──────────────
+Комітет:           Оборона
+Спеціалізація:     Вузька (H=2.3)
+EU:                6%
+Стиль:             Індивідуальний
+Основна тема:      Безпека
+Законів:           47 (прийнято 12)
+
+⚠ Попередження
+──────────────
+⚠ Дуже низька активність у запитах
+⚠ Майже не працює з іншими авторами
+
+✓ Сильні сторони
+──────────────
+✓ Висока якість законів
+✓ Стабільна спеціалізація
+
+ℹ Особливості
+──────────────
+ℹ Вузький експерт
+ℹ Євроінтеграційний профіль
+```

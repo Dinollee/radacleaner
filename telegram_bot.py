@@ -106,6 +106,85 @@ async def cmd_eu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
+def progress_bar(value, max_val=100, length=10):
+    """Generate text progress bar."""
+    filled = int(value / max_val * length)
+    return "█" * filled + "░" * (length - filled)
+
+
+async def cmd_dep(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Профіль депутата з KPI v11."""
+    text = update.message.text or ""
+    match = re.search(r"/dep\s+(.+)", text)
+    if not match:
+        await update.message.reply_text("Введіть ім'я депутата. Приклад: /dep Юрчишин")
+        return
+
+    name_query = match.group(1).strip()
+    rows = db_query(
+        "SELECT id, name, faction, kpi_v11_score, kpi_v11_effectiveness, kpi_v11_discipline, "
+        "kpi_v11_efficiency, kpi_v11_control, kpi_v11_quality, "
+        "committee_score, shannon_diversity, eu_integration_score, eu_euro_bills, "
+        "authorship_ratio, total_bills, total_laws, bill_quality_score, "
+        "signal_warnings, signal_strengths, signal_features, "
+        "(SELECT committee_name FROM committee_members WHERE member_uid = mps.rada_uid LIMIT 1) as committee "
+        "FROM mps WHERE (end_date IS NULL OR end_date = '') "
+        "AND name ILIKE %s LIMIT 1",
+        [f"%{name_query}%"],
+    )
+    if not rows:
+        await update.message.reply_text(f"❌ Депутата '{name_query}' не знайдено.")
+        return
+
+    d = rows[0]
+    lines = []
+    lines.append(f"═══ <b>{d['name']}</b> ({d['faction']}) ═══")
+
+    # KPI v11
+    lines.append("\n📊 <b>KPI</b>")
+    lines.append(f"  Законодавство  {progress_bar(d['kpi_v11_effectiveness'])} {d['kpi_v11_effectiveness']:.0f}")
+    lines.append(f"  Дисципліна     {progress_bar(d['kpi_v11_discipline'])} {d['kpi_v11_discipline']:.0f}")
+    lines.append(f"  Результативн.  {progress_bar(d['kpi_v11_efficiency'])} {d['kpi_v11_efficiency']:.0f}")
+    lines.append(f"  Контроль       {progress_bar(d['kpi_v11_control'])} {d['kpi_v11_control']:.0f}")
+    lines.append(f"  Якість         {progress_bar(d['kpi_v11_quality'])} {d['kpi_v11_quality']:.0f}")
+    lines.append(f"  <b>Загальний    {progress_bar(d['kpi_v11_score'])} {d['kpi_v11_score']:.1f}</b>")
+
+    # Profile
+    lines.append("\n📋 <b>Профіль</b>")
+    if d.get("committee"):
+        lines.append(f"  Комітет: {d['committee']}")
+    shannon = d.get("shannon_diversity", 0) or 0
+    spec = "Дуже вузька" if shannon < 2 else "Вузька" if shannon < 3 else "Середня" if shannon < 4.5 else "Широка"
+    lines.append(f"  Спеціалізація: {spec} (H={shannon:.1f})")
+    eu = d.get("eu_integration_score", 0) or 0
+    if eu > 0:
+        lines.append(f"  EU: {eu:.1f}")
+    ar = d.get("authorship_ratio", 0) or 0
+    style = "Індивідуальний" if ar > 0.5 else "Змішаний" if ar > 0.2 else "Колективний"
+    lines.append(f"  Стиль: {style}")
+    lines.append(f"  Законів: {d['total_bills']} (прийнято {d['total_laws']})")
+
+    # Signals
+    warnings = d.get("signal_warnings") or []
+    strengths = d.get("signal_strengths") or []
+    features = d.get("signal_features") or []
+
+    if warnings:
+        lines.append("\n⚠️ <b>Попередження</b>")
+        for w in warnings:
+            lines.append(f"  ⚠ {w}")
+    if strengths:
+        lines.append("\n✓ <b>Сильні сторони</b>")
+        for s in strengths:
+            lines.append(f"  ✓ {s}")
+    if features:
+        lines.append("\nℹ <b>Особливості</b>")
+        for f in features:
+            lines.append(f"  ℹ {f}")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+
+
 # --- Bill info ---
 
 async def send_bill_info(update, bill_number):
@@ -277,6 +356,7 @@ def main():
     app.add_handler(CommandHandler("bill", cmd_bill))
     app.add_handler(CommandHandler("top", cmd_top))
     app.add_handler(CommandHandler("eu", cmd_eu))
+    app.add_handler(CommandHandler("dep", cmd_dep))
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
@@ -285,7 +365,8 @@ def main():
     bot = Bot(token=token)
     asyncio.run(bot.set_my_commands([
         BotCommand("start", "Запустити бота"),
-        BotCommand("bill", "Інформація про закон (напр. /bill 14332)"),
+        BotCommand("bill", "Інформація про закон"),
+        BotCommand("dep", "Профіль депутата"),
         BotCommand("top", "Топ депутатів за KPI"),
         BotCommand("eu", "Топ за євроінтеграцією"),
         BotCommand("help", "Довідка"),
