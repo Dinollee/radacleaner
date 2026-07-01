@@ -1320,35 +1320,41 @@ async function showDeputy(name, votesOffset) {
           </div>
         </div>
 
-        <!-- Radar Chart -->
-        <div style="background:var(--bg2);border-radius:12px;padding:16px;margin-bottom:16px;border:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px;text-align:center">Компоненти KPI</div>
-          ${radarSvg}
-        </div>
+        <!-- Two-column layout: Radar left, Profile + Signals right -->
+        <div style="display:grid;grid-template-columns:240px 1fr;gap:16px">
+          <!-- LEFT: Radar Chart -->
+          <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px">KPI v11</div>
+            ${radarSvg}
+          </div>
 
-        <!-- Profile -->
-        <div style="background:var(--bg2);border-radius:12px;padding:14px;margin-bottom:16px;border:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:13px">
-            <div><span style="color:var(--text2)">Спеціалізація:</span> <strong>${shannon<2?'Дуже вузька':shannon<3?'Вузька':shannon<4.5?'Середня':'Широка'}</strong> <span style="color:var(--muted)">(H=${shannon.toFixed(1)})</span></div>
-            <div><span style="color:var(--text2)">Стиль:</span> <strong>${(d.authorship_ratio||0)>0.5?'Індивідуальний':(d.authorship_ratio||0)>0.2?'Змішаний':'Колективний'}</strong></div>
-            <div><span style="color:var(--text2)">Законів:</span> <strong>${d.total_bills||0}</strong> (прийнято ${d.total_laws||0})</div>
-            <div><span style="color:var(--text2)">EU:</span> <strong>${d.eu_integration_score?d.eu_integration_score.toFixed(1):'0'}</strong></div>
-            <div><span style="color:var(--text2)">ПЯ:</span> <strong>${d.py||0}%</strong></div>
-            <div><span style="color:var(--text2)">ПДА:</span> <strong>${d.pda||0}%</strong></div>
-            <div><span style="color:var(--text2)">ВКП:</span> <strong>${d.vkp||0}%</strong></div>
-            <div><span style="color:var(--text2)">LEI:</span> <strong>${(d.lei||0).toFixed(1)}</strong></div>
+          <!-- RIGHT: Profile + Signals stacked -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <!-- Profile -->
+            <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:13px">
+                <div><span style="color:var(--text2)">Спеціалізація:</span> <strong>${shannon<2?'Дуже вузька':shannon<3?'Вузька':shannon<4.5?'Середня':'Широка'}</strong> <span style="color:var(--muted)">(H=${shannon.toFixed(1)})</span></div>
+                <div><span style="color:var(--text2)">Стиль:</span> <strong>${(d.authorship_ratio||0)>0.5?'Індивідуальний':(d.authorship_ratio||0)>0.2?'Змішаний':'Колективний'}</strong></div>
+                <div><span style="color:var(--text2)">Законів:</span> <strong>${d.total_bills||0}</strong> (прийнято ${d.total_laws||0})</div>
+                <div><span style="color:var(--text2)">EU:</span> <strong>${d.eu_integration_score?d.eu_integration_score.toFixed(1):'0'}</strong></div>
+                <div><span style="color:var(--text2)">ПЯ:</span> <strong>${d.py||0}%</strong></div>
+                <div><span style="color:var(--text2)">ПДА:</span> <strong>${d.pda||0}%</strong></div>
+                <div><span style="color:var(--text2)">ВКП:</span> <strong>${d.vkp||0}%</strong></div>
+                <div><span style="color:var(--text2)">LEI:</span> <strong>${(d.lei||0).toFixed(1)}</strong></div>
+              </div>
+            </div>
+
+            <!-- Signals -->
+            ${(warnings.length||strengths.length||features.length) ? `
+            <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Аналітичні сигнали</div>
+              ${warnings.length ? `<div style="margin-bottom:8px">${warnings.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(231,76,60,0.12);color:var(--red);border:1px solid rgba(231,76,60,0.2)">⚠ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+              ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+              ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+            </div>` : ''}
           </div>
         </div>
-
-        <!-- Signals -->
-        ${(warnings.length||strengths.length||features.length) ? `
-        <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Аналітичні сигнали</div>
-          ${warnings.length ? `<div style="margin-bottom:8px">${warnings.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(231,76,60,0.12);color:var(--red);border:1px solid rgba(231,76,60,0.2)">⚠ ${escHtml(s)}</div>`).join('')}</div>` : ''}
-          ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
-          ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
-        </div>` : ''}
       </div>`;
 
     // Voting history with filters
