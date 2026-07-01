@@ -318,7 +318,7 @@ app.get('/api/deputies', async (req, res) => {
     const status = req.query.status;
     const sort = req.query.sort || 'name';
     const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score'].includes(sort) ? sort : 'name';
+    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score','eu_integration_score'].includes(sort) ? sort : 'name';
     const sortCol = safeSort === 'conversion'
       ? `CASE WHEN m.total_bills > 0 THEN m.total_laws::float / m.total_bills ELSE 0 END`
       : `m.${safeSort}`;
@@ -332,7 +332,7 @@ app.get('/api/deputies', async (req, res) => {
     else if (status === 'former') { where.push(`m.end_date IS NOT NULL AND m.end_date != ''`); }
 
     const whereSQL = where.join(' AND ');
-    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, m.end_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox", COALESCE(m.kpi_score,0) as "kpiScore", COALESCE(m.kpi_rank,0) as "kpiRank" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, m.end_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox", COALESCE(m.kpi_score,0) as "kpiScore", COALESCE(m.kpi_rank,0) as "kpiRank", COALESCE(m.eu_integration_score,0) as "euScore", COALESCE(m.eu_euro_bills,0) as "euEuroBills", COALESCE(m.eu_risk_bills,0) as "euRiskBills", COALESCE(m.eu_state_aid_bills,0) as "euStateAidBills", COALESCE(m.requests_with_response,0) as "requestsWithResponse" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
     const countResult = (await q(`SELECT COUNT(*) as total FROM mps m WHERE ${whereSQL}`, params))[0];
 
     const result = deputies.map(d => ({

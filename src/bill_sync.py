@@ -236,7 +236,7 @@ def process_full_data(data: bytes) -> int:
     data = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", data)
     bills = json.loads(data, strict=False)
 
-    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee, stage FROM bills")
+    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee, stage, is_urgent, is_euro FROM bills")
     db_bills = {row["bill_number"]: row for row in db_rows}
 
     existing_file_ids = d1_query("SELECT bill_id, file_id FROM bill_documents")
@@ -269,6 +269,20 @@ def process_full_data(data: bytes) -> int:
             d1_exec("raw_sql", {
                 "sql": "UPDATE bills SET agenda_category=? WHERE bill_number=?",
                 "params": [new_rubric, bn],
+            })
+
+        # Extract isUrgent and isEuro flags
+        new_urgent = bool(b.get("isUrgent", False))
+        new_euro = bool(b.get("isEuro", False))
+        if new_urgent != row.get("is_urgent", False):
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET is_urgent=? WHERE bill_number=?",
+                "params": [new_urgent, bn],
+            })
+        if new_euro != row.get("is_euro", False):
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET is_euro=? WHERE bill_number=?",
+                "params": [new_euro, bn],
             })
 
         new_subject = b.get("subject", "").strip()

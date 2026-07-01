@@ -60,10 +60,14 @@ Start every session by reading, in this order:
 
 Do not scan `src/` or read files beyond what the chosen task requires.
 
+**GATE: Do NOT proceed to Phase B until user explicitly confirms the plan (e.g. "поехали", "давай", "ок", "начинай").**
+
 ### Phase B: Work
 - Work on ONE task only. If you spot a bug elsewhere — note it, don't touch it.
 - Read only the files needed for this specific task.
 - Write code, run tests, verify.
+
+**GATE: Do NOT proceed to Phase C until work is complete and verified. Do NOT start a new task in the same session.**
 
 ### Phase C: Handoff
 Before finishing:

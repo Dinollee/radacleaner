@@ -554,6 +554,75 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
     return final_result
 
 
+def _fix_discretion_hallucination(data: dict):
+    """Post-verification: catch 'discretion' hallucination when law actually grants selective preferences.
+
+    If the law imperatively exempts specific entities from enforcement,
+    the model may incorrectly write 'discretionary authority of controlling body'.
+    This function detects and corrects that pattern.
+    """
+    import re
+
+    law = (data.get("law_summary", "") + " " + data.get("summary", "")).lower()
+    risks = data.get("detailed_risks", [])
+    categories = data.get("risk_categories", [])
+
+    # Pattern: imperative exemption for specific entities
+    imperative_patterns = [
+        r"звільняє.*від.*стягнення",
+        r"не здійснюють заходи",
+        r"зупиняє.*стягнення",
+        r"призупиняє.*борг",
+        r"звільнити.*від.*зобов'язань",
+    ]
+    has_imperative = any(re.search(p, law) for p in imperative_patterns)
+
+    # Pattern: model incorrectly claims discretion
+    discretion_pattern = re.compile(r"дискреційн\w*\s+(право|повноваження|простір)", re.IGNORECASE)
+
+    if not has_imperative:
+        return
+
+    fixed = False
+    template = (
+        "Створення вибіркових законодавчих преференцій для окремих суб'єктів господарювання, "
+        "що порушує принцип рівності платників податків (ст. 4 ПК України) "
+        "та створює дискримінаційні умови."
+    )
+
+    for i, risk in enumerate(risks):
+        if discretion_pattern.search(risk):
+            log.info("  POST_VERIFY: fixing discretion hallucination in detailed_risks[%d]", i)
+            # Keep the original norm reference if present
+            norm_ref = re.search(r"((?:ст|п|пп)\.\s*[\d\.\s,–]+)", risk)
+            prefix = f"({norm_ref.group(0)}) " if norm_ref else ""
+            risks[i] = prefix + template
+            fixed = True
+
+    for cat in categories:
+        cat_risks = cat.get("risks", [])
+        for i, risk in enumerate(cat_risks):
+            if discretion_pattern.search(risk):
+                log.info("  POST_VERIFY: fixing discretion hallucination in risk_categories")
+                cat_risks[i] = template
+                fixed = True
+
+    if fixed:
+        # Also check for English terms and flag them
+        eng_pattern = re.compile(r"\b(preferential treatment|arrears|enforcement|moratorium)\b", re.IGNORECASE)
+        ukr_replacements = {
+            "preferential treatment": "вибіркове ставлення",
+            "arrears": "заборгованість",
+            "enforcement": "стягнення",
+            "moratorium": "мораторій",
+        }
+        for i, risk in enumerate(risks):
+            for eng, ukr in ukr_replacements.items():
+                if eng_pattern.search(risk):
+                    risks[i] = re.sub(eng, ukr, risks[i], flags=re.IGNORECASE)
+                    log.info("  POST_VERIFY: replaced English term '%s' with '%s'", eng, ukr)
+
+
 def process_bill(info: dict, test_mode: bool = False, provider: str | None = None):
     """Повна обробка одного законопроекту: PDF → чанки → LLM → збереження.
 
@@ -682,6 +751,9 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
         tox = llm_data.get("toxicity", 0)
         log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d sig=%d imp=%d risk=%d tox=%.2f",
                  risk_level, len(llm_data.get("detailed_risks", [])), sig, imp, rsk, tox)
+
+    # Post-verification: fix discretion hallucination
+    _fix_discretion_hallucination(llm_data)
 
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)

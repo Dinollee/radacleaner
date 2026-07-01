@@ -6,7 +6,7 @@
 - **Express (Node.js)** — API server (worker/api-server.js, port 8788)
 - **Cloudflare Pages** — dashboard (dashboard/)
 - **Cloudflare Tunnel** — exposes API as api.dino.pp.ua
-- **LLM** — OpenRouter owl-alpha (primary), Gemini gemma-4 (fallback)
+- **LLM** — `nvidia/nemotron-3-super-120b-a12b:free` via OpenRouter (primary), NVIDIA API (secondary), Gemini gemma-4 (backup). See `scripts/test_llm_providers.py`.
 
 ## Directory layout
 ```
@@ -23,9 +23,9 @@ tests/            — tests
 ## Data flow: Bill Assessment → Deputy KPI
 
 ```
-RADA API
+RADA API (billinfo_full JSON)
   ↓
-bills (significance, impact, risk_score, toxicity)
+bills (significance, impact, risk_score, toxicity, is_urgent, is_euro)
   ↓
 LLM Analysis (rag_engine.py → risk_assessments)
   ↓
@@ -90,7 +90,7 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
 | sync_mp_stats.py | Voting stats per deputy |
 | sync_committee_members.py | Committee assignments |
-| sync_deputy_requests.py | Deputy parliamentary requests |
+| sync_deputy_requests.py | Deputy parliamentary requests (matches by first+patronymic initials) |
 | calc_msi_kpb.py | MSI + K_pb (political barrier) calculation |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
 | calc_deputy_kpi_v9.py | KPI v10 score calculation (current) |
@@ -106,15 +106,18 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 - Updated daily (usually overnight)
 
 ## DB schema (key tables)
-- **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM)
+- **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
-- **mps** — 389 active + 53 former deputies. rada_uid = stable identity key
+- **mps** — 460 deputies (389 active + former). rada_uid = stable identity key. 6 name changes tracked in deputy_aliases.
   - kpi_score, kpi_rank — KPI v10 results
   - lei — Legislative Effectiveness Index (v9 values, synced)
   - bill_quality_score — weighted quality (NULL = no analyzed bills)
   - avg_risk_score — average risk (NULL = no analyzed bills)
   - authorship_ratio — primary_bills / total_bills
   - bills_analyzed_count — count of bills with risk_assessments
+  - eu_integration_score — EU focus (isEuro×2 + eu_risk + state_aid×3) / total
+  - eu_euro_bills, eu_risk_bills, eu_state_aid_bills — EU breakdown
+  - requests_with_response — deputy requests with responses
 - **mp_votes** — 7.5M voting records
 - **mp_bills** — bills authored by deputies
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
@@ -127,6 +130,32 @@ Score = 0.20×LEI + 0.15×ПЯ + 0.10×ПДА
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
 - Key endpoints: `/api/bills`, `/api/deputies`, `/api/eu-alignment`, `/api/eu-alignment/trend`
+
+## Free LLM Providers (tested 2026-07-01)
+
+All providers offer free tiers. Provider testing: `./venv/bin/python scripts/test_llm_providers.py`
+
+### OpenRouter (openrouter.ai)
+- Auth: `OPENROUTER_API_KEY` in .env
+- Primary model: `nvidia/nemotron-3-super-120b-a12b:free` (50s, excellent Ukrainian, 1M context)
+- Others: `nvidia/nemotron-3-ultra-550b-a55b:free`, `google/gemma-4-31b-it:free`, `openrouter/free`
+- Note: `openrouter/owl-alpha` is DEAD (404 since 2026-06-30)
+
+### NVIDIA API (integrate.api.nvidia.com)
+- Auth: `NVIDIA_API_KEY` in .env
+- Rate limit: 40 req/min max, **use 30 for safety**
+- Fallback model: `nvidia/nemotron-3-super-120b-a12b` (17s)
+- Also works: `mistralai/mistral-large-3-675b-instruct-2512` (6s), `mistral-medium-3.5-128b`, `llama-4-maverick`
+
+### Google Gemini (direct API)
+- Auth: `GEMINI_API_KEY` in .env
+- Model: `gemma-4-31b-it`
+- Free tier: 1500 req/day (quota may be exhausted by nightly batch)
+- Prefer OpenRouter route for same model: `google/gemma-4-31b-it:free`
+
+## Roadmap
+See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph, execution order.
+Current status: Authors extracted (99.95%), LLM migrated to nemotron-super. Next: analyze remaining 9,257 bills.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
