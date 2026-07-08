@@ -1468,9 +1468,12 @@ async function loadSchedule() {
   const monthParam = scheduleYear + '-' + mm;
 
   try {
-    const data = await api('/api/schedule?month=' + monthParam);
-    renderCalendar(data.schedule || []);
-    renderCommittees(data.committees || []);
+    const [schedData, actData] = await Promise.all([
+      api('/api/schedule?month=' + monthParam),
+      api('/api/activity-calendar?month=' + monthParam)
+    ]);
+    renderCalendar(schedData.schedule || [], actData.activity || {});
+    renderCommittees(schedData.committees || []);
   } catch(e) {
     console.error('Schedule error:', e);
     document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
@@ -1494,7 +1497,7 @@ async function loadSchedule() {
   } catch(e) {}
 }
 
-function renderCalendar(events) {
+function renderCalendar(events, activity) {
   const cal = document.getElementById('schedule-calendar');
   const firstDay = new Date(scheduleYear, scheduleMonthNum - 1, 1);
   const lastDay = new Date(scheduleYear, scheduleMonthNum, 0);
@@ -1522,14 +1525,21 @@ function renderCalendar(events) {
       } else {
         const dateStr = scheduleYear + '-' + String(scheduleMonthNum).padStart(2,'0') + '-' + String(day).padStart(2,'0');
         const dayEvents = byDate[dateStr] || [];
+        const act = activity[dateStr] || {};
+        const isNew = (act.new || 0) > 0;
+        const isChanged = (act.changed || 0) > 0;
         const isToday = new Date().toISOString().slice(0,10) === dateStr;
         const todayStyle = isToday ? 'font-weight:bold;color:#fff;background:#1a73e8;border-radius:4px;' : '';
         const dots = dayEvents.map(ev => {
           const c = SCH_COLORS[ev.event_type] || '#888';
           return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
         }).join('');
-        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}">
+        const badges = [];
+        if (isNew) badges.push(`<span style="font-size:10px;color:#2ecc71;font-weight:600">+${act.new}</span>`);
+        if (isChanged) badges.push(`<span style="font-size:10px;color:#3498db;font-weight:600">~${act.changed}</span>`);
+        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}${isNew ? ', +' + act.new + ' new' : ''}${isChanged ? ', ~' + act.changed + ' changes' : ''}">
           <div style="font-size:13px;${todayStyle}">${day}</div>
+          ${badges.length ? '<div style="display:flex;gap:3px;justify-content:center;margin-top:1px">' + badges.join('') + '</div>' : ''}
           <div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${dots}</div>
         </td>`;
         day++;

@@ -403,6 +403,28 @@ app.get('/api/schedule', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- ACTIVITY CALENDAR ---
+app.get('/api/activity-calendar', async (req, res) => {
+  try {
+    const month = req.query.month;
+    if (!month) return error(res, 'month param required (YYYY-MM)');
+    const rows = await q(
+      `SELECT to_char(date(created_at), 'YYYY-MM-DD') as day,
+              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
+              COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
+       FROM change_log
+       WHERE created_at >= $1 AND created_at < $2
+       GROUP BY date(created_at)`,
+      [month + '-01', month + '-32']
+    );
+    const activity = {};
+    for (const r of rows) {
+      activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
+    }
+    json(res, { activity }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- EU ALIGNMENT ---
 app.get('/api/eu-alignment', async (req, res) => {
   try {
