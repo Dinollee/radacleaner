@@ -33,8 +33,8 @@ DIGEST_PROMPT = '''Проаналізуй дані та сформуй щоде�
 • статус комітетів
 • нові законопроекти або немає
 
-📢 ВІДСЛІДЖУВАНІ:
-📢 номер — назва (статус)
+📢 УВАГА:
+📌 номер — назва (статус)
 
 ✅ Перевірено: число
 
@@ -260,11 +260,11 @@ def format_fallback(data):
     else:
         lines.append(chr(10060) + ' Нових законопроєктів — немає')
     lines.append('')
-    lines.append(chr(128226) + ' ВІДСЛІДЖУВАНІ:')
+    lines.append(chr(128226) + ' УВАГА:')
     for b in data['tracked_bills'][:5]:
         title = b['title'][:50] if b['title'] else 'Без назви'
         status = b.get('current_status') or 'Невідомо'
-        lines.append(chr(128226) + ' #' + b['bill_number'] + ' — ' + title + ' (' + status + ')')
+        lines.append(chr(128204) + ' #' + b['bill_number'] + ' — ' + title + ' (' + status + ')')
     lines.append('')
     violations = len([b for b in data['high_risk_bills'] if b.get('overall_score', 0) >= 70])
     lines.append(chr(9989) + ' Перевірено: ' + str(data['total_bills']))
