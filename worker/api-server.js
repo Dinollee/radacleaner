@@ -124,7 +124,17 @@ app.get('/api/bills', async (req, res) => {
     let params = [];
     let idx = 1;
 
-    if (stage) { where.push(`b.stage = $${idx++}`); params.push(Number(stage)); }
+    if (stage) {
+      const stages = stage.split(',').map(s => Number(s.trim())).filter(s => s > 0);
+      if (stages.length === 1) {
+        where.push(`b.stage = $${idx++}`);
+        params.push(stages[0]);
+      } else if (stages.length > 1) {
+        const placeholders = stages.map(() => `$${idx++}`).join(',');
+        where.push(`b.stage IN (${placeholders})`);
+        params.push(...stages);
+      }
+    }
     if (status) { where.push(`b.current_status = $${idx++}`); params.push(status); }
     if (updatedAfter) { where.push(`b.status_changed_at >= $${idx++}`); params.push(updatedAfter); }
     if (updatedBefore) { where.push(`b.status_changed_at <= $${idx++}`); params.push(updatedBefore + ' 23:59:59'); }

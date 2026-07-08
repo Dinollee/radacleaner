@@ -1494,9 +1494,9 @@ async function loadSchedule() {
     document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
   }
 
-  // Bills for voting (same as before)
+  // Bills for voting: stage 2 (first reading) + stage 3 (second reading)
   try {
-    const upcoming = await api('/api/bills?limit=10&stage=2&sort=registration_date&order=DESC');
+    const upcoming = await api('/api/bills?limit=10&sort=registration_date&order=DESC&stage=2,3');
     const ub = document.getElementById('upcoming-bills');
     if (upcoming.bills?.length) {
       ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
