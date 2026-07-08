@@ -71,17 +71,18 @@ def calculate_stats():
         total_bills, total_laws = mp_bills.get(mp_id, (0, 0))
 
         lei = total_laws * (total_laws / total_bills) if total_bills > 0 else 0
+        adoption_rate = round((total_laws / total_bills) * 100, 1) if total_bills > 0 else 0
 
         d1_exec_sql("""
             UPDATE mps SET
                 py = %s, pda = %s, vkp = %s, data_sufficient = %s,
                 total_votes = %s, attended_votes = %s, voted_votes = %s,
-                total_bills = %s, total_laws = %s, lei = %s,
+                total_bills = %s, total_laws = %s, lei = %s, adoption_rate = %s,
                 stats_updated_at = (now() AT TIME ZONE 'utc')
             WHERE id = %s
         """, [py, pda, vkp, data_sufficient,
               total, attended, voted,
-              total_bills, total_laws, lei, mp_id])
+              total_bills, total_laws, lei, adoption_rate, mp_id])
 
     log.info("=== Updated %d deputies ===", len(vote_agg))
 

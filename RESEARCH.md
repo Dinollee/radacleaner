@@ -505,9 +505,9 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 
 | # | Task | Status | Blocks |
 |---|------|--------|--------|
-| 3.1 | Design unified dashboard layout (figma/sketch or HTML mockup) | OPEN | Implementation |
+| 3.1 | Design unified dashboard layout (figma/sketch or HTML mockup) | ✅ DONE (pentagon + profile + signals in deputy detail) | — |
 | 3.2 | API: `/api/dashboard/unified` — returns all 4 blocks in one call | OPEN | Frontend |
-| 3.3 | Frontend: replace tabs with unified layout | OPEN | — |
+| 3.3 | Frontend: replace tabs with unified layout | PARTIAL — deputies tab uses KPI v11, but tabs still separate | — |
 
 ### GROUP 4: News Monitoring & Fake Detection
 **Goal:** Track news mentioning our laws, detect fakes/misinformation.
@@ -540,7 +540,7 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 | 5.2 | ~~Bot menu + /start~~ | ✅ DONE | Inline keyboard with 4 buttons |
 | 5.3 | High-risk alert | OPEN | toxicity > 0.7 → instant message (auto, no user action) |
 | 5.4 | Daily digest | OPEN | Top 5 bills + top 3 deputies + EU score (cron at 08:00) |
-| 5.5 | Deputy profile | OPEN | `/dep <name>` → KPI pentagon (progress bars) |
+| 5.5 | Deputy profile | ✅ DONE | `/dep <name>` → KPI v11 pentagon + profile + signals |
 | 5.6 | Weekly digest | OPEN | Trends, EU progress (cron at Monday 08:00) |
 
 **Deputy profile format (Telegram):**
@@ -826,7 +826,7 @@ SVG radar chart (5 осей) + progress bars під ним + значок риз
 **Step 4: ~~Оновити API~~** ✅ DONE
 **Step 5: ~~Оновити Telegram бот~~** ✅ DONE
 
-**Step 6: Оновити дашборд** — OPEN (наступна задача)
+**Step 6: Оновити дашборд** — ✅ DONE (pentagon radar, 5-component sort, profile + signals in deputy detail)
 
 ### Plan A: Axes filling (NOT FINAL — discussion ongoing)
 
@@ -986,3 +986,404 @@ EU:                6%
 ℹ Вузький експерт
 ℹ Євроінтеграційний профіль
 ```
+
+---
+
+## Dashboard Implementation (DONE 2026-07-02)
+
+### What was implemented
+
+**Deputies list** (`/deputies` tab):
+- Table columns: Name, Faction, KPI (large number), Законодав., Дисципліна, Результат., Контроль, Якість
+- Each component shows as a colored progress bar (green ≥70, orange ≥40, red <40)
+- KPI v11 sort: by KPI score, or by individual component
+- Former deputies dimmed (opacity 0.55) with "Вибулий" badge
+- Pagination, search, faction filter, status filter (active/former)
+
+**Deputy detail** (click row → detail page):
+- Header: name, faction, KPI score (large, color-coded), rank
+- **Left**: SVG pentagon radar chart (5 axes: Дисципліна, Законодавство, Результативн., Контроль, Якість)
+  - Grid rings at 20/40/60/80/100%
+  - Data path with blue fill + value labels at each vertex
+- **Right top**: Profile grid — specialization (Shannon H), authorship style, bills/laws, EU score, ПЯ/ПДА/ВКП, LEI
+- **Right bottom**: Signal badges — warnings (red), strengths (green), features (blue)
+- Voting history with pagination + vote type filters
+
+**API** (`/api/deputies`):
+- Returns `kpiV11`, `kpiEff`, `kpiDisc`, `kpiRes`, `kpiCtrl`, `kpiQual`, `shannon`, `adoptionRate`
+- Returns `signal_warnings`, `signal_strengths`, `signal_features` (JSONB arrays)
+- Sortable by any KPI component
+
+### Files touched
+- `dashboard/index.html` — deputies table, detail page, radar chart
+- `worker/api-server.js` — `/api/deputies` returns v11 fields
+
+### Open items (next session)
+1. **Group 3**: Unified dashboard (4 blocks: Top deputies, Top bills, EU score, Fakes) — tabs still separate
+2. **Group 3.2**: `/api/dashboard/unified` endpoint — single call for all 4 blocks
+3. **Group 5.3**: Telegram high-risk alert (toxicity > 0.7 → instant message)
+4. **Group 5.4**: Daily digest (cron at 08:00)
+5. **Group 4**: News monitoring (RSS + fake detection)
+
+---
+
+## KPI v12 — Альтернативна точка зору (Plan C)
+
+> **Статус:** Розробка. KPI v11 залишається основою.
+> **Мета:** Валідація підходу v11 через незалежну формулу. Якщо v12 дає схожі рейтинги — підхід robust. Якщо сильно відрізняється — шукаємо чому.
+
+### Філософія v12
+
+**Проблема v11:** 5 компонентів з різними вагами (0.25, 0.25, 0.20, 0.15, 0.15). Кожна калібрування ваг = endless debate. Shannon entropy в профілі, але тягне за собою нормалізацію. Сигнали = rule-based, але суб'єктивні.
+
+**Рішення v12:** 6 категорій діяльності з рівною вагою (1/6 кожна). Кожна категорія = одне питання про роботу депутата. Формула проста: KPI = (C1 + C2 + C3 + C4 + C5 + C6) / 6.
+
+**Правила:**
+- Категорії ортогональні (не перетинаються)
+- Кожна Ci ∈ [0, 1]
+- Якщо немає даних для категорії → 0.5 (нейтрально, не 0)
+- KPI v12 НЕ замінює v11, а перевіряє його
+
+### 6 категорій — детальний опис
+
+---
+
+#### C1: ДИСЦІПЛІНА (чи ходить на роботу?)
+
+**Питання:** Чи присутній депутат на пленарних засіданнях і чи голосує?
+
+**Метрики (наявні в базі):**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| py | mp_votes | % (0-100) | 460/460 | Послух якості — % голосувань де був присутній |
+| pda | mp_votes | % (0-100) | 460/460 | Послух діяльності — % голосувань де проголосував (не утримався) |
+| vkp | mp_votes | % (0-100) | 460/460 | Відповідність корпусу — % голосувань де голосував як фракція |
+| total_votes | mp_votes | int | 460/460 | Загальна кількість голосувань за каденцію |
+| attended_votes | mp_votes | int | 460/460 | Скільки разів фактично голосував |
+
+**Агрегація:**
+```
+C1 = (py_norm × 0.5 + pda_norm × 0.3 + vkp_norm × 0.2)
+```
+
+Де py_norm, pda_norm, vkp_norm ∈ [0, 1] — це просто значення / 100.
+
+**Чому такі ваги:**
+- py (0.5) — головна: депутат має бути присутній
+- pda (0.3) — важливо: не просто сидіти, а голосувати
+- vkp (0.2) — додатково: голосувати разом з фракцією (дисципліна фракції, не особиста)
+
+**Edge cases:**
+- ПЯ < 10% → C1 = 0 (не працює взагалі)
+- Депутат покинув фракцію → vkp може бути низьким через іншу фракцію → це OK
+
+**Що НЕ включаємо:**
+- data_sufficient — це прапорець, не метрика
+- attended_votes — вже в py
+
+---
+
+#### C2: ЗАКОНОТВОРЧІСТЬ (чи пише закони?)
+
+**Питання:** Чи ініціює депутат законопроєкти і наскільки вони якісні?
+
+**Метрики:**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| total_bills | mps | int | 460/460 | Всього підписів (автор + співавтор) |
+| total_laws | mps | int | 460/460 | З них stage=4 (прийнято) |
+| bill_quality_score | mps | float | 357/460 | AVG(significance + impact) / 2 з risk_assessments |
+| avg_risk_score | mps | float | 357/460 | Середній risk_score аналізованих законів |
+| documents_count | mps | int | 357/460 | Скільки документів до законопроєктів (підготовка) |
+| bills_analyzed_count | mps | int | 357/460 | Скільки законів проаналізовано LLM |
+| authorship_ratio | mps | float | 352/460 | Частка власних ініціатив (order=0 / total) |
+
+**Агрегація:**
+```
+C2 = quality_norm × 0.4 + risk_penalty × 0.3 + docs_norm × 0.3
+```
+
+Де:
+- quality_norm = bill_quality_score / 5 (нормалізація до 0-1, бо significance і impact ∈ [0, 5])
+- risk_penalty = 1 - (avg_risk_score / 5) (чим вищий ризик — тим нижча оцінка)
+- docs_norm = min(documents_count / 200, 1) (нормалізація: 200+ документів = максимум)
+
+**Якщо немає даних:** quality_norm = 0.5, risk_penalty = 0.5, docs_norm = 0.5 → C2 = 0.5
+
+**Що НЕ включаємо:**
+- total_bills — це обсяг, а не якість. Високий total_bills без якості = спам
+- authorship_ratio — це профіль (чи пише сам чи з кимось), не якість
+- adoption_rate — це C3 (результативність)
+- LEI — це похідна від adoption, теж C3
+
+**Критичне зауваження:** bill_quality_score = AVG((significance + impact) / 2) залежить від LLM аналізу. Наразі проаналізовано лише ~39% законів. Для 61% депутатів quality = 0.5 (нейтрально). Це acceptable для v12 як тесту.
+
+---
+
+#### C3: РЕЗУЛЬТАТИВНІСТЬ (чи доходять закони до кінця?)
+
+**Питання:** Чи здатен депутат провести закон через усі стадії до підпису?
+
+**Метрики:**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| adoption_rate | mps | % | 357/460 | % законопроєктів stage=4 від загальної кількості |
+| total_bills | mps | int | 460/460 | Знаменник adoption_rate |
+| total_laws | mps | int | 460/460 | Чисельник adoption_rate |
+
+**Агрегація:**
+```
+C3 = adoption_rate / 100
+```
+
+Просто: яка частка законопроєктів стала законами.
+
+**Додатковий множник (обсяг):**
+```
+volume_factor = min(total_primary / 10, 1)  (де total_primary = sponsor_order=0 bills)
+C3_final = C3 × volume_factor
+```
+
+Це гарантує що депутат з 1 законом і 100% конверсією не отримує C3=1. Мінімум 10 ініційованих законів для повного балу.
+
+**Якщо total_primary < 3:** C3 = 0.5 (замало даних для оцінки)
+
+**Що НЕ включаємо:**
+- LEI — це log-функція, занадто складна для v12
+- total_laws alone — це обсяг, не конверсія
+
+---
+
+#### C4: КОМІТЕТСЬКА РОБОТА (чи працює в комітеті?)
+
+**Питання:** Чи бере депутат участь у роботі комітету і яку роль відіграє?
+
+**Метрики:**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| committee_score | mps | int (0-10) | 383/460 | Роль: chair=10, vice=7, subcommittee=5, member=3, none=0 |
+| committee_role | committee_members | text | 383/460 | Текстова роль |
+
+**Агрегація:**
+```
+C4 = committee_score / 10
+```
+
+Проста нормалізація: 10 = максимум (голова комітету), 0 = немає комітету.
+
+**Якщо committee_score = 0:** C4 = 0.5 (депутат може не мати комітету з інших причин)
+
+**Проблема:** committee_score = static. Він не змінюється протягом каденції. Голова комітету завжди 10, навіть якщо комітет не працює.
+
+**Для v12 приймаємо:** committee_score як є. Це "роль", не "активність". Активність комітету вимірюється інакше (але цих даних у нас немає).
+
+**Що НЕ включаємо:**
+- Кількість засідань комітету — немає даних
+- Авторські закони комітету — це C2
+
+---
+
+#### C5: ЗВЕРНЕННЯ (чи допомагає виборцям?)
+
+**Питання:** Чи подає депутат запити і чи отримує відповіді?
+
+**Метрики:**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| requests_with_response | mps | int | 303/460 | Кількість запитів з відповіддю |
+| request_count | mps | int | 303/460 | Загальна кількість запитів |
+
+**Агрегація:**
+```
+C5 = min(requests_with_response / 20, 1)
+```
+
+Нормалізація: 20 запитів з відповіддю = максимум (дані: max=28).
+
+**Додатковий множник (якість відповідей):**
+```
+response_rate = request_count > 0 ? requests_with_response / request_count : 0
+C5_final = C5 × (0.7 + 0.3 × response_rate)
+```
+
+Це заохочує не просто подавати запити, а отримувати відповіді.
+
+**Якщо requests_with_response = 0:** C5 = 0 (депутат не подає запитів)
+
+**Проблема:** API повертає дані лише для 303/460 депутатів. 157 депутатів мають C5 = 0 через відсутність даних, а не через відсутність діяльності.
+
+**Для v12:** приймаємо як є. Немає даних = 0. Але позначаємо це як known limitation.
+
+**Що НЕ включаємо:**
+- total_bills — це C2
+- committee_score — це C4
+
+---
+
+#### C6: СУСПІЛЬНИЙ ВПЛИВ (чи не шкодить системі?)
+
+**Питання:** Чи закони депутата несуть ризики для держави, і чи відповідають вони стандартам?
+
+**Метрики:**
+
+| Метрика | Джерело | Одиниця | Coverage | Опис |
+|---------|---------|---------|----------|------|
+| avg_risk_score | mps | float (0-5) | 357/460 | Середній risk_score проаналізованих законів |
+| eu_integration_score | mps | float | 344/460 | EU alignment коефіцієнт |
+| bill_quality_score | mps | float | 357/460 | Якість (significance + impact) / 2 |
+
+**Агрегація:**
+```
+risk_component = 1 - (avg_risk_score / 5)    (низький ризик = високий бал)
+eu_component = min(eu_integration_score / 10, 1)  (високий EU = високий бал)
+quality_component = bill_quality_score / 5    (висока якість = високий бал)
+
+C6 = risk_component × 0.5 + eu_component × 0.25 + quality_component × 0.25
+```
+
+**Чому саме так:**
+- risk (0.5) — головна: закони не повинні шкодити
+- eu (0.25) — відповідність європейським стандартам = позитивний вплив
+- quality (0.25) — якісні закони = позитивний внесок
+
+**Якщо немає даних:** risk_component = 0.5, eu_component = 0.5, quality_component = 0.5 → C6 = 0.5
+
+**Проблема:** quality з'являється і в C2, і в C6. Це дублювання.
+
+**Рішення для v12:** прибираємо quality з C6. Залишаємо:
+```
+C6 = risk_component × 0.6 + eu_component × 0.4
+```
+
+Тепер C2 = якість законів, C6 = ризики + EU. Ортогональні.
+
+**Що НЕ включаємо:**
+- toxicity — це похідна від risk_score × significance × impact, занадто складна
+- signal_warnings — rule-based, суб'єктивні
+
+---
+
+### Формула v12 (фінальна)
+
+```
+KPI_v12 = (C1 + C2 + C3 + C4 + C5 + C6) / 6
+
+Де:
+C1 = Дисципліна:       py×0.5 + pda×0.3 + vkp×0.2
+C2 = Законотворчість:  quality_norm×0.4 + risk_penalty×0.3 + docs_norm×0.3
+C3 = Результативність: adoption_rate × volume_factor
+C4 = Комітет:          committee_score / 10
+C5 = Звернення:        min(requests_with_response/20, 1) × response_multiplier
+C6 = Вплив:            risk_component×0.6 + eu_component×0.4
+
+Правила:
+- Кожна Ci ∈ [0, 1]
+- Ci = 0.5 якщо немає даних
+- C1 = 0 якщо ПЯ < 10%
+- C3 = 0.5 якщо total_primary < 3
+- C5 = 0 якщо requests_with_response = 0 (але request_count > 0)
+```
+
+### Порівняння v11 vs v12 (очікування)
+
+| Аспект | v11 | v12 |
+|--------|-----|-----|
+| Компонентів | 5 | 6 |
+| Ваги | різні (0.15-0.25) | рівні (1/6) |
+| Складність | log-функція LEI, att_mult | лінійна нормалізація |
+| Shannon | в профілі | прибрано з KPI |
+| RiskPenalty | множник | окрема категорія C6 |
+| data coverage | 357/460 (78%) | 303/460 (66%) через C5 |
+
+### Задачі для виконавця
+
+| # | Задача | Залежить від | Опис |
+|---|--------|-------------|------|
+| T1 | Назви категорій | — | Проаналізувати покриття даних, придумати назви, винести на затвердження |
+| T2 | Детальний розрахунок кожної категорії | T1 | Для кожної з 6: формула, edge cases, приклади на реальних депутатів |
+| T3 | calc_kpi_v12.py | T2 | Новий скрипт, 6 компонентів, порівняння з v11 |
+| T4 | Пост-перевірка | T3 | Топ-20, низ-20, кореляція v11 vs v12, логічність |
+| T5 | Оновлення RESEARCH.md | T4 | Фінальні висновки: чи підтверджує v12 підхід v11 |
+
+### Known limitations v12
+
+1. **C5 (Звернення)**: дані тільки для 305/391 депутатів — 86 отримують 0
+2. **C2 (Законотворчість)**: bill_quality_score залежить від LLM аналізу (~99% покриття для active deputies)
+3. **C4 (Комітет)**: статична метрика, не відображає активність
+4. **C6 (Вплив)**: eu_integration_score для 367/391 — 24 депутати без EU даних
+
+---
+
+## KPI v12 — IMPLEMENTED (2026-07-07)
+
+### Status: DONE
+
+**Script:** `calc_kpi_v12.py` — 391 deputies calculated.
+**DB columns:** `mps.kpi_v12_score`, `kpi_v12_rank`, `kpi_v12_discipline`, `kpi_v12_legislation`, `kpi_v12_efficiency`, `kpi_v12_committee`, `kpi_v12_requests`, `kpi_v12_impact`.
+
+### Final Formulas
+
+```
+KPI_v12 = (C1 + C2 + C3 + C4 + C5 + C6) / 6
+
+C1 (Дисципліна)  = py×0.5 + pda×0.3 + vkp×0.2,  C1=0 if py<10
+C2 (Законотв.)   = quality/5×0.3 + (1-risk/5)×0.3 + docs/2000×0.2 + authorship/0.5×0.2
+C3 (Результат.)  = adoption/100×0.7 + min(primary/10)×0.3
+C4 (Комітет)     = score/10
+C5 (Звернення)   = min(req_resp/20) × (0.7 + 0.3 × response_rate)
+C6 (Вплив)       = (1-risk/5)×0.6 + eu/35×0.4
+
+Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6=0.5 if no data
+```
+
+### Results
+
+**391 active deputies.** Distribution: 126 in 20-40, 258 in 40-60, 7 in 60-80.
+
+**Correlation v11 vs v12: 0.634** — moderate. Formulas are related but measure different things.
+
+### Component Correlation (v12 vs v11)
+
+| v12 Category | v11 Component | Correlation | Interpretation |
+|---|---|---|---|
+| C1 Discipline | Discipline | 0.858 | Same metrics (py/pda/vkp) |
+| C5 Requests | Control | 0.723 | Both weight requests heavily |
+| C2 Legislation | Quality | 0.055 | **Near-zero** — v12 adds risk+docs+authorship |
+| C3 Efficiency | Efficiency | 0.370 | Moderate — v12 adds volume factor |
+| C2 Legislation | LEI | 0.446 | Moderate — no log formula in v12 |
+
+### Key Findings
+
+1. **C2 (Legislation) is genuinely independent** from v11's quality metric (0.055 correlation). This validates that v12 measures something different: not just "how good are the bills" but also "how risky, how documented, how authorial."
+
+2. **v12 rewards request activity more equally.** In v11, requests were bundled into "Control" with committee score. In v12, C5 is a standalone category — deputies with high requests (Разумков: 96, Гончаренко: 93) jump significantly.
+
+3. **v12 penalizes low-attendance deputies harder.** Дубінський, Столар, Івахів, Палиця (py < 10%) get C1=0, pulling their total down to 22-33. In v11, attendance was one component among many.
+
+4. **v12 is more egalitarian for deputies without legislation data.** 4 deputies with 0 analyzed bills get neutral defaults (C2=C3=C6=50), preventing both punishment and reward.
+
+### Biggest Movers
+
+**Positive (+15-21):** Скрипка Т.В. (+21.8), Разумков Д.О. (+15.8), Гузь І.В. (+14.6), Кривошеєв І.С. (+14.2) — all had high requests that v11 underweighted.
+
+**Negative (-14-17):** Гетманцев Д.О. (-17.0), Вагнєр В.О. (-14.9), Лічман Г.В. (-14.8) — high discipline but low requests/impact penalized by equal weighting.
+
+### Known Issues
+
+1. **Скрипка Т.В.:** adoption_rate=0 in DB despite 149 laws (data bug in sync). Needs recalc.
+2. **4 deputies** with 0 analyzed bills get neutral C2/C3/C6=50. Acceptable until LLM coverage improves.
+3. **C4 (Committee)** is static — doesn't reflect actual committee activity, only role.
+
+### Verdict
+
+**v12 successfully validates v11's approach** — the two formulas agree moderately (0.634) but diverge in interesting ways. The main divergence (C2 independence from quality) confirms that adding risk, docs, and authorship to legislation assessment provides new signal. v12 is NOT a replacement for v11 — it's an independent lens. Both should be kept for cross-validation.
+
+**Next steps:** No code changes needed. v12 is a research tool, not a production system. Use for:
+- Spot-checking v11 rankings
+- Identifying deputies where request activity was underweighted
+- Validating that discipline penalty works correctly

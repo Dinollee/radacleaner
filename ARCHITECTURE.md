@@ -40,7 +40,7 @@ calc_bill_quality.py → mps (bill_quality_score, avg_risk_score, authorship_rat
 calc_kpi_v11.py → mps (kpi_v11_score, kpi_v11_*, signal_*, shannon_diversity, adoption_rate)
 ```
 
-## KPI v11 — Three-Level System (UPDATED 2026-07-01)
+## KPI v11 — Three-Level System (UPDATED 2026-07-01, dashboard 2026-07-02)
 
 ### Level 1: KPI (performance)
 
@@ -75,7 +75,12 @@ Three categories:
 - ✓ Strengths: high quality, stable specialization, high efficiency, high discipline
 - ℹ Features: collective authorship, narrow expert, EU profile
 
-### Dashboard: SVG radar chart (pentagon) + profile + signals
+### Dashboard (DONE 2026-07-02)
+
+- **Deputies table**: sorted by KPI v11, shows 5 component columns (Законодав., Дисципліна, Результат., Контроль, Якість) with progress bars + color coding
+- **Deputy detail**: SVG pentagon radar chart (5 axes) + Profile grid (specialization, authorship style, bills/laws, EU, ПЯ/ПДА/ВКП, LEI) + Signal badges (warnings/strengths/features)
+- **Sort options**: by KPI, by each component individually
+- **API**: `/api/deputies` returns `kpiV11`, `kpiEff`, `kpiDisc`, `kpiRes`, `kpiCtrl`, `kpiQual`, `shannon`, `adoptionRate`, `signal_warnings`, `signal_strengths`, `signal_features`
 
 ### Auto-recalculation
 - `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats → calc_kpi_v11
@@ -99,6 +104,8 @@ Three categories:
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
+| worker/api-server.js | Express API (port 8788) — bills, deputies, EU alignment, schedule |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app (5 tabs) |
 
 ## Data sources
 - **billinfo_list-skl9.json** — bill list (15K records, no authors)
@@ -110,15 +117,16 @@ Three categories:
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
 - **mps** — 460 deputies. rada_uid = stable identity key. 6 name changes in deputy_aliases.
-  - kpi_v11_score, kpi_v11_rank — KPI v11 results
+  - kpi_v11_score, kpi_v11_rank — KPI v11 results (5 weighted components)
   - kpi_v11_effectiveness/discipline/efficiency/control/quality — 5 components
+  - kpi_v12_score, kpi_v12_rank — KPI v12 results (6 equal-weight categories, research/validation)
+  - kpi_v12_discipline/legislation/efficiency/committee/requests/impact — 6 components
   - signal_warnings, signal_strengths, signal_features — JSONB signal arrays
   - lei, bill_quality_score, avg_risk_score — quality metrics
   - authorship_ratio, adoption_rate, shannon_diversity, unique_coauthors — profile
   - eu_integration_score, eu_euro_bills, eu_risk_bills, eu_state_aid_bills — EU
   - requests_with_response, committee_score — interaction
   - documents_count — bill document richness
-- **bills** — 15K+ bills. Has: is_urgent, is_euro (from JSON), toxicity, risk_score
 - **mp_votes** — 7.5M voting records
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
 - **risk_assessments** — LLM analysis results
@@ -129,7 +137,8 @@ Three categories:
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
-- Key endpoints: `/api/bills`, `/api/deputies`, `/api/eu-alignment`, `/api/eu-alignment/trend`
+- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment`, `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`
+- Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
 ## Free LLM Providers (tested 2026-07-01)
 
@@ -166,7 +175,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: KPI v11 implemented (three-level system), Telegram bot running, EU Score done.
+Current status: KPI v11 implemented, Dashboard updated with pentagon + profile + signals, Telegram bot running, EU Score done.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
