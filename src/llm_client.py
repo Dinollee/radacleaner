@@ -10,12 +10,61 @@ import json
 import re
 import time
 import logging
+import threading
 
 import requests
 
 from .config import LLM_API_KEY, LLM_MODEL, GEMINI_API_KEY, GEMINI_MODEL, NVIDIA_API_KEY
 
 log = logging.getLogger(__name__)
+
+
+class _RateLimiter:
+    """Simple sliding window rate limiter (thread-safe)."""
+    def __init__(self, max_per_minute: int):
+        self.max_per_minute = max_per_minute
+        self.window = 60
+        self.timestamps: list[float] = []
+        self.lock = threading.Lock()
+
+    def wait(self):
+        with self.lock:
+            now = time.time()
+            self.timestamps = [t for t in self.timestamps if now - t < self.window]
+            if len(self.timestamps) >= self.max_per_minute:
+                oldest = self.timestamps[0]
+                sleep_for = self.window - (now - oldest) + 0.5
+                if sleep_for > 0:
+                    log.info("Rate limit: sleeping %.1fs (gemini %d/%d per min)",
+                             sleep_for, len(self.timestamps), self.max_per_minute)
+                    time.sleep(sleep_for)
+            self.timestamps.append(time.time())
+
+
+# Gemini: 15 req/min (free tier), 1500 req/day. Use 12/min for safety margin.
+_gemini_limiter = _RateLimiter(max_per_minute=12)
+
+# Daily counter for Gemini (1500 req/day limit)
+_gemini_daily_count = 0
+_gemini_daily_date = ""
+_gemini_daily_lock = threading.Lock()
+GEMINI_DAILY_LIMIT = 1400  # safety margin below 1500
+
+
+def _check_gemini_daily():
+    """Check and increment daily Gemini counter. Returns True if OK to proceed."""
+    global _gemini_daily_count, _gemini_daily_date
+    import datetime
+    today = datetime.date.today().isoformat()
+    with _gemini_daily_lock:
+        if _gemini_daily_date != today:
+            _gemini_daily_date = today
+            _gemini_daily_count = 0
+        if _gemini_daily_count >= GEMINI_DAILY_LIMIT:
+            log.warning("Gemini daily limit reached (%d/%d)", _gemini_daily_count, GEMINI_DAILY_LIMIT)
+            return False
+        _gemini_daily_count += 1
+        return True
 
 # --- Provider configs ---
 PROVIDERS = {
@@ -51,7 +100,10 @@ def _openrouter_call(messages, model, api_key, max_tokens, temperature, timeout=
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    data = resp.json()
+    if "choices" not in data or not data["choices"]:
+        raise RuntimeError(f"OpenRouter response missing 'choices': {str(data)[:300]}")
+    return data["choices"][0]["message"]["content"]
 
 
 def _nvidia_call(messages, model, api_key, max_tokens, temperature, timeout=120):
@@ -66,7 +118,10 @@ def _nvidia_call(messages, model, api_key, max_tokens, temperature, timeout=120)
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    data = resp.json()
+    if "choices" not in data or not data["choices"]:
+        raise RuntimeError(f"NVIDIA response missing 'choices': {str(data)[:300]}")
+    return data["choices"][0]["message"]["content"]
 
 
 def _gemini_extract_text(candidate):
@@ -144,6 +199,9 @@ def _try_provider(name, provider, prompt, system_prompt, max_tokens, temperature
         messages.append({"role": "user", "content": prompt})
         return call(messages, model, key, max_tokens, temperature)
     elif name == "gemini":
+        if not _check_gemini_daily():
+            raise RuntimeError("Gemini daily limit reached")
+        _gemini_limiter.wait()
         contents = _build_gemini_contents(system_prompt, prompt)
         return _gemini_call(contents, model, key, max_tokens, temperature)
     else:
@@ -195,6 +253,9 @@ def llm_completion(
                     call = _openrouter_call if pname == "openrouter" else _nvidia_call
                     text = call(messages, m, prov["key"], max_tokens, temperature)
                 elif pname == "gemini" and messages:
+                    if not _check_gemini_daily():
+                        raise RuntimeError("Gemini daily limit reached")
+                    _gemini_limiter.wait()
                     text = _gemini_call(messages, m, prov["key"], max_tokens, temperature)
                 else:
                     text = _try_provider(pname, prov, prompt, system_prompt, max_tokens, temperature)
