@@ -4,25 +4,37 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.request
 
 log = logging.getLogger(__name__)
 
 
-def get_rada_token() -> str:
-    """Отримує токен для RADA API."""
-    req = urllib.request.Request("https://data.rada.gov.ua/api/token")
-    req.add_header("User-Agent", "Mozilla/5.0")
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())["token"]
+def get_rada_token(max_retries: int = 3) -> str:
+    """Отримує токен для RADA API з retry."""
+    for attempt in range(max_retries):
+        try:
+            req = urllib.request.Request("https://data.rada.gov.ua/api/token")
+            req.add_header("User-Agent", "Mozilla/5.0")
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read())["token"]
+        except Exception as e:
+            if attempt < max_retries - 1:
+                wait = 2 ** attempt * 3
+                log.warning("RADA token fetch failed (attempt %d/%d): %s, retry in %ds",
+                            attempt + 1, max_retries, str(e)[:100], wait)
+                time.sleep(wait)
+            else:
+                raise
 
 
-def download_rada_pdf(file_id: str, token: str | None = None) -> bytes:
-    """Завантажує PDF з RADA API по file_id з підтримкою чанкування.
+def download_rada_pdf(file_id: str, token: str | None = None, max_retries: int = 3) -> bytes:
+    """Завантажує PDF з RADA API по file_id з підтримкою чанкування та retry.
 
     Args:
         file_id: Ідентифікатор файлу на RADA.
         token: RADA API токен (якщо None — отримує новий).
+        max_retries: Максимальна кількість спроб при помилках сервера.
 
     Returns:
         Бінарний вміст PDF.
@@ -36,29 +48,40 @@ def download_rada_pdf(file_id: str, token: str | None = None) -> bytes:
     total_size: int | None = None
 
     while True:
-        req = urllib.request.Request(
-            base + f"?id={file_id}",
-            headers={
-                "User-Agent": token,
-                "X-File-Id": str(file_id),
-                "X-Current-Chunk": str(chunk),
-                "Referer": f"https://itd.rada.gov.ua/billInfo/Bills/pubFile/{file_id}",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = resp.read()
-            if chunk == 0:
-                total_size = int(resp.headers.get("Size", "0"))
-            all_data.append(data)
+        for attempt in range(max_retries):
+            try:
+                req = urllib.request.Request(
+                    base + f"?id={file_id}",
+                    headers={
+                        "User-Agent": token,
+                        "X-File-Id": str(file_id),
+                        "X-Current-Chunk": str(chunk),
+                        "Referer": f"https://itd.rada.gov.ua/billInfo/Bills/pubFile/{file_id}",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = resp.read()
+                    if chunk == 0:
+                        total_size = int(resp.headers.get("Size", "0"))
+                    all_data.append(data)
+                    break  # success, exit retry loop
+            except urllib.error.HTTPError as e:
+                if e.code in (503, 429, 500) and attempt < max_retries - 1:
+                    wait = 2 ** attempt * 5  # 5s, 10s, 20s
+                    log.warning("RADA 503/429/500 for file_id=%s chunk=%d, retry %d/%d wait=%ds",
+                                file_id, chunk, attempt + 1, max_retries, wait)
+                    time.sleep(wait)
+                else:
+                    raise
 
-            if total_size and sum(len(d) for d in all_data) >= total_size:
-                break
-            if len(data) == 0:
-                break
-            chunk += 1
-            if chunk > 200:
-                log.warning("Too many chunks for file_id=%s, stopping", file_id)
-                break
+        if total_size and sum(len(d) for d in all_data) >= total_size:
+            break
+        if len(data) == 0:
+            break
+        chunk += 1
+        if chunk > 200:
+            log.warning("Too many chunks for file_id=%s, stopping", file_id)
+            break
 
     return b"".join(all_data)
 
