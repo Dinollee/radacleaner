@@ -425,6 +425,23 @@ app.get('/api/activity-calendar', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- ACTIVITY DAY DETAIL ---
+app.get('/api/activity-day', async (req, res) => {
+  try {
+    const date = req.query.date;
+    if (!date) return error(res, 'date param required (YYYY-MM-DD)');
+    const rows = await q(
+      `SELECT cl.change_type, b.bill_number, b.title, b.url, cl.old_value, cl.new_value
+       FROM change_log cl
+       JOIN bills b ON cl.bill_id = b.id
+       WHERE date(cl.created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv') = $1
+       ORDER BY cl.change_type, b.bill_number`,
+      [date]
+    );
+    json(res, { date, changes: rows }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- EU ALIGNMENT ---
 app.get('/api/eu-alignment', async (req, res) => {
   try {

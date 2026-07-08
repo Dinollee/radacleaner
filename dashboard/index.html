@@ -132,6 +132,21 @@ tr.former-deputy:hover td { opacity: 0.75; }
 .stage-progress .sq.done { background: var(--blue); }
 .stage-progress .sq.rejected { background: var(--red); }
 .stage-progress .sq.done.s1 { background: var(--text2); }
+
+/* Activity modal */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.modal-content { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-width: 600px; width: 90%; max-height: 70vh; overflow-y: auto; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 16px; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text2); }
+.modal-close:hover { color: var(--text); }
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.modal-bill { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.modal-bill:last-child { border-bottom: none; }
+.modal-bill .bill-num { font-weight: 600; color: var(--blue); }
+.modal-bill .bill-title { color: var(--text); margin-top: 2px; }
+.modal-bill .bill-status { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.modal-bill .bill-status .old { text-decoration: line-through; opacity: 0.6; }
+.cal-badge { cursor: pointer; }
+.cal-badge:hover { opacity: 0.7; }
 .stage-progress .sq.done.s2 { background: var(--blue); }
 .stage-progress .sq.done.s3 { background: var(--purple); }
 .stage-progress .sq.done.s4 { background: var(--green); }
@@ -1535,8 +1550,8 @@ function renderCalendar(events, activity) {
           return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
         }).join('');
         const badges = [];
-        if (isNew) badges.push(`<span style="font-size:10px;color:#2ecc71;font-weight:600">+${act.new}</span>`);
-        if (isChanged) badges.push(`<span style="font-size:10px;color:#3498db;font-weight:600">~${act.changed}</span>`);
+        if (isNew) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','new')" style="font-size:10px;color:#2ecc71;font-weight:600">+${act.new}</span>`);
+        if (isChanged) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','changed')" style="font-size:10px;color:#3498db;font-weight:600">~${act.changed}</span>`);
         html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}${isNew ? ', +' + act.new + ' new' : ''}${isChanged ? ', ~' + act.changed + ' changes' : ''}">
           <div style="font-size:13px;${todayStyle}">${day}</div>
           ${badges.length ? '<div style="display:flex;gap:3px;justify-content:center;margin-top:1px">' + badges.join('') + '</div>' : ''}
@@ -1549,6 +1564,44 @@ function renderCalendar(events, activity) {
   }
   html += '</table>';
   cal.innerHTML = html;
+}
+
+async function showActivityDay(dateStr, filter) {
+  try {
+    const data = await api('/api/activity-day?date=' + dateStr);
+    const changes = data.changes || [];
+    const filtered = filter === 'new' ? changes.filter(c => c.change_type === 'new') :
+                     filter === 'changed' ? changes.filter(c => c.change_type === 'status_change') : changes;
+    const title = filter === 'new' ? 'Нові законопроекти' : filter === 'changed' ? 'Зміни статусів' : 'Всі зміни';
+
+    const d = new Date(dateStr);
+    const dayNames = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'];
+    const monthNames = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'];
+    const dateLabel = dayNames[d.getDay()] + ', ' + d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
+
+    let html = `<div class="modal-overlay" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content">
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+        <div class="modal-title">${dateLabel} — ${title} (${filtered.length})</div>
+        ${filtered.length === 0 ? '<p style="color:var(--text2)">Змін немає</p>' : filtered.map(c => {
+          const bn = c.bill_number || '?';
+          const url = c.url || '';
+          const num = url ? `<a href="${url}" target="_blank" class="bill-num">#${escHtml(bn)}</a>` : `<span class="bill-num">#${escHtml(bn)}</span>`;
+          const titleText = (c.title || '').substring(0, 80);
+          let statusHtml = '';
+          if (c.change_type === 'status_change' && c.old_value && c.new_value) {
+            statusHtml = `<div class="bill-status"><span class="old">${escHtml(c.old_value)}</span> → ${escHtml(c.new_value)}</div>`;
+          } else if (c.new_value) {
+            statusHtml = `<div class="bill-status">${escHtml(c.new_value)}</div>`;
+          }
+          return `<div class="modal-bill">${num}<div class="bill-title">${escHtml(titleText)}</div>${statusHtml}</div>`;
+        }).join('')}
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch(e) {
+    console.error('Activity day error:', e);
+  }
 }
 
 function renderCommittees(committees) {
