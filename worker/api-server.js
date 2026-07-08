@@ -409,12 +409,12 @@ app.get('/api/activity-calendar', async (req, res) => {
     const month = req.query.month;
     if (!month) return error(res, 'month param required (YYYY-MM)');
     const rows = await q(
-      `SELECT to_char(date(created_at), 'YYYY-MM-DD') as day,
+      `SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
               COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
               COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
        FROM change_log
        WHERE created_at >= $1 AND created_at < $2
-       GROUP BY date(created_at)`,
+       GROUP BY date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv')`,
       [month + '-01', month + '-32']
     );
     const activity = {};
