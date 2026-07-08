@@ -1778,39 +1778,27 @@ function init() {
 const EU_CLUSTERS = [
   {
     id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
-    status: 'opened', statusText: 'Відкрито 15.06.2026',
-    chapters: [23, 24, 5, 18, 32],
-    chapterNames: {23:'Судова система та основоположні права',24:'Правосуддя, свобода та безпека',5:'Публічні закупівлі',18:'Статистика',32:'Фінансовий контроль'}
+    chapters: [1, 6, 27, 33],
   },
   {
     id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [1, 2, 3, 4, 6, 7, 8, 9, 28],
-    chapterNames: {1:'Вільний рух товарів',2:'Вільний рух капіталів',3:'Вільний рух осіб',4:'Вільний рух послуг',6:'Корпоративне право',7:'Інтелектуальна власність',8:'Конкурентна політика',9:'Фінансові послуги',28:'Захист прав споживачів та здоров\'я'}
+    chapters: [2, 3, 4, 5, 7, 8, 9, 22, 23],
   },
   {
-    id: 3, name: 'Конкурентоспроможність та інклюзивне зростання', nameEn: 'Competitiveness & Inclusive Growth', icon: '📈',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [10, 16, 17, 19, 20, 25, 26, 29],
-    chapterNames: {10:'Цифрова трансформація та ЗМІ',16:'Оподаткування',17:'Економічна та грошово-кредитна політика',19:'Соціальна політика та зайнятість',20:'Промислова політика та підприємництво',25:'Наука та дослідження',26:'Освіта та культура',29:'Митний союз'}
+    id: 3, name: 'Конкурентоспроможність', nameEn: 'Competitiveness', icon: '📈',
+    chapters: [10, 16, 17, 18, 19, 20, 25, 26, 29, 30],
   },
   {
-    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda & Sustainable Connectivity', icon: '🌿',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [14, 15, 21, 27],
-    chapterNames: {14:'Транспортна політика',15:'Енергетика',21:'Трансєвропейські мережі',27:'Охорона навколишнього середовища'}
+    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda', icon: '🌿',
+    chapters: [11, 12, 13, 14, 15, 21],
   },
   {
-    id: 5, name: 'Ресурси, сільське господарство та згуртованість', nameEn: 'Resources, Agriculture & Cohesion', icon: '🌾',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [11, 12, 13, 22, 33],
-    chapterNames: {11:'Сільське господарство',12:'Безпечність харчових продуктів',13:'Риболовство',22:'Регіональна політика',33:'Фінансові та бюджетні положення'}
+    id: 5, name: 'Безпека та оборона', nameEn: 'Security & Defence', icon: '🛡️',
+    chapters: [24, 28, 31],
   },
   {
-    id: 6, name: 'Зовнішні зв\'язки', nameEn: 'External Relations', icon: '🌍',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [30, 31],
-    chapterNames: {30:'Зовнішні зв\'язки',31:'Зовнішня політика, безпека та оборона'}
+    id: 6, name: 'Загальні положення', nameEn: 'General Provisions', icon: '📋',
+    chapters: [32, 34, 35],
   }
 ];
 
@@ -1852,8 +1840,6 @@ function renderEUOverallScore(overall, signed, inProcess) {
   }
 
   const score = overall.weighted_score || 0;
-  const filled = Math.round(score / 100 * 50);
-  const bar = '█'.repeat(filled) + '░'.repeat(50 - filled);
   let color = 'var(--red)';
   let emoji = '🔴';
   if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
@@ -1863,7 +1849,9 @@ function renderEUOverallScore(overall, signed, inProcess) {
     <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
     <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Загальний Alignment Score</div>
-    <div style="font-family:monospace;font-size:14px;letter-spacing:2px;color:${color};margin-bottom:20px">${bar}</div>
+    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 20px">
+      <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width 0.5s"></div>
+    </div>
     <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
       <div><span style="color:var(--green)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
       <div><span style="color:var(--blue)">●</span> Всього: ${overall.total_bills || 0} законів</div>
@@ -1894,14 +1882,14 @@ function renderEUClusters() {
   for (const cluster of EU_CLUSTERS) {
     const avg = getClusterAlignment(cluster);
     const bills = getClusterBills(cluster);
-    const filled = Math.round(avg / 100 * 20);
-    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
     let color = 'var(--red)';
     if (avg > 70) color = 'var(--green)';
     else if (avg > 40) color = 'var(--orange)';
 
+    // Dynamic status based on alignment
     let statusBadge = '';
-    if (cluster.status === 'opened') statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
+    if (avg >= 50) statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
+    else if (avg >= 30) statusBadge = '<span style="background:var(--orange);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">В процесі</span>';
     else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Підготовка</span>';
 
     html += `
@@ -1914,7 +1902,9 @@ function renderEUClusters() {
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <div style="font-family:monospace;color:${color};font-size:12px">${bar}</div>
+            <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="width:${avg}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
+            </div>
             <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
             <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
           </div>
