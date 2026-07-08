@@ -33,8 +33,9 @@ DIGEST_PROMPT = '''Проаналізуй дані та сформуй щоде�
 • статус комітетів
 • нові законопроекти або немає
 
-📢 УВАГА:
-📌 номер — назва (статус)
+📢 УВАГА (топ-5 ризикових за 30 днів, від нового до старого):
+📌 номер — назва
+   Стадія X/4 · статус · дата
 
 ✅ Перевірено: число
 
@@ -70,7 +71,7 @@ def collect_our_data():
             if c['change_type'] == 'new': data['new_bills'].append(entry)
             elif c['change_type'] == 'status_change': data['status_changes'].append(entry)
         data['recent_changes_count'] = len(changes)
-        tracked = d1_query('SELECT b.bill_number, b.title, b.stage, b.current_status, ra.overall_score FROM bills b JOIN risk_assessments ra ON ra.bill_id = b.id WHERE ra.overall_score > 0 ORDER BY ra.overall_score DESC LIMIT 10')
+        tracked = d1_query("SELECT b.bill_number, b.title, b.stage, b.current_status, ra.overall_score, b.registration_date FROM bills b JOIN risk_assessments ra ON ra.bill_id = b.id WHERE ra.overall_score > 0 AND b.registration_date >= to_char(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD') ORDER BY b.registration_date DESC, ra.overall_score DESC LIMIT 5")
         data['tracked_bills'] = tracked
     except Exception as e:
         logger.error('Error collecting data: %s', e, exc_info=True)
@@ -106,10 +107,12 @@ def format_our_data_for_llm(data):
             lines.append('  - #' + b['bill_number'] + ' (risk: ' + str(b['overall_score']) + '/100)')
         lines.append('')
     if data['tracked_bills']:
-        lines.append('Tracked (with risks): ' + str(len(data['tracked_bills'])))
+        lines.append('Tracked high-risk (last 30 days, newest first): ' + str(len(data['tracked_bills'])))
         for b in data['tracked_bills'][:5]:
             status = b.get('current_status') or 'Unknown'
-            lines.append('  - #' + b['bill_number'] + ' [' + status + '] ' + b['title'][:50])
+            stage = b.get('stage') or 1
+            reg = _fmt_date(b.get('registration_date', ''))
+            lines.append('  - #' + b['bill_number'] + ' stage ' + str(stage) + '/4 [' + status + '] ' + reg + ' ' + b['title'][:50])
         lines.append('')
     return NL.join(lines)
 
@@ -264,7 +267,10 @@ def format_fallback(data):
     for b in data['tracked_bills'][:5]:
         title = b['title'][:50] if b['title'] else 'Без назви'
         status = b.get('current_status') or 'Невідомо'
-        lines.append(chr(128204) + ' #' + b['bill_number'] + ' — ' + title + ' (' + status + ')')
+        stage = b.get('stage') or 1
+        reg = _fmt_date(b.get('registration_date', ''))
+        lines.append(chr(128204) + ' #' + b['bill_number'] + ' — ' + title)
+        lines.append('   Стадія ' + str(stage) + '/4 · ' + status + (' · ' + reg if reg else ''))
     lines.append('')
     violations = len([b for b in data['high_risk_bills'] if b.get('overall_score', 0) >= 70])
     lines.append(chr(9989) + ' Перевірено: ' + str(data['total_bills']))
