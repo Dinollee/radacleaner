@@ -452,6 +452,50 @@ app.get('/api/activity-day', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- UNIFIED DASHBOARD ---
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const monthParam = `${now.getFullYear()}-${mm}`;
+
+    // Parallel queries
+    const [stats, schedule, activity, eu] = await Promise.all([
+      q('SELECT key, value FROM stats_cache').then(rows => {
+        const cache = {};
+        for (const r of rows) cache[r.key] = r.value;
+        return {
+          totalBills: Number(cache.total_bills) || 0,
+          analyzedBills: Number(cache.analyzed_bills) || 0,
+          totalMps: Number(cache.total_mps) || 0,
+          activeMps: Number(cache.active_mps) || 0,
+          highRisk: Number(cache.high_risk) || 0,
+          mediumRisk: Number(cache.medium_risk) || 0,
+          recentChanges: Number(cache.recent_changes) || 0,
+          lastSync: cache.last_updated || null,
+        };
+      }).catch(() => ({})),
+      q(`SELECT * FROM rada_schedule WHERE date LIKE $1 ORDER BY date`, [monthParam + '%']).catch(() => []),
+      q(`SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
+              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
+              COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
+         FROM change_log
+         WHERE created_at >= $1 AND created_at < $2
+         GROUP BY date(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv')`,
+        [monthParam + '-01', monthParam + '-32']
+      ).then(rows => {
+        const activity = {};
+        for (const r of rows) activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
+        return activity;
+      }).catch(() => ({})),
+      q(`SELECT overall_score, chapters_analyzed, total_chapters, calculated_at
+         FROM eu_alignment_overall ORDER BY id DESC LIMIT 1`).then(rows => rows[0] || null).catch(() => null),
+    ]);
+
+    json(res, { stats, schedule, activity, eu, month: monthParam }, 200, 60);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- EU ALIGNMENT ---
 app.get('/api/eu-alignment', async (req, res) => {
   try {
