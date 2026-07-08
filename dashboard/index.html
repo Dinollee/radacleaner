@@ -1779,26 +1779,32 @@ const EU_CLUSTERS = [
   {
     id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
     chapters: [1, 6, 27, 33],
+    opened: true, openedDate: '15.06.2026',
   },
   {
     id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
     chapters: [2, 3, 4, 5, 7, 8, 9, 22, 23],
+    opened: false,
   },
   {
     id: 3, name: 'Конкурентоспроможність', nameEn: 'Competitiveness', icon: '📈',
     chapters: [10, 16, 17, 18, 19, 20, 25, 26, 29, 30],
+    opened: false,
   },
   {
     id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda', icon: '🌿',
     chapters: [11, 12, 13, 14, 15, 21],
+    opened: false,
   },
   {
     id: 5, name: 'Безпека та оборона', nameEn: 'Security & Defence', icon: '🛡️',
     chapters: [24, 28, 31],
+    opened: false,
   },
   {
     id: 6, name: 'Загальні положення', nameEn: 'General Provisions', icon: '📋',
     chapters: [32, 34, 35],
+    opened: false,
   }
 ];
 
@@ -1840,6 +1846,8 @@ function renderEUOverallScore(overall, signed, inProcess) {
   }
 
   const score = overall.weighted_score || 0;
+  const filled = Math.round(score / 100 * 50);
+  const bar = '█'.repeat(filled) + '░'.repeat(50 - filled);
   let color = 'var(--red)';
   let emoji = '🔴';
   if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
@@ -1849,9 +1857,7 @@ function renderEUOverallScore(overall, signed, inProcess) {
     <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
     <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Загальний Alignment Score</div>
-    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 20px">
-      <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width 0.5s"></div>
-    </div>
+    <div style="font-family:monospace;font-size:14px;letter-spacing:2px;color:${color};margin-bottom:20px">${bar}</div>
     <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
       <div><span style="color:var(--green)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
       <div><span style="color:var(--blue)">●</span> Всього: ${overall.total_bills || 0} законів</div>
@@ -1882,15 +1888,15 @@ function renderEUClusters() {
   for (const cluster of EU_CLUSTERS) {
     const avg = getClusterAlignment(cluster);
     const bills = getClusterBills(cluster);
+    const filled = Math.round(avg / 100 * 20);
+    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
     let color = 'var(--red)';
     if (avg > 70) color = 'var(--green)';
     else if (avg > 40) color = 'var(--orange)';
 
-    // Dynamic status based on alignment
     let statusBadge = '';
-    if (avg >= 50) statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
-    else if (avg >= 30) statusBadge = '<span style="background:var(--orange);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">В процесі</span>';
-    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Підготовка</span>';
+    if (cluster.opened) statusBadge = `<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито ${cluster.openedDate || ''}</span>`;
+    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Не відкрито</span>';
 
     html += `
       <div class="eu-cluster" onclick="toggleCluster(${cluster.id})" style="border:1px solid var(--border);border-radius:8px;margin:6px 0;overflow:hidden;cursor:pointer;transition:all 0.2s">
@@ -1902,9 +1908,7 @@ function renderEUClusters() {
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
-              <div style="width:${avg}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
-            </div>
+            <div style="font-family:monospace;color:${color};font-size:12px">${bar}</div>
             <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
             <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
           </div>
