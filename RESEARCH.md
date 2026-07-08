@@ -1529,3 +1529,57 @@ eu_integration_score = COUNT(bills where risk_categories mention EU) / total_bil
 ```
 
 Джерело: `calc_bill_quality.py` → `mps.eu_integration_score`
+
+---
+
+## EU Negotiation Clusters — Data Sources Research (2026-07-08)
+
+### Статус кластерів (з Wikipedia, verified)
+
+| # | Кластер | Статус | Дата |
+|---|---------|--------|------|
+| 1 | Fundamentals (Основи) | 🟢 Відкрито | 15.06.2026 |
+| 2 | Internal Market | ⚪ Не відкрито | — |
+| 3 | Competitiveness | ⚪ Не відкрито | — |
+| 4 | Green Agenda | ⚪ Не відкрито | — |
+| 5 | Security & Defence | ⚪ Не відкрито | — |
+| 6 | General Provisions | ⚪ Не відкрито | — |
+
+### Джерела даних для автоматизації
+
+**Єдиного API для статусу кластерів НЕМАЄ.** Потрібна комбінація джерел.
+
+| Джерело | URL | Тип | Автоматизація | Частота |
+|---------|-----|-----|---------------|---------|
+| **EC RSS** | enlargement.ec.europa.eu/node/2/rss_en?f[0]=country_country:UKR | RSS | ✅ | Щодня |
+| **Європравда** | eurointegration.com.ua/news/ | Парсинг | ✅ | Щодня |
+| **eu-ua.kmu.gov.ua** | eu-ua.kmu.gov.ua/news/ | CMS | ✅ | Щотижня |
+| **pulse.kmu.gov.ua** | pulse.kmu.gov.ua | API? | ⚠️ Дослідити | Щотижня |
+| **State of Play PDF** | enlargement.ec.europa.eu/document/download/ | PDF | ⚠️ Парсинг | Щомісяця |
+| **Ukrainska Pravda RSS** | pravda.com.ua/rss/view_news/ | RSS | ✅ | Щогодини |
+| MFA Ukraine | mfa.gov.ua | — | ❌ 403 | — |
+| EU Council RSS | consilium.europa.eu | RSS | ❌ 403 | — |
+
+### Рекомендована архітектура трекера
+
+```
+EC RSS (щодня) → keyword "cluster" → change_log
+     +
+Європравда (щодня) → скрапінг → change_log
+     +
+eu-ua.kmu.gov.ua (щотижня) → скрапінг → change_log
+     =
+Автоматичне оновлення статусу кластерів на дашборді
+```
+
+### Third-party trackers
+
+**Відкритих трекерів НЕМАЄ.** CEPS, EBRD, Bertelsmann — тільки PDF-звіти. GitHub — 0 репозиторіїв.
+
+### Ключове джерело: pulse.kmu.gov.ua
+
+Моніторинг 24 напрямків асоціації. Потрібен додатковий досліджувальний запит для визначення наявності API.
+
+### Повний звіт
+
+Див. `research/eu-clusters-sources/REPORT.md` та `findings/F2-F5.md`
