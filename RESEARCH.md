@@ -1393,3 +1393,62 @@ Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6
 ### Verdict
 
 **ІЕД v12 is the production formula.** v11 kept in DB for historical comparison. v12 provides independent validation of legislative effectiveness with 6 orthogonal categories. Dashboard fully migrated to ІЕД.
+
+---
+
+## Session 2026-07-08: Dashboard + Telegram + Infrastructure
+
+### Dashboard: Activity Calendar
+
+**New feature**: calendar cells show daily bill activity (+N new, ~N status changes).
+
+- **API**: `/api/activity-calendar?month=YYYY-MM` — daily counts from change_log
+- **API**: `/api/activity-day?date=YYYY-MM-DD` — detailed bill list for a day
+- **Timezone**: UTC→Europe/Kyiv conversion (created_at is text in UTC)
+- **UX**: clickable badges → modal with bill list, bill numbers linked to RADA
+
+### Telegram Bot: Format Updates
+
+**NEW posts** (monitor.py):
+- 🆕 icon first (before bill number)
+- No progress bar (removed ●○○○)
+- Date normalized to dd.mm.yyyy
+- Author name shown when available (from bill_sponsors)
+
+**Daily digest** (daily_digest_llm.py):
+- Removed "ПОРУШЕННЯ ВИЯВЛЕНО" (scary, unhelpful)
+- 📌 → 📢 for section header "УВАГА", 📌 per bill
+- Progress bars replaced with status text
+- Top-5 risky bills from last 30 days (newest first, stage X/4)
+- All dates dd.mm.yyyy
+
+### Infrastructure Fixes
+
+**LLM rate limiting** (`src/llm_client.py`):
+- `_RateLimiter` class: sliding window, thread-safe
+- Gemini: 12 req/min (limit is 15), 1400 req/day (limit is 1500)
+- Prevents 429 errors when night_batch uses multiple workers
+
+**PDF retry** (`src/pdf_utils.py`):
+- `download_rada_pdf`: retry 3 times with exponential backoff (5s→10s→20s) on 503/429/500
+- `get_rada_token`: retry 3 times with backoff
+- Fixes night_batch failures during RADA API outages
+
+**Git history**:
+- Rewrote all 183 commits with correct email (distih@gmail.com)
+- GitHub activity squares now work
+
+### Files Changed This Session
+
+| File | Changes |
+|------|---------|
+| `calc_kpi_v12.py` | NEW: ІЕД calculation (6 categories) |
+| `sync_mp_stats.py` | Added adoption_rate write |
+| `src/llm_client.py` | Gemini rate limiter (12/min, 1400/day) |
+| `src/pdf_utils.py` | PDF download retry with backoff |
+| `monitor.py` | NEW post format: icon first, no progress bar, dd.mm.yyyy, author name |
+| `daily_digest_llm.py` | Digest redesign: УВАГА, top-5 risky, no scary text |
+| `dashboard/index.html` | ІЕД, hexagon radar, clickable sort, activity calendar, modal |
+| `worker/api-server.js` | v12 fields, activity-calendar, activity-day endpoints, UTC→Kyiv |
+| `ARCHITECTURE.md` | Updated with all session changes |
+| `RESEARCH.md` | Updated with v12 production status + session notes |

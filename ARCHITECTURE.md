@@ -63,14 +63,15 @@ Three categories:
 - ✓ Strengths: high quality, stable specialization, high efficiency, high discipline
 - ℹ Features: collective authorship, narrow expert, EU profile
 
-### Dashboard (UPDATED 2026-07-07)
+### Dashboard (UPDATED 2026-07-08)
 
 - **"KPI" renamed to "ІЕД"** (Індекс ефективної діяльності) — legal safety
-- **Deputies table**: sorted by ІЕД, shows 6 component columns (Дисципліна, Законотв., Результат., Комітет, Звернення, Вплив) with progress bars + color coding
+- **Deputies table**: sorted by ІЕД, shows 6 component columns with progress bars + color coding
 - **Clickable column headers**: click to sort by that column
 - **Deputy detail**: SVG hexagon radar chart (6 axes) + Profile grid + Signal badges
-- **Sort options**: by ІЕД, by each component individually, by name
-- **API**: `/api/deputies` returns `ked12` (ІЕД), `kedDisc12`, `kedLegis12`, `kedEff12`, `kedComm12`, `kedReq12`, `kedImpact12`, `kedRank12`
+- **Schedule calendar**: activity badges (+N new, ~N changes) per day, clickable → modal with bill list
+- **All dates**: dd.mm.yyyy format, UTC→Kyiv timezone conversion
+- **API**: `/api/deputies` returns `ked12`, `kedDisc12`, `kedLegis12`, `kedEff12`, `kedComm12`, `kedReq12`, `kedImpact12`, `kedRank12`
 
 ### Auto-recalculation
 - `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats (with adoption_rate) → calc_kpi_v12
@@ -90,7 +91,9 @@ Three categories:
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
-| night_batch.py | Nightly bill fetch + analysis trigger |
+| night_batch.py | Nightly bill fetch + analysis trigger (with PDF retry) |
+| monitor.py | Telegram monitor: NEW bills + status change posts |
+| daily_digest_llm.py | Daily digest: LLM-powered summary + fallback |
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
@@ -127,7 +130,8 @@ Three categories:
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
-- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment`, `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`
+- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment`, `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar`, `/api/activity-day`
+- Timezone: all date queries convert UTC→Europe/Kyiv
 - Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
 ## Free LLM Providers (tested 2026-07-01)
@@ -149,7 +153,8 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 ### Google Gemini (direct API)
 - Auth: `GEMINI_API_KEY` in .env
 - Model: `gemma-4-31b-it`
-- Free tier: 1500 req/day (quota may be exhausted by nightly batch)
+- Free tier: 1500 req/day, 15 req/min
+- **Rate limiter**: 12 req/min + 1400 req/day (safety margins in `src/llm_client.py`)
 - Prefer OpenRouter route for same model: `google/gemma-4-31b-it:free`
 
 ## Systemd Services
@@ -165,7 +170,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: ІЕД (v12) implemented, Dashboard with hexagon + profile + signals + clickable sort, Telegram bot running, EU Score done.
+Current status: ІЕД (v12) implemented, Dashboard with hexagon + activity calendar + clickable sort + modals, Telegram bot with ІЕД + daily digest + rate limiting, EU Score done.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
@@ -175,5 +180,8 @@ Current status: ІЕД (v12) implemented, Dashboard with hexagon + profile + sig
 - Dashboard deploys: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 - PostgreSQL uses %s placeholders, not ?
 - PostgreSQL numeric returns as strings — use Number() in JS before .toFixed()
+- created_at is text in UTC — convert to Kyiv timezone in API queries
+- Gemini rate limit: 12 req/min, 1400 req/day (enforced in llm_client.py)
+- PDF downloads: retry 3 times with backoff on 503/429/500
 - One session = one logical step = one commit
 - Before finishing: self-reflection — did I add dependencies/tables/scripts/APIs not in ARCHITECTURE.md?
