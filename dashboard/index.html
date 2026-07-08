@@ -1943,11 +1943,12 @@ function renderClusterDetail(clusterId) {
   const detail = document.getElementById('cluster-detail-' + clusterId);
   let html = '<div style="padding:4px 8px">';
 
-  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${cluster.statusText}</div>`;
+  const statusText = cluster.opened ? `Відкрито ${cluster.openedDate || ''}` : 'Не відкрито';
+  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${statusText}</div>`;
 
   for (const chId of cluster.chapters) {
     const ch = euChaptersData[chId];
-    const name = cluster.chapterNames[chId] || `Глава ${chId}`;
+    const name = ch ? ch.chapter_name : `Глава ${chId}`;
     const alignment = ch ? ch.alignment : 0;
     const bills = ch ? ch.total_bills : 0;
     const keywords = ch ? ch.keywords_matched : 0;
@@ -1964,7 +1965,9 @@ function renderClusterDetail(clusterId) {
           <div style="font-weight:500">${escHtml(name)}</div>
           <div style="font-size:11px;color:var(--text2)">${keywords}/${totalKw} ключових слів · ${bills} законів</div>
         </div>
-        <div style="font-family:monospace;color:${color};font-size:12px;margin-right:8px">${bar}</div>
+        <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-right:8px">
+          <div style="width:${alignment}%;height:100%;background:${color};border-radius:3px"></div>
+        </div>
         <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${alignment.toFixed(1)}%</div>
       </div>
     `;
@@ -1980,7 +1983,7 @@ function showChapterBills(chapterId) {
     const ch = euChaptersData[chapterId];
     const cluster = EU_CLUSTERS.find(c => c.chapters.includes(chapterId));
     let html = '<div class="card"><div class="card-header">';
-    html += `<div class="card-title">Ch.${chapterId} — ${cluster ? cluster.chapterNames[chapterId] : ''} (${bills.length} законів)</div>`;
+    html += `<div class="card-title">Ch.${chapterId} — ${ch ? ch.chapter_name : ''} (${bills.length} законів)</div>`;
     html += `<div style="cursor:pointer;font-size:18px" onclick="this.closest('.card').remove()">✕</div>`;
     html += '</div>';
 
