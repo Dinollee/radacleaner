@@ -90,6 +90,9 @@ nav button.active { background: var(--blue); color: #fff; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { text-align: left; padding: 10px 12px; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+th[data-sort] { cursor: pointer; user-select: none; transition: color 0.2s; }
+th[data-sort]:hover { color: var(--blue); }
+th[data-sort].sort-active { color: var(--blue); font-weight: 700; }
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--hover); }
 tr.clickable { cursor: pointer; }
@@ -379,22 +382,26 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <option value="former">Вибулі</option>
       </select>
       <select id="dep-sort">
-        <option value="kpi_v11_score" selected>За KPI ↓</option>
-        <option value="kpi_v11_effectiveness">За Законодавством ↓</option>
-        <option value="kpi_v11_discipline">За Дисципліною ↓</option>
-        <option value="kpi_v11_efficiency">За Результативністю ↓</option>
-        <option value="kpi_v11_control">За Контролем ↓</option>
-        <option value="kpi_v11_quality">За Якістю ↓</option>
+        <option value="kpi_v12_score" selected>За ІЕД ↓</option>
+        <option value="kpi_v12_discipline">За Дисципліною ↓</option>
+        <option value="kpi_v12_legislation">За Законотворчістю ↓</option>
+        <option value="kpi_v12_efficiency">За Результативністю ↓</option>
+        <option value="kpi_v12_committee">За Комітетом ↓</option>
+        <option value="kpi_v12_requests">За Зверненнями ↓</option>
+        <option value="kpi_v12_impact">За Впливом ↓</option>
         <option value="name">За ім'ям</option>
       </select>
     </div>
     <div class="card">
       <div class="table-wrap"><table id="deputies-table"><thead><tr>
         <th>Ім'я</th><th>Фракція</th>
-        <th style="text-align:center;font-size:15px">KPI</th>
-        <th style="font-size:11px">Законодав.</th><th style="font-size:11px">Дисципліна</th>
-        <th style="font-size:11px">Результат.</th><th style="font-size:11px">Контроль</th>
-        <th style="font-size:11px">Якість</th>
+        <th style="text-align:center;font-size:15px;cursor:pointer" data-sort="kpi_v12_score">ІЕД</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_discipline">Дисципліна</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_legislation">Законотв.</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_efficiency">Результат.</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_committee">Комітет</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_requests">Звернення</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_impact">Вплив</th>
       </tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
@@ -1216,22 +1223,27 @@ async function loadDeputies() {
     const data = await api(url);
     depsTotal = data.total || 0;
     document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
+    // Highlight active sort column
+    document.querySelectorAll('#deputies-table th[data-sort]').forEach(th => {
+      th.classList.toggle('sort-active', th.dataset.sort === sort);
+    });
     tbody.innerHTML = (data.deputies||[]).map(d => {
       const isFormer = !!d.end_date;
       const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
       const formerBadge = isFormer ? ' <span class="badge-former" style="font-size:10px">Вибулий</span>' : '';
-      const kpi = d.kpiV11 || 0;
-      const kpiColor = kpi >= 70 ? 'var(--green)' : kpi >= 40 ? 'var(--orange)' : 'var(--red)';
-      const bar = (val) => `<div style="display:flex;align-items:center;gap:4px"><div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${val}%;height:100%;background:${val>=70?'var(--green)':val>=40?'var(--orange)':'var(--red)'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--text2);width:28px;text-align:right">${val.toFixed(0)}</span></div>`;
+      const ied = Number(d.ked12) || 0;
+      const iedColor = ied >= 60 ? 'var(--green)' : ied >= 40 ? 'var(--orange)' : 'var(--red)';
+      const bar = (val) => { const n = Number(val)||0; return `<div style="display:flex;align-items:center;gap:4px"><div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${n}%;height:100%;background:${n>=70?'var(--green)':n>=40?'var(--orange)':'var(--red)'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--text2);width:28px;text-align:right">${n.toFixed(0)}</span></div>`; };
       return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
       <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
       <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
-      <td style="text-align:center"><span style="font-size:20px;font-weight:800;color:${kpiColor}">${kpi.toFixed(0)}</span></td>
-      <td>${bar(d.kpiEff||0)}</td>
-      <td>${bar(d.kpiDisc||0)}</td>
-      <td>${bar(d.kpiRes||0)}</td>
-      <td>${bar(d.kpiCtrl||0)}</td>
-      <td>${bar(d.kpiQual||0)}</td>
+      <td style="text-align:center"><span style="font-size:20px;font-weight:800;color:${iedColor}">${ied.toFixed(0)}</span></td>
+      <td>${bar(d.kedDisc12)}</td>
+      <td>${bar(d.kedLegis12)}</td>
+      <td>${bar(d.kedEff12)}</td>
+      <td>${bar(d.kedComm12)}</td>
+      <td>${bar(d.kedReq12)}</td>
+      <td>${bar(d.kedImpact12)}</td>
     </tr>`;
     }).join('');
   } catch(e) {
@@ -1255,26 +1267,28 @@ async function showDeputy(name, votesOffset) {
     const votesTotal = data.votesTotal || 0;
     const stats = data.stats || {};
 
-    // KPI v11 values from deputy object (not stats)
-    const kpi = d.kpi_v11_score || 0;
-    const eff = d.kpi_v11_effectiveness || 0;
-    const disc = d.kpi_v11_discipline || 0;
-    const res = d.kpi_v11_efficiency || 0;
-    const ctrl = d.kpi_v11_control || 0;
-    const qual = d.kpi_v11_quality || 0;
+    // KPI v12 (ІЕД) values
+    const ied = Number(d.kpi_v12_score) || 0;
+    const disc = Number(d.kpi_v12_discipline) || 0;
+    const legis = Number(d.kpi_v12_legislation) || 0;
+    const eff = Number(d.kpi_v12_efficiency) || 0;
+    const comm = Number(d.kpi_v12_committee) || 0;
+    const req = Number(d.kpi_v12_requests) || 0;
+    const impact = Number(d.kpi_v12_impact) || 0;
     const warnings = d.signal_warnings || [];
     const strengths = d.signal_strengths || [];
     const features = d.signal_features || [];
     const shannon = d.shannon_diversity || 0;
 
-    // SVG Pentagon radar chart
+    // SVG Hexagon radar chart (6 axes)
     const cx=120, cy=120, r=90;
     const axes = [
       {label:'Дисципліна', val:disc, angle:-90},
-      {label:'Законодавство', val:eff, angle:-18},
-      {label:'Результативн.', val:res, angle:54},
-      {label:'Контроль', val:ctrl, angle:126},
-      {label:'Якість', val:qual, angle:198}
+      {label:'Законотв.', val:legis, angle:-30},
+      {label:'Результат.', val:eff, angle:30},
+      {label:'Комітет', val:comm, angle:90},
+      {label:'Звернення', val:req, angle:150},
+      {label:'Вплив', val:impact, angle:210}
     ];
     const toXY = (angle, radius) => ({
       x: cx + radius * Math.cos(angle * Math.PI / 180),
@@ -1315,8 +1329,8 @@ async function showDeputy(name, votesOffset) {
             </div>
           </div>
           <div style="margin-left:auto;text-align:center">
-            <div style="font-size:36px;font-weight:800;color:${kpi>=70?'var(--green)':kpi>=40?'var(--orange)':'var(--red)'}">${kpi.toFixed(0)}</div>
-            <div style="font-size:11px;color:var(--text2)">KPI v11 · #${d.kpi_v11_rank||'—'}</div>
+            <div style="font-size:36px;font-weight:800;color:${ied>=60?'var(--green)':ied>=40?'var(--orange)':'var(--red)'}">${ied.toFixed(0)}</div>
+            <div style="font-size:11px;color:var(--text2)">ІЕД · #${d.kpi_v12_rank||'—'}</div>
           </div>
         </div>
 
@@ -1324,7 +1338,7 @@ async function showDeputy(name, votesOffset) {
         <div style="display:grid;grid-template-columns:240px 1fr;gap:16px">
           <!-- LEFT: Radar Chart -->
           <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center">
-            <div style="font-size:13px;font-weight:600;margin-bottom:8px">KPI v11</div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px">ІЕД</div>
             ${radarSvg}
           </div>
 
@@ -1649,6 +1663,17 @@ function init() {
   document.getElementById('dep-status').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+
+  // Clickable column headers for sorting
+  document.querySelectorAll('#deputies-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const sortField = th.dataset.sort;
+      const sel = document.getElementById('dep-sort');
+      sel.value = sortField;
+      depsOffset = 0;
+      loadDeputies();
+    });
+  });
 
   // Load initial data
   loadDashboard();

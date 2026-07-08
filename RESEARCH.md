@@ -1319,12 +1319,13 @@ C6 = Вплив:            risk_component×0.6 + eu_component×0.4
 
 ---
 
-## KPI v12 — IMPLEMENTED (2026-07-07)
+## ІЕД v12 — IMPLEMENTED (2026-07-07, dashboard 2026-07-07)
 
-### Status: DONE
+### Status: PRODUCTION (replaces v11 on dashboard)
 
 **Script:** `calc_kpi_v12.py` — 391 deputies calculated.
 **DB columns:** `mps.kpi_v12_score`, `kpi_v12_rank`, `kpi_v12_discipline`, `kpi_v12_legislation`, `kpi_v12_efficiency`, `kpi_v12_committee`, `kpi_v12_requests`, `kpi_v12_impact`.
+**Dashboard:** "KPI" renamed to "ІЕД" (Індекс ефективної діяльності) for legal safety. Hexagon radar (6 axes), clickable column headers, dropdown filter by C1-C6.
 
 ### Final Formulas
 
@@ -1373,17 +1374,22 @@ Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6
 
 **Negative (-14-17):** Гетманцев Д.О. (-17.0), Вагнєр В.О. (-14.9), Лічман Г.В. (-14.8) — high discipline but low requests/impact penalized by equal weighting.
 
-### Known Issues
+### Known Issues (resolved)
 
-1. **Скрипка Т.В.:** adoption_rate=0 in DB despite 149 laws (data bug in sync). Needs recalc.
-2. **4 deputies** with 0 analyzed bills get neutral C2/C3/C6=50. Acceptable until LLM coverage improves.
-3. **C4 (Committee)** is static — doesn't reflect actual committee activity, only role.
+1. ~~Скрипка Т.В.: adoption_rate=0~~ — FIXED: sync_mp_stats.py now writes adoption_rate, bulk updated.
+2. ~~rada_uid mismatch~~ — FIXED: 47 deputies had -mps.id instead of real RADA UID. Corrected from bill_sponsors. +3,328 bill_sponsors links recovered.
+3. **4 deputies** with 0 analyzed bills get neutral C2/C3/C6=50. Acceptable until LLM coverage improves.
+4. **C4 (Committee)** is static — doesn't reflect actual committee activity, only role.
+5. **6 ministers** (Криклій, Коваленко, Малюська, Новосад, Оржель, Федоров) have NULL rada_uid — no bill_sponsors data.
+
+### Data Integrity Fixes (2026-07-07)
+
+- `sync_mp_stats.py`: added `adoption_rate` write (was missing, caused adoption_rate=0 for Скрипка)
+- `bill_sponsors.mp_id`: linked 363 records by name, 3,328 records via corrected rada_uid
+- `mps.rada_uid`: fixed 47 negative values (were -mps.id, now correct RADA API person.id)
+- `mps.total_bills/total_laws`: recalculated from bill_sponsors for 389 deputies
+- `mps.adoption_rate`: bulk recalculated for all 391 deputies
 
 ### Verdict
 
-**v12 successfully validates v11's approach** — the two formulas agree moderately (0.634) but diverge in interesting ways. The main divergence (C2 independence from quality) confirms that adding risk, docs, and authorship to legislation assessment provides new signal. v12 is NOT a replacement for v11 — it's an independent lens. Both should be kept for cross-validation.
-
-**Next steps:** No code changes needed. v12 is a research tool, not a production system. Use for:
-- Spot-checking v11 rankings
-- Identifying deputies where request activity was underweighted
-- Validating that discipline penalty works correctly
+**ІЕД v12 is the production formula.** v11 kept in DB for historical comparison. v12 provides independent validation of legislative effectiveness with 6 orthogonal categories. Dashboard fully migrated to ІЕД.

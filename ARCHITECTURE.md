@@ -19,12 +19,13 @@ migrations/       — SQL migration files
 scripts/          — utility scripts (test_llm_providers.py, test_kpi_formula.py)
 systemd/          — .service unit files
 tests/            — tests
-kpi_weights.json  — KPI v11 component weights (configurable)
+kpi_weights.json  — KPI v11 component weights (legacy, configurable)
 telegram_bot.py   — Telegram bot (interactive commands)
-calc_kpi_v11.py   — KPI v11 calculation (three-level system)
+calc_kpi_v11.py   — KPI v11 calculation (legacy, three-level system)
+calc_kpi_v12.py   — ІЕД calculation (active, 6 equal-weight categories)
 ```
 
-## Data flow: Bill Assessment → Deputy KPI
+## Data flow: Bill Assessment → Deputy ІЕД
 
 ```
 RADA API (billinfo_full JSON)
@@ -37,53 +38,42 @@ bill_sponsors (rada_uid → links bill to deputy)
   ↓
 calc_bill_quality.py → mps (bill_quality_score, avg_risk_score, authorship_ratio)
   ↓
-calc_kpi_v11.py → mps (kpi_v11_score, kpi_v11_*, signal_*, shannon_diversity, adoption_rate)
+calc_kpi_v12.py → mps (kpi_v12_score, kpi_v12_* — ІЕД)
 ```
 
-## KPI v11 — Three-Level System (UPDATED 2026-07-01, dashboard 2026-07-02)
+## ІЕД — Індекс ефективної діяльності (v12, ACTIVE)
 
-### Level 1: KPI (performance)
+**6 рівних категорій, без ваг.** Кожна ∈ [0, 1]. `ІЕД = (C1+C2+C3+C4+C5+C6) / 6 × 100`
 
-`KPI = 0.25×Ефективність + 0.25×Дисципліна + 0.20×Результативність + 0.15×Контроль + 0.15×Якість`
+| # | Категорія | Метрики | Джерело |
+|---|-----------|---------|---------|
+| C1 | Дисципліна | `py×0.5 + pda×0.3 + vkp×0.2` | mp_votes |
+| C2 | Законотворчість | `quality/5×0.3 + (1-risk/5)×0.3 + docs/2000×0.2 + authorship/0.5×0.2` | risk_assessments |
+| C3 | Результативність | `adoption/100×0.7 + min(primary/10)×0.3` | bill_sponsors + bills |
+| C4 | Комітет | `score/10` | committee_members |
+| C5 | Звернення | `min(req_resp/20) × (0.7 + 0.3 × response_rate)` | deputy_requests |
+| C6 | Вплив | `(1-risk/5)×0.6 + eu/35×0.4` | risk_assessments + eu_alignment |
 
-Weights stored in `kpi_weights.json` (configurable for calibration).
+Defaults: C2=0.5 (no LLM data), C3=0.5 (primary<3), C4=0.5 (no committee), C6=0.5 (no data). C1=0 if py<10%.
 
-| Component | Metrics | Source |
-|-----------|---------|--------|
-| Ефективність | LEI (primary only) | bill_sponsors + bills.stage=4 |
-| Дисципліна | ПЯ + ПДА + ВКП | mp_votes |
-| Результативність | Conv (primary) + adoption_rate | bills.stage=4 / total |
-| Контроль | requests_with_response + committee_score | deputy_requests + committee_members |
-| Якість | bill_quality_score × 20 + documents_count | risk_assessments + bill_documents |
-
-### Level 2: Profile (description, doesn't affect KPI)
-
-| Metric | Source | Format |
-|--------|--------|--------|
-| Committee | committee_members | "Оборона" |
-| Specialization | Shannon H | "Вузька"/"Середня"/"Широка" |
-| Shannon Diversity | entropy formula | 0-7 |
-| EU ratio | eu_euro_bills / total_bills | "6%" |
-| Authorship style | authorship_ratio | "Індивідуальний"/"Колективний" |
-| Top topic | top agenda_category | "Безпека" |
-| Bills/Laws | total_bills, total_laws (stage=4) | "47/12" |
-
-### Level 3: Signals (auto-generated insights)
+### Signals (Level 3 — auto-generated insights)
 
 Three categories:
 - ⚠ Warnings: spam, no committee work, narrow specialization, high urgent ratio
 - ✓ Strengths: high quality, stable specialization, high efficiency, high discipline
 - ℹ Features: collective authorship, narrow expert, EU profile
 
-### Dashboard (DONE 2026-07-02)
+### Dashboard (UPDATED 2026-07-07)
 
-- **Deputies table**: sorted by KPI v11, shows 5 component columns (Законодав., Дисципліна, Результат., Контроль, Якість) with progress bars + color coding
-- **Deputy detail**: SVG pentagon radar chart (5 axes) + Profile grid (specialization, authorship style, bills/laws, EU, ПЯ/ПДА/ВКП, LEI) + Signal badges (warnings/strengths/features)
-- **Sort options**: by KPI, by each component individually
-- **API**: `/api/deputies` returns `kpiV11`, `kpiEff`, `kpiDisc`, `kpiRes`, `kpiCtrl`, `kpiQual`, `shannon`, `adoptionRate`, `signal_warnings`, `signal_strengths`, `signal_features`
+- **"KPI" renamed to "ІЕД"** (Індекс ефективної діяльності) — legal safety
+- **Deputies table**: sorted by ІЕД, shows 6 component columns (Дисципліна, Законотв., Результат., Комітет, Звернення, Вплив) with progress bars + color coding
+- **Clickable column headers**: click to sort by that column
+- **Deputy detail**: SVG hexagon radar chart (6 axes) + Profile grid + Signal badges
+- **Sort options**: by ІЕД, by each component individually, by name
+- **API**: `/api/deputies` returns `ked12` (ІЕД), `kedDisc12`, `kedLegis12`, `kedEff12`, `kedComm12`, `kedReq12`, `kedImpact12`, `kedRank12`
 
 ### Auto-recalculation
-- `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats → calc_kpi_v11
+- `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats (with adoption_rate) → calc_kpi_v12
 
 ## Key scripts
 | Script | Purpose |
@@ -93,11 +83,11 @@ Three categories:
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
-| sync_mp_stats.py | Voting stats per deputy (ПЯ/ПДА/ВКП) |
+| sync_mp_stats.py | Voting stats per deputy (ПЯ/ПДА/ВКП) + adoption_rate |
 | sync_committee_members.py | Committee assignments |
 | sync_deputy_requests.py | Deputy requests (matches by first+patronymic initials) |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
-| calc_kpi_v11.py | **KPI v11**: three-level system (KPI + Profile + Signals) |
+| calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | eu_alignment.py | EU alignment scoring |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger |
@@ -105,7 +95,7 @@ Three categories:
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU alignment, schedule |
-| dashboard/index.html | Cloudflare Pages frontend — single-page app (5 tabs) |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app (ІЕД, hexagon radar, clickable sort) |
 
 ## Data sources
 - **billinfo_list-skl9.json** — bill list (15K records, no authors)
@@ -116,11 +106,11 @@ Three categories:
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
-- **mps** — 460 deputies. rada_uid = stable identity key. 6 name changes in deputy_aliases.
-  - kpi_v11_score, kpi_v11_rank — KPI v11 results (5 weighted components)
-  - kpi_v11_effectiveness/discipline/efficiency/control/quality — 5 components
-  - kpi_v12_score, kpi_v12_rank — KPI v12 results (6 equal-weight categories, research/validation)
+- **mps** — 460 deputies. rada_uid = stable identity key (from RADA API person.id). 6 name changes in deputy_aliases.
+  - kpi_v12_score, kpi_v12_rank — ІЕД results (6 equal-weight categories)
   - kpi_v12_discipline/legislation/efficiency/committee/requests/impact — 6 components
+  - kpi_v11_score, kpi_v11_rank — KPI v11 results (legacy, 5 weighted components)
+  - kpi_v11_effectiveness/discipline/efficiency/control/quality — 5 components (legacy)
   - signal_warnings, signal_strengths, signal_features — JSONB signal arrays
   - lei, bill_quality_score, avg_risk_score — quality metrics
   - authorship_ratio, adoption_rate, shannon_diversity, unique_coauthors — profile
@@ -168,20 +158,22 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `radacleaner-api` | — | Express API (port 8788) |
 | `radacleaner-tunnel` | — | Cloudflare Tunnel |
 | `telegram-bot` | — | Telegram bot polling |
-| `radacleaner-mpstats` | every 6h | factions + stats + **KPI v11 recalc** |
+| `radacleaner-mpstats` | every 6h | factions + stats (with adoption_rate) + **ІЕД recalc** |
 | `night-batch` | 21:00-08:00 | LLM analysis (nemotron-super) |
 | `sync_bills` | periodic | Bill sync from RADA |
 | `radacleaner-votesync` | every 6h | Voting records sync |
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: KPI v11 implemented, Dashboard updated with pentagon + profile + signals, Telegram bot running, EU Score done.
+Current status: ІЕД (v12) implemented, Dashboard with hexagon + profile + signals + clickable sort, Telegram bot running, EU Score done.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
-- mps.rada_uid is the stable identity key; text names are mutable
+- mps.rada_uid is the stable identity key (from RADA API person.id); text names are mutable
 - FK relationships use mps.id, never text mp_name
+- Dashboard uses ІЕД (not "KPI") — legal safety
 - Dashboard deploys: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 - PostgreSQL uses %s placeholders, not ?
+- PostgreSQL numeric returns as strings — use Number() in JS before .toFixed()
 - One session = one logical step = one commit
 - Before finishing: self-reflection — did I add dependencies/tables/scripts/APIs not in ARCHITECTURE.md?
