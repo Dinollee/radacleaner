@@ -26,27 +26,23 @@ DIGEST_PROMPT = '''Проаналізуй дані та сформуй щоде�
 
 Сформуй сводку ТОЧНО в такому форматі:
 
-📋 ДАТА — Моніторинг законів ВРУ
-
-🔴 ПОРУШЕННЯ ВИЯВЛЕНО: кількість
+📋 ДД.ММ.РРРР — Моніторинг законів ВРУ
 
 📊 СЬОГОДНІ:
 • статус пленарного засідання
 • статус комітетів
 • нові законопроекти або немає
 
-📌 ВІДСЛІДЖУВАНІ (з флагами):
-📌 номер — назва
-   Етап: [████░] відсоток%
+📢 ВІДСЛІДЖУВАНІ:
+📢 номер — назва (статус)
 
 ✅ Перевірено: число
-🔴 З порушеннями: число
 
 Підсумок: 2-3 речення
 
-Дані: rada.gov.ua 🔥
+Дані: rada.gov.ua
 
-Правила: не вигадуй дані, не давай політичних оцінок, конкретні номери законів, без Markdown, максимум 1500 символів'''
+Правила: не вигадуй дані, не давай політичних оцінок, конкретні номери законів, без Markdown, максимум 1500 символів, дати в форматі dd.mm.yyyy'''
 
 def get_today_date():
     return datetime.now().strftime('%Y-%m-%d')
@@ -82,7 +78,7 @@ def collect_our_data():
 
 def format_our_data_for_llm(data):
     lines = []
-    lines.append('Date: ' + data['date'])
+    lines.append('Date: ' + _fmt_date(data['date']))
     lines.append('Total bills: ' + str(data['total_bills']))
     lines.append('Changes today: ' + str(data['recent_changes_count']))
     lines.append('')
@@ -112,10 +108,8 @@ def format_our_data_for_llm(data):
     if data['tracked_bills']:
         lines.append('Tracked (with risks): ' + str(len(data['tracked_bills'])))
         for b in data['tracked_bills'][:5]:
-            stage = b.get('stage') or 1
-            bar = '#' * min(stage, 5) + '-' * (5 - min(stage, 5))
-            pct = min(stage * 20, 100)
-            lines.append('  - #' + b['bill_number'] + ' [' + bar + '] ' + str(pct) + '% ' + b['title'][:50])
+            status = b.get('current_status') or 'Unknown'
+            lines.append('  - #' + b['bill_number'] + ' [' + status + '] ' + b['title'][:50])
         lines.append('')
     return NL.join(lines)
 
@@ -242,12 +236,22 @@ def format_digest_from_text(text):
     text = re.sub(r'\*(.+?)\*', r'\1', text)
     return text.strip()
 
+def _fmt_date(date_str):
+    """Конвертує dd.mm.yyyy або ISO."""
+    if not date_str:
+        return ""
+    s = str(date_str).strip()
+    if len(s) >= 10 and s[4] == '-':
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+    return s[:10]
+
+
 def format_fallback(data):
     lines = []
-    lines.append(chr(128203) + ' ' + data['date'] + ' — Моніторинг законів ВРУ')
-    lines.append('')
-    violations = len([b for b in data['high_risk_bills'] if b.get('overall_score', 0) >= 70])
-    lines.append(chr(128308) + ' ПОРУШЕННЯ ВИЯВЛЕНО: ' + str(violations))
+    lines.append(chr(128203) + ' ' + _fmt_date(data['date']) + ' — Моніторинг законів ВРУ')
     lines.append('')
     lines.append(chr(128202) + ' СЬОГОДНІ:')
     lines.append(chr(10060) + ' Пленарне засідання — не заплановано')
@@ -256,24 +260,21 @@ def format_fallback(data):
     else:
         lines.append(chr(10060) + ' Нових законопроєктів — немає')
     lines.append('')
-    lines.append(chr(128204) + ' ВІДСЛІДЖУВАНІ (з флагами):')
+    lines.append(chr(128226) + ' ВІДСЛІДЖУВАНІ:')
     for b in data['tracked_bills'][:5]:
-        stage = b.get('stage') or 1
-        bar = chr(9608) * min(stage, 5) + chr(9617) * (5 - min(stage, 5))
-        pct = min(stage * 20, 100)
         title = b['title'][:50] if b['title'] else 'Без назви'
-        lines.append(chr(128204) + ' #' + b['bill_number'] + ' — ' + title)
-        lines.append('   Етап: [' + bar + '] ' + str(pct) + '%')
+        status = b.get('current_status') or 'Невідомо'
+        lines.append(chr(128226) + ' #' + b['bill_number'] + ' — ' + title + ' (' + status + ')')
     lines.append('')
+    violations = len([b for b in data['high_risk_bills'] if b.get('overall_score', 0) >= 70])
     lines.append(chr(9989) + ' Перевірено: ' + str(data['total_bills']))
-    lines.append(chr(128308) + ' З порушеннями: ' + str(violations))
     lines.append('')
     if data['recent_changes_count'] > 0:
         lines.append('Підсумок: ' + str(data['recent_changes_count']) + ' змін статусів.')
     else:
         lines.append('Підсумок: Змін статусів не зафіксовано.')
     lines.append('')
-    lines.append('Дані: rada.gov.ua ' + chr(128293))
+    lines.append('Дані: rada.gov.ua')
     return NL.join(lines)
 
 def run_daily_digest(test_mode=False, force=False):
