@@ -217,6 +217,62 @@ def run_monitor(test_mode=False, force=False):
     log.info("Done: %d processed", len(processed_ids))
 
 
+def check_high_risk_alerts(test_mode=False):
+    """Миттєвий алерт при toxicity > 0.7 для нових або змінених законів."""
+    HIGH_TOXICITY_THRESHOLD = 0.7
+
+    # Шукаємо закони з високою toxicістю, які ще не були відправлені
+    rows = d1_query(
+        "SELECT b.id as bill_id, b.bill_number, b.title, b.url, b.toxicity, b.current_status, "
+        "b.registration_date, ra.overall_score, ra.risk_level "
+        "FROM bills b "
+        "LEFT JOIN risk_assessments ra ON ra.bill_id = b.id "
+        "WHERE b.toxicity > ? "
+        "AND NOT EXISTS ("
+        "  SELECT 1 FROM change_log cl "
+        "  WHERE cl.bill_id = b.id AND cl.change_type = 'high_risk_alert'"
+        ") "
+        "ORDER BY b.toxicity DESC LIMIT 5",
+        [HIGH_TOXICITY_THRESHOLD],
+    )
+
+    if not rows:
+        return
+
+    log.info("Found %d high-risk bills (toxicity > %.1f)", len(rows), HIGH_TOXICITY_THRESHOLD)
+
+    for bill in rows:
+        bn = bill["bill_number"]
+        title = (bill["title"] or "")[:80]
+        toxicity = bill["toxicity"]
+        url = bill.get("url", "")
+        risk_level = bill.get("risk_level", "unknown")
+        overall = bill.get("overall_score", 0)
+
+        # Форматуємо повідомлення
+        link = f'<a href="{url}">#{bn}</a>' if url else f"#{bn}"
+        msg = (
+            f"🚨 <b>ВИСОКИЙ РИЗИК</b>\n\n"
+            f"{link} — {title}\n\n"
+            f"⚠️ Toxicity: <b>{toxicity:.2f}</b>/1.0\n"
+            f"📊 Risk score: {overall}/100\n"
+            f"🔴 Рівень ризику: {risk_level}\n\n"
+            f"Деталі: rada.gov.ua"
+        )
+
+        if not test_mode:
+            send_message(msg)
+            time.sleep(0.5)
+        else:
+            log.info("[TEST] HIGH RISK: #%s toxicity=%.2f — %s", bn, toxicity, title[:50])
+
+        # Позначаємо як відправлене
+        d1_exec("raw_sql", {
+            "sql": "INSERT INTO change_log (bill_id, change_type, new_value) VALUES (?, 'high_risk_alert', ?)",
+            "params": [bill.get("bill_id"), f"toxicity={toxicity:.2f}"],
+        })
+
+
 def run_daily_digest(test_mode=False):
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     rows = d1_query(
@@ -244,11 +300,15 @@ def main():
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--daily", action="store_true")
+    parser.add_argument("--high-risk", action="store_true", help="Тільки перевірка високого ризику")
     args = parser.parse_args()
     if args.daily:
         run_daily_digest(test_mode=args.test)
+    elif args.high_risk:
+        check_high_risk_alerts(test_mode=args.test)
     else:
         run_monitor(test_mode=args.test, force=args.force)
+        check_high_risk_alerts(test_mode=args.test)
 
 if __name__ == "__main__":
     main()
