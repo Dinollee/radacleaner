@@ -1452,3 +1452,80 @@ Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6
 | `worker/api-server.js` | v12 fields, activity-calendar, activity-day endpoints, UTC→Kyiv |
 | `ARCHITECTURE.md` | Updated with all session changes |
 | `RESEARCH.md` | Updated with v12 production status + session notes |
+
+---
+
+## Next Steps — Prioritized Backlog
+
+### High Priority (next session)
+
+| # | Task | Value | Effort |
+|---|------|-------|--------|
+| 1 | **Group 5.3: High-risk alert** — toxicity > 0.7 → instant Telegram message | Автоматичні алерти, найвищий ROI | 1-2h |
+| 2 | **Group 2: EU Score page audit** — перевірити покриття, оновити дашборд | Аудит наявного | 30min |
+| 3 | **Group 3.2: Unified API** — один `/api/dashboard` замість 5+ запитів | Швидший дашборд | 1h |
+
+### Medium Priority
+
+| # | Task | Value | Effort |
+|---|------|-------|--------|
+| 4 | **Group 5.6: Weekly digest** — тренди за тиждень (пн 08:00) | Регулярний огляд | 1-2h |
+| 5 | **Group 4: News monitoring** — RSS + LLM класифікація | Моніторинг новин | 3-4h |
+| 6 | **Committee meetings sync** — ручне введення або нове джерело даних | Повний календар | 2h |
+
+### Low Priority
+
+| # | Task | Value | Effort |
+|---|------|-------|--------|
+| 7 | **Group 6: Social media** — Twitter/Facebook API | Дайджест в соцмережах | 4-6h |
+| 8 | **Group 2.2: EU pro/anti classification** | Глибший EU аналіз | 2h |
+| 9 | **Committee meetings scraper** — RADA ITD API | Автоматичні дані | 3-4h |
+
+---
+
+## EU Score — Current State (2026-07-08)
+
+### Загальний стан: 95% DONE
+
+**Alignment Score**: 26.5% (нормально для країни-кандидата)
+**Покриття**: 30/35 глав EU acquis аналізовано
+
+### Що є
+
+| Компонент | Джерело | Покриття | Стан |
+|-----------|---------|----------|------|
+| Overall Alignment | eu_alignment_overall | 1 запис | ✅ |
+| Per-chapter alignment | eu_alignment_chapters | 35 глав, 931 запис | ✅ |
+| EU bills (is_euro) | bills.is_euro | 274 bills | ✅ |
+| Per-deputy EU score | mps.eu_integration_score | 367/391 (94%) | ✅ |
+| Per-deputy euro bills | mps.eu_euro_bills | 330/391 (84%) | ✅ |
+| Per-deputy risk bills | mps.eu_risk_bills | 323/391 (82%) | ✅ |
+| EU risk assessments | risk_assessments | 59 bills | ✅ |
+| Dashboard: overall score | /api/eu-alignment | ✅ |
+| Dashboard: chapter clusters | /api/eu-alignment | ✅ |
+| Dashboard: classified bills | /api/eu-alignment/bills | ✅ |
+| Dashboard: trend chart | /api/eu-alignment/trend | ✅ |
+| Per-deputy EU in table | /api/deputies (euScore) | ✅ |
+
+### Що НЕ зроблено
+
+| # | Task | Опис | Пріоритет |
+|---|------|------|-----------|
+| 2.2 | **EU pro/anti classification** | Класифікувати EU bills як pro-reform (гармонізація) або anti-reform (обмеження) | Низький |
+| — | EU Score в карточці депутата | Показувати EU ratio в профілі | Середній |
+| — | EU filter на сторінці депутатів | Фільтр по EU score | Низький |
+
+### Джерела даних
+
+1. **bills.is_euro** — булевий прапорець з RADA JSON (тег "Євроінтеграційний")
+2. **risk_assessments.json_data** — LLM знаходить "державна допомога ЄС", "гармонізація" в категоріях ризиків
+3. **eu_alignment_chapters** — keyword matching по 35 главах acquis
+4. **mps.eu_integration_score** — агрегація по депутатам з bill_sponsors + risk_assessments
+
+### Формула EU Score депутата
+
+```
+eu_integration_score = COUNT(bills where risk_categories mention EU) / total_bills_by_deputy
+```
+
+Джерело: `calc_bill_quality.py` → `mps.eu_integration_score`
