@@ -43,6 +43,7 @@ def main():
         ("Calculate MSI & K_pb", "calc_msi_kpb.py"),
         ("Calculate Quality, Risk, Authorship", "calc_bill_quality.py"),
         ("Recalculate EU Deputy Scores", "calc_eu_deputy.py"),
+        ("Recalculate EU Alignment", "eu_alignment.py"),
         ("Calculate KPI Score v9", "calc_deputy_kpi_v9.py"),
         ("Sync deputy requests", "sync_deputy_requests.py"),
     ]
