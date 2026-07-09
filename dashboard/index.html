@@ -488,6 +488,14 @@ tr.former-deputy:hover td { opacity: 0.75; }
 
     <div class="card">
       <div class="card-header">
+        <div class="card-title">🇪🇺 Harmonization по ключових директивах ЄС</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Internal metric: порівняння наших законів з EU директивами</div>
+      </div>
+      <div id="eu-directives"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
         <div class="card-title">Закони за класифікацією EU</div>
       </div>
       <div id="eu-classified-bills"></div>
@@ -1811,6 +1819,18 @@ const EU_CLUSTERS = [
 let euChaptersData = {};
 let euOverallData = null;
 
+const EU_DIRECTIVES = [
+  {name: 'GDPR', name_ua: 'Захист персональних даних', celex: '32016L0679', total: 35, signed: 9},
+  {name: 'Anti-corruption', name_ua: 'Антикорупція (НАБУ/САП)', total: 292, signed: 62},
+  {name: 'ProZorro', name_ua: 'Публічні закупівлі', total: 114, signed: 42},
+  {name: 'Energy', name_ua: 'Енергоефективність', total: 77, signed: 23},
+  {name: 'Victims Rights', name_ua: 'Захист жертв', total: 100, signed: 28},
+  {name: 'Food Safety', name_ua: 'Безпечність харчових продуктів', total: 16, signed: 4},
+  {name: 'Competition', name_ua: 'Конкурентна політика', total: 50, signed: 15},
+  {name: 'Transport', name_ua: 'Транспортна політика', total: 297, signed: 51},
+  {name: 'Agriculture', name_ua: 'Сільське господарство', total: 304, signed: 66},
+];
+
 function loadEUAlignment() {
   api('/api/eu-alignment').then(data => {
     euOverallData = data;
@@ -1836,6 +1856,35 @@ function loadEUAlignment() {
   api('/api/eu-alignment/trend').then(data => {
     renderEUTrend(data.trend);
   }).catch(() => {});
+
+  renderEUDirectives();
+}
+
+function renderEUDirectives() {
+  let html = '<div style="padding:8px 16px">';
+  for (const dir of EU_DIRECTIVES) {
+    const pct = dir.total > 0 ? Math.round(dir.signed / dir.total * 100) : 0;
+    let color = 'var(--red)';
+    if (pct > 30) color = 'var(--green)';
+    else if (pct > 20) color = 'var(--orange)';
+    const status = pct > 30 ? '🟢' : pct > 20 ? '🟠' : '🔴';
+
+    html += `
+      <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="width:12px;margin-right:8px">${status}</div>
+        <div style="flex:1">
+          <div style="font-weight:500">${dir.name_ua}</div>
+          <div style="font-size:11px;color:var(--text2)">${dir.signed} з ${dir.total} законів</div>
+        </div>
+        <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-right:12px">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${pct}%</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  document.getElementById('eu-directives').innerHTML = html;
 }
 
 function renderEUOverallScore(overall, signed, inProcess, harmonizationScore, totalBills, signedBills) {
