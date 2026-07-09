@@ -511,10 +511,33 @@ app.get('/api/eu-alignment', async (req, res) => {
       harmonization[r.key] = parseFloat(r.value);
     }
 
-    json(res, { 
-      overall: overall[0] || null, 
-      chapters, 
+    // Calculate overall harmonization score (weighted by cluster importance)
+    const weights = {1: 1.5, 2: 1.2, 3: 1.0, 4: 1.0, 5: 0.8, 6: 0.8};
+    let weightedSum = 0, totalWeight = 0;
+    for (let i = 1; i <= 6; i++) {
+      const key = 'harmonization_cluster' + i;
+      if (harmonization[key] !== undefined) {
+        weightedSum += harmonization[key] * weights[i];
+        totalWeight += weights[i];
+      }
+    }
+    const harmonizationScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight * 10) / 10 : 0;
+
+    // Get total bills and signed for overall stats
+    const totals = await q(`SELECT
+      COUNT(*) as total_bills,
+      COUNT(*) FILTER (WHERE stage = 4) as signed_bills
+      FROM bills WHERE agenda_category IS NOT NULL`);
+    const totalBills = totals[0] ? Number(totals[0].total_bills) : 0;
+    const signedBills = totals[0] ? Number(totals[0].signed_bills) : 0;
+
+    json(res, {
+      overall: overall[0] || null,
+      chapters,
       harmonization,
+      harmonizationScore,
+      totalBills,
+      signedBills,
       lastUpdated: overall[0]?.calculated_at || null,
       signed: overall[0] ? {
         score: overall[0].signed_score || 0,
