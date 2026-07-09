@@ -76,6 +76,38 @@ Three categories:
 ### Auto-recalculation
 - `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats (with adoption_rate) → calc_kpi_v12
 
+## EU Harmonization Index (REVERSE ENGINEERING)
+
+**Метод:** Reverse engineering — беремо публічні EU директиви, порівнюємо з нашими законами.
+
+### Формула
+```
+Harmonization = signed_bills / total_bills × 100
+```
+
+### По кластерах (verified 2026-07-08)
+
+| # | Кластер | Гармонізація | Закони |
+|---|---------|-------------|--------|
+| 1 | Fundamentals | 26.0% | 689 |
+| 2 | Internal Market | 28.4% | 571 |
+| 3 | Competitiveness | 22.1% | 1,216 |
+| 4 | Green Agenda | 29.0% | 731 |
+| 5 | Security | 31.5% | 482 |
+| 6 | General | 21.6% | 648 |
+
+**Загальний:** 26.5% (4,792 прийнятих з 15,217 EU-релевантних)
+
+### Дані
+- `stats_cache`: harmonization_cluster1-6
+- `eu_alignment_chapters`: keyword alignment (legacy)
+- `eu_alignment_overall`: overall alignment score (legacy)
+
+### Джерела для трекінгу кластерів
+1. EC RSS: `enlargement.ec.europa.eu/node/2/rss_en`
+2. Європравда: `eurointegration.com.ua` (скрапінг)
+3. pulse.kmu.gov.ua: моніторинг 24 напрямків асоціації
+
 ## Key scripts
 | Script | Purpose |
 |---|---|
@@ -89,7 +121,11 @@ Three categories:
 | sync_deputy_requests.py | Deputy requests (matches by first+patronymic initials) |
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
-| eu_alignment.py | EU alignment scoring |
+| calc_eu_llm.py | EU Score from LLM aggregation (raw_analysis) |
+| calc_eu_deputy.py | EU Score from bills.is_euro (legacy) |
+| sync_pulse.py | Pulse.kmu.gov.ua sync (24 EU agreement areas) |
+| sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) |
+| eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (with PDF retry) |
 | monitor.py | Telegram monitor: NEW bills + status change posts |
@@ -130,7 +166,7 @@ Three categories:
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
-- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment`, `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar`, `/api/activity-day`
+- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (harmonization), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar`, `/api/activity-day`, `/api/dashboard` (unified)
 - Timezone: all date queries convert UTC→Europe/Kyiv
 - Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
