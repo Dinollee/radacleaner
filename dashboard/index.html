@@ -1881,13 +1881,12 @@ function renderEUClusters(harmonization) {
   harmonization = harmonization || {};
   let html = '<div style="padding:4px 0">';
   for (const cluster of EU_CLUSTERS) {
-    const avg = getClusterAlignment(cluster);
     const bills = getClusterBills(cluster);
     const hKey = 'harmonization_cluster' + cluster.id;
     const hPct = harmonization[hKey] || 0;
     let color = 'var(--red)';
-    if (avg > 70) color = 'var(--green)';
-    else if (avg > 40) color = 'var(--orange)';
+    if (hPct > 70) color = 'var(--green)';
+    else if (hPct > 40) color = 'var(--orange)';
 
     let statusBadge = '';
     if (cluster.opened) statusBadge = `<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито ${cluster.openedDate || ''}</span>`;
@@ -1904,9 +1903,9 @@ function renderEUClusters(harmonization) {
           </div>
           <div style="display:flex;align-items:center;gap:12px">
             <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
-              <div style="width:${avg}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
+              <div style="width:${hPct}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
             </div>
-            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
+            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${hPct.toFixed(1)}%</div>
             <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
           </div>
         </div>
@@ -1943,13 +1942,21 @@ function renderClusterDetail(clusterId) {
   const statusText = cluster.opened ? `Відкрито ${cluster.openedDate || ''}` : 'Не відкрито';
   html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${statusText}</div>`;
 
+  // Calculate total bills and signed for this cluster
+  let clusterTotal = 0, clusterSigned = 0;
+  for (const chId of cluster.chapters) {
+    const ch = euChaptersData[chId];
+    if (ch) {
+      clusterTotal += ch.total_bills || 0;
+      clusterSigned += (ch.total_bills || 0) * (ch.alignment || 0) / 100;
+    }
+  }
+
   for (const chId of cluster.chapters) {
     const ch = euChaptersData[chId];
     const name = ch ? ch.chapter_name : `Глава ${chId}`;
-    const alignment = ch ? ch.alignment : 0;
     const bills = ch ? ch.total_bills : 0;
-    const keywords = ch ? ch.keywords_matched : 0;
-    const totalKw = ch ? ch.total_keywords : 0;
+    const alignment = ch ? ch.alignment : 0;
 
     let color = 'var(--red)';
     if (alignment > 70) color = 'var(--green)';
@@ -1960,7 +1967,7 @@ function renderClusterDetail(clusterId) {
         <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:500">${escHtml(name)}</div>
-          <div style="font-size:11px;color:var(--text2)">${keywords}/${totalKw} ключових слів · ${bills} законів</div>
+          <div style="font-size:11px;color:var(--text2)">${bills} законів</div>
         </div>
         <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-right:8px">
           <div style="width:${alignment}%;height:100%;background:${color};border-radius:3px"></div>
