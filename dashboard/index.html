@@ -1819,7 +1819,7 @@ function loadEUAlignment() {
       euChaptersData = {};
       for (const ch of data.chapters) euChaptersData[ch.chapter_id] = ch;
     }
-    renderEUClusters();
+    renderEUClusters(data.harmonization || {});
     if (data.lastUpdated) {
       document.getElementById('eu-last-updated').textContent =
         'Останнє оновлення: ' + new Date(data.lastUpdated).toLocaleString('uk-UA');
@@ -1883,11 +1883,14 @@ function getClusterBills(cluster) {
   return total;
 }
 
-function renderEUClusters() {
+function renderEUClusters(harmonization) {
+  harmonization = harmonization || {};
   let html = '<div style="padding:4px 0">';
   for (const cluster of EU_CLUSTERS) {
     const avg = getClusterAlignment(cluster);
     const bills = getClusterBills(cluster);
+    const hKey = 'harmonization_cluster' + cluster.id;
+    const hPct = harmonization[hKey] || 0;
     let color = 'var(--red)';
     if (avg > 70) color = 'var(--green)';
     else if (avg > 40) color = 'var(--orange)';
@@ -1903,7 +1906,7 @@ function renderEUClusters() {
           <div style="font-size:20px;margin-right:8px">${cluster.icon}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:14px">${cluster.name} <span style="font-weight:400;color:var(--text2);font-size:12px">${cluster.nameEn}</span>${statusBadge}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів · Harmonization: ${hPct}%</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
             <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">

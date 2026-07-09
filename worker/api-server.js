@@ -501,9 +501,20 @@ app.get('/api/eu-alignment', async (req, res) => {
   try {
     const overall = await q('SELECT * FROM eu_alignment_overall ORDER BY id DESC LIMIT 1');
     const chapters = await q('SELECT * FROM eu_alignment_chapters WHERE id IN (SELECT MAX(id) FROM eu_alignment_chapters GROUP BY chapter_id) ORDER BY chapter_id');
+    
+    // Get harmonization data from stats_cache
+    const harmonization = {};
+    const hKeys = ['harmonization_cluster1', 'harmonization_cluster2', 'harmonization_cluster3', 
+                    'harmonization_cluster4', 'harmonization_cluster5', 'harmonization_cluster6'];
+    const hRows = await q(`SELECT key, value FROM stats_cache WHERE key IN (${hKeys.map((_, i) => `$${i+1}`).join(',')})`, hKeys);
+    for (const r of hRows) {
+      harmonization[r.key] = parseFloat(r.value);
+    }
+
     json(res, { 
       overall: overall[0] || null, 
       chapters, 
+      harmonization,
       lastUpdated: overall[0]?.calculated_at || null,
       signed: overall[0] ? {
         score: overall[0].signed_score || 0,
