@@ -1849,9 +1849,10 @@ function renderEUOverallScore(overall, signed, inProcess, harmonizationScore, to
     <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
     <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Індекс гармонізації з ЄС</div>
-    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 20px">
+    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 12px">
       <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width 0.5s"></div>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;font-style:italic">Internal metric: % EU-related bills signed into law (not official EU benchmark)</div>
     <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
       <div><span style="color:var(--green)">●</span> Прийнято: ${signedBills || 0} з ${totalBills || 0} законів</div>
       <div><span style="color:var(--blue)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
