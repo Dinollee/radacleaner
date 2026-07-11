@@ -44,6 +44,12 @@ class _RateLimiter:
 # Gemini: 15 req/min (free tier), 1500 req/day. Use 12/min for safety margin.
 _gemini_limiter = _RateLimiter(max_per_minute=12)
 
+# OpenRouter: shared rate limiter across all workers (safe default: 10/min)
+_openrouter_limiter = _RateLimiter(max_per_minute=10)
+
+# NVIDIA: 30 req/min max, use 15 for 3 workers safety
+_nvidia_limiter = _RateLimiter(max_per_minute=15)
+
 # Daily counter for Gemini (1500 req/day limit)
 _gemini_daily_count = 0
 _gemini_daily_date = ""
@@ -88,6 +94,7 @@ PROVIDERS = {
 
 def _openrouter_call(messages, model, api_key, max_tokens, temperature, timeout=120):
     """OpenRouter chat completions."""
+    _openrouter_limiter.wait()
     resp = requests.post(
         f"https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -108,6 +115,7 @@ def _openrouter_call(messages, model, api_key, max_tokens, temperature, timeout=
 
 def _nvidia_call(messages, model, api_key, max_tokens, temperature, timeout=120):
     """NVIDIA Build API — OpenAI-compatible endpoint."""
+    _nvidia_limiter.wait()
     resp = requests.post(
         "https://integrate.api.nvidia.com/v1/chat/completions",
         headers={

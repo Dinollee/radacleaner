@@ -125,7 +125,7 @@ def print_progress(idx: int, total: int, elapsed: float):
 
 def main():
     parser = argparse.ArgumentParser(description="Нічний пакетний аналіз законопроектів")
-    parser.add_argument("--workers", type=int, default=1, help="Кількість потоків (1-5)")
+    parser.add_argument("--workers", type=int, default=3, help="Кількість потоків (1-5)")
     parser.add_argument("--limit", type=int, default=10000, help="Макс. кількість законів")
     parser.add_argument("--stages", type=str, default="1,2,3,4", help="Стейджі через кому")
     parser.add_argument("--force", action="store_true", help="Очистити кеш та переаналізувати")
