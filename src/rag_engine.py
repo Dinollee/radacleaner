@@ -38,6 +38,19 @@ from .risk_storage import (
     get_bill_documents,
     insert_new_document,
 )
+
+
+def _is_українською(text: str) -> bool:
+    """Перевіряє чи текст українською мовою (а не англійською)."""
+    if not text:
+        return True  # порожній текст — пропускаємо
+    # Ukrainian characters: а-я, ї, є, ґ
+    ukr_chars = sum(1 for c in text if c in 'абвгґдеєжзиіїйклмнопрстуфхцчшщьюяАБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ')
+    eng_chars = sum(1 for c in text if c in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    total = ukr_chars + eng_chars
+    if total == 0:
+        return True  # немає літер — пропускаємо
+    return ukr_chars / total > 0.3  # хоча б 30% українських літер
 from .d1_client import d1_exec, d1_query
 
 log = logging.getLogger(__name__)
@@ -58,7 +71,8 @@ SYSTEM_PROMPT = (
     "Ти — головний юридичний аналітик моніторингового центру, "
     "глибоко спеціалізований на законодавстві України, нормативно-правовій базі Верховної Ради, "
     "регламентах та вимогах до гармонізації українського права з директивами ЄС (acquis communautaire). "
-    "Аналізуєш законопроекти по частинах (чанках). Зберігай контекст попередніх частин."
+    "Аналізуєш законопроекти по частинах (чанках). Зберігай контекст попередніх частин. "
+    "ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ. Жодних англійських слів чи речень у відповідях."
 )
 
 CHUNK1_PROMPT = """Тобі надано ПЕРШУ частину тексту законопроєкту Верховної Ради України (чанк {chunk_num}/{total_chunks}).
@@ -460,6 +474,12 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
 
             messages.append({"role": "user", "content": prompt})
 
+            # ponytail: обрізаємо історію щоб не перевищити контекстне вікно (262K tokens)
+            # Залишаємо: system + останні 4 пари (user+assistant) = 9 повідомлень
+            MAX_HISTORY_MESSAGES = 9  # system + 4 * (user + assistant)
+            if len(messages) > MAX_HISTORY_MESSAGES:
+                messages = [messages[0]] + messages[-(MAX_HISTORY_MESSAGES - 1):]
+
             try:
                 result = llm_completion(
                     prompt=None,
@@ -484,7 +504,7 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
             # Додаємо відповідь асистента в історію
             messages.append({"role": "assistant", "content": json.dumps(result, ensure_ascii=False)})
 
-        time.sleep(1)  # пауза між чанками
+        time.sleep(3)  # пауза між чанками
 
     # Фінальна агрегація
     log.info("  Final aggregation: %d risks found across %d chunks, sig=%d/imp=%d/risk=%d", 
@@ -552,6 +572,75 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
             final_result["risk_level"] = "low"
     
     return final_result
+
+
+def _fix_discretion_hallucination(data: dict):
+    """Post-verification: catch 'discretion' hallucination when law actually grants selective preferences.
+
+    If the law imperatively exempts specific entities from enforcement,
+    the model may incorrectly write 'discretionary authority of controlling body'.
+    This function detects and corrects that pattern.
+    """
+    import re
+
+    law = (data.get("law_summary", "") + " " + data.get("summary", "")).lower()
+    risks = data.get("detailed_risks", [])
+    categories = data.get("risk_categories", [])
+
+    # Pattern: imperative exemption for specific entities
+    imperative_patterns = [
+        r"звільняє.*від.*стягнення",
+        r"не здійснюють заходи",
+        r"зупиняє.*стягнення",
+        r"призупиняє.*борг",
+        r"звільнити.*від.*зобов'язань",
+    ]
+    has_imperative = any(re.search(p, law) for p in imperative_patterns)
+
+    # Pattern: model incorrectly claims discretion
+    discretion_pattern = re.compile(r"дискреційн\w*\s+(право|повноваження|простір)", re.IGNORECASE)
+
+    if not has_imperative:
+        return
+
+    fixed = False
+    template = (
+        "Створення вибіркових законодавчих преференцій для окремих суб'єктів господарювання, "
+        "що порушує принцип рівності платників податків (ст. 4 ПК України) "
+        "та створює дискримінаційні умови."
+    )
+
+    for i, risk in enumerate(risks):
+        if discretion_pattern.search(risk):
+            log.info("  POST_VERIFY: fixing discretion hallucination in detailed_risks[%d]", i)
+            # Keep the original norm reference if present
+            norm_ref = re.search(r"((?:ст|п|пп)\.\s*[\d\.\s,–]+)", risk)
+            prefix = f"({norm_ref.group(0)}) " if norm_ref else ""
+            risks[i] = prefix + template
+            fixed = True
+
+    for cat in categories:
+        cat_risks = cat.get("risks", [])
+        for i, risk in enumerate(cat_risks):
+            if discretion_pattern.search(risk):
+                log.info("  POST_VERIFY: fixing discretion hallucination in risk_categories")
+                cat_risks[i] = template
+                fixed = True
+
+    if fixed:
+        # Also check for English terms and flag them
+        eng_pattern = re.compile(r"\b(preferential treatment|arrears|enforcement|moratorium)\b", re.IGNORECASE)
+        ukr_replacements = {
+            "preferential treatment": "вибіркове ставлення",
+            "arrears": "заборгованість",
+            "enforcement": "стягнення",
+            "moratorium": "мораторій",
+        }
+        for i, risk in enumerate(risks):
+            for eng, ukr in ukr_replacements.items():
+                if eng_pattern.search(risk):
+                    risks[i] = re.sub(eng, ukr, risks[i], flags=re.IGNORECASE)
+                    log.info("  POST_VERIFY: replaced English term '%s' with '%s'", eng, ukr)
 
 
 def process_bill(info: dict, test_mode: bool = False, provider: str | None = None):
@@ -683,6 +772,29 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
         log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d sig=%d imp=%d risk=%d tox=%.2f",
                  risk_level, len(llm_data.get("detailed_risks", [])), sig, imp, rsk, tox)
 
+    # Post-verification: fix discretion hallucination
+    _fix_discretion_hallucination(llm_data)
+
+    # Post-verification: check language (українська vs англійська)
+    summary_text = llm_data.get("summary", "") + llm_data.get("law_summary", "")
+    if not _is_українською(summary_text) and not is_procedural:
+        log.warning("  Language check FAILED — analysis in English, retrying with посиленим промптом")
+        try:
+            # Повторний аналіз з посиленим промптом про мову
+            llm_data2 = _chunked_llm_analysis(full_text, len(chunk_text(full_text)), provider=provider)
+            if llm_data2 and _is_українською(llm_data2.get("summary", "") + llm_data2.get("law_summary", "")):
+                log.info("  Language retry SUCCESS — now in Ukrainian")
+                llm_data = llm_data2
+                llm_data["model_used"] = LLM_MODEL
+                is_procedural = llm_data.get("is_procedural", False)
+                risk_level = llm_data.get("risk_level")
+                has_risks = llm_data.get("has_risks", False)
+                _fix_discretion_hallucination(llm_data)
+            else:
+                log.warning("  Language retry FAILED again — keeping original")
+        except Exception as e:
+            log.error("  Language retry error: %s", str(e)[:200])
+
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)
         update_bill_procedural(bill_id, is_procedural)
@@ -763,13 +875,13 @@ def main() -> None:
             msg = format_status_message(info)
             send_message(msg)
             log.info("  Sent status update: #%s", info["bill_number"])
-            time.sleep(0.5)
+            time.sleep(3)
 
         for info, data in processed:
             msg = format_risk_message(info, data)
             send_message(msg)
             log.info("  Sent to TG: #%s", info["bill_number"])
-            time.sleep(0.5)
+            time.sleep(3)
 
     log.info(
         "=== Done: %d analyzed, %d status updates ===",

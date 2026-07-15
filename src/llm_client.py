@@ -1,4 +1,4 @@
-"""Unified LLM client — OpenRouter (OWL Alpha) + Google AI (Gemini/Gemma).
+"""Unified LLM client — OpenRouter + NVIDIA API + Google AI (Gemini/Gemma).
 
 Usage:
     from .llm_client import llm_completion, llm_completion_raw
@@ -10,12 +10,67 @@ import json
 import re
 import time
 import logging
+import threading
 
 import requests
 
-from .config import LLM_API_KEY, LLM_MODEL, GEMINI_API_KEY, GEMINI_MODEL
+from .config import LLM_API_KEY, LLM_MODEL, GEMINI_API_KEY, GEMINI_MODEL, NVIDIA_API_KEY
 
 log = logging.getLogger(__name__)
+
+
+class _RateLimiter:
+    """Simple sliding window rate limiter (thread-safe)."""
+    def __init__(self, max_per_minute: int):
+        self.max_per_minute = max_per_minute
+        self.window = 60
+        self.timestamps: list[float] = []
+        self.lock = threading.Lock()
+
+    def wait(self):
+        with self.lock:
+            now = time.time()
+            self.timestamps = [t for t in self.timestamps if now - t < self.window]
+            if len(self.timestamps) >= self.max_per_minute:
+                oldest = self.timestamps[0]
+                sleep_for = self.window - (now - oldest) + 0.5
+                if sleep_for > 0:
+                    log.info("Rate limit: sleeping %.1fs (gemini %d/%d per min)",
+                             sleep_for, len(self.timestamps), self.max_per_minute)
+                    time.sleep(sleep_for)
+            self.timestamps.append(time.time())
+
+
+# Gemini: 15 req/min (free tier), 1500 req/day. Use 12/min for safety margin.
+_gemini_limiter = _RateLimiter(max_per_minute=12)
+
+# OpenRouter: shared rate limiter across all workers (safe default: 10/min)
+_openrouter_limiter = _RateLimiter(max_per_minute=10)
+
+# NVIDIA: 30 req/min max, use 15 for 3 workers safety
+_nvidia_limiter = _RateLimiter(max_per_minute=15)
+
+# Daily counter for Gemini (1500 req/day limit)
+_gemini_daily_count = 0
+_gemini_daily_date = ""
+_gemini_daily_lock = threading.Lock()
+GEMINI_DAILY_LIMIT = 1400  # safety margin below 1500
+
+
+def _check_gemini_daily():
+    """Check and increment daily Gemini counter. Returns True if OK to proceed."""
+    global _gemini_daily_count, _gemini_daily_date
+    import datetime
+    today = datetime.date.today().isoformat()
+    with _gemini_daily_lock:
+        if _gemini_daily_date != today:
+            _gemini_daily_date = today
+            _gemini_daily_count = 0
+        if _gemini_daily_count >= GEMINI_DAILY_LIMIT:
+            log.warning("Gemini daily limit reached (%d/%d)", _gemini_daily_count, GEMINI_DAILY_LIMIT)
+            return False
+        _gemini_daily_count += 1
+        return True
 
 # --- Provider configs ---
 PROVIDERS = {
@@ -23,6 +78,11 @@ PROVIDERS = {
         "url": "https://openrouter.ai/api/v1",
         "key": LLM_API_KEY,
         "model": LLM_MODEL,
+    },
+    "nvidia": {
+        "url": "https://integrate.api.nvidia.com/v1",
+        "key": NVIDIA_API_KEY,
+        "model": "nvidia/nemotron-3-super-120b-a12b",
     },
     "gemini": {
         "url": "https://generativelanguage.googleapis.com/v1beta",
@@ -34,6 +94,7 @@ PROVIDERS = {
 
 def _openrouter_call(messages, model, api_key, max_tokens, temperature, timeout=120):
     """OpenRouter chat completions."""
+    _openrouter_limiter.wait()
     resp = requests.post(
         f"https://openrouter.ai/api/v1/chat/completions",
         headers={
@@ -46,7 +107,29 @@ def _openrouter_call(messages, model, api_key, max_tokens, temperature, timeout=
         timeout=timeout,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    data = resp.json()
+    if "choices" not in data or not data["choices"]:
+        raise RuntimeError(f"OpenRouter response missing 'choices': {str(data)[:300]}")
+    return data["choices"][0]["message"]["content"]
+
+
+def _nvidia_call(messages, model, api_key, max_tokens, temperature, timeout=120):
+    """NVIDIA Build API — OpenAI-compatible endpoint."""
+    _nvidia_limiter.wait()
+    resp = requests.post(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        json={"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if "choices" not in data or not data["choices"]:
+        raise RuntimeError(f"NVIDIA response missing 'choices': {str(data)[:300]}")
+    return data["choices"][0]["message"]["content"]
 
 
 def _gemini_extract_text(candidate):
@@ -116,13 +199,17 @@ def _try_provider(name, provider, prompt, system_prompt, max_tokens, temperature
     model = provider["model"]
     log.info("LLM: trying %s (%s)", name, model)
 
-    if name == "openrouter":
+    if name in ("openrouter", "nvidia"):
+        call = _openrouter_call if name == "openrouter" else _nvidia_call
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        return _openrouter_call(messages, model, key, max_tokens, temperature)
+        return call(messages, model, key, max_tokens, temperature)
     elif name == "gemini":
+        if not _check_gemini_daily():
+            raise RuntimeError("Gemini daily limit reached")
+        _gemini_limiter.wait()
         contents = _build_gemini_contents(system_prompt, prompt)
         return _gemini_call(contents, model, key, max_tokens, temperature)
     else:
@@ -130,10 +217,12 @@ def _try_provider(name, provider, prompt, system_prompt, max_tokens, temperature
 
 
 def _provider_order():
-    """Return providers in preferred order: OpenRouter first, then Gemini."""
+    """Return providers in preferred order: OpenRouter, NVIDIA, Gemini."""
     order = []
     if LLM_API_KEY:
         order.append("openrouter")
+    if NVIDIA_API_KEY:
+        order.append("nvidia")
     if GEMINI_API_KEY:
         order.append("gemini")
     return order
@@ -161,16 +250,20 @@ def llm_completion(
         providers = [(n, p) for n, p in PROVIDERS.items() if p["key"]]
 
     if not providers:
-        raise RuntimeError("No LLM API keys configured — set OPENROUTER_API_KEY or GEMINI_API_KEY in .env")
+        raise RuntimeError("No LLM API keys configured — set OPENROUTER_API_KEY, NVIDIA_API_KEY, or GEMINI_API_KEY in .env")
 
     last_exc = None
     for pname, prov in providers:
         for attempt in range(1, max_retries + 1):
             try:
                 m = model or prov["model"]
-                if pname == "openrouter" and messages:
-                    text = _openrouter_call(messages, m, prov["key"], max_tokens, temperature)
+                if pname in ("openrouter", "nvidia") and messages:
+                    call = _openrouter_call if pname == "openrouter" else _nvidia_call
+                    text = call(messages, m, prov["key"], max_tokens, temperature)
                 elif pname == "gemini" and messages:
+                    if not _check_gemini_daily():
+                        raise RuntimeError("Gemini daily limit reached")
+                    _gemini_limiter.wait()
                     text = _gemini_call(messages, m, prov["key"], max_tokens, temperature)
                 else:
                     text = _try_provider(pname, prov, prompt, system_prompt, max_tokens, temperature)
@@ -233,8 +326,9 @@ def llm_completion_raw(
         for attempt in range(1, max_retries + 1):
             try:
                 m = model or prov["model"]
-                if pname == "openrouter" and messages:
-                    return _openrouter_call(messages, m, prov["key"], max_tokens, temperature)
+                if pname in ("openrouter", "nvidia") and messages:
+                    call = _openrouter_call if pname == "openrouter" else _nvidia_call
+                    return call(messages, m, prov["key"], max_tokens, temperature)
                 return _try_provider(pname, prov, prompt, system_prompt, max_tokens, temperature)
 
             except requests.exceptions.HTTPError as e:

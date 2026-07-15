@@ -41,16 +41,10 @@ def fetch_bills(stages: list[int], limit: int) -> list[dict]:
     """
 
     sql = f"""
-        WITH targets AS (
-            SELECT b.id FROM bills b
-            WHERE b.stage IN ({stage_list})
-              AND b.toxicity IS NULL
-            {sabotage_sub if 72 in stages or True else ''}
-        )
         SELECT b.id, b.bill_number, b.title, b.current_status, b.url, b.stage
         FROM bills b
-        JOIN targets t ON t.id = b.id
-        WHERE b.toxicity IS NULL
+        WHERE b.stage IN ({stage_list})
+          AND NOT EXISTS (SELECT 1 FROM risk_assessments ra WHERE ra.bill_id = b.id)
         ORDER BY
             CASE b.stage
                 WHEN 2 THEN 1
@@ -131,7 +125,7 @@ def print_progress(idx: int, total: int, elapsed: float):
 
 def main():
     parser = argparse.ArgumentParser(description="Нічний пакетний аналіз законопроектів")
-    parser.add_argument("--workers", type=int, default=1, help="Кількість потоків (1-5)")
+    parser.add_argument("--workers", type=int, default=3, help="Кількість потоків (1-5)")
     parser.add_argument("--limit", type=int, default=10000, help="Макс. кількість законів")
     parser.add_argument("--stages", type=str, default="1,2,3,4", help="Стейджі через кому")
     parser.add_argument("--force", action="store_true", help="Очистити кеш та переаналізувати")
