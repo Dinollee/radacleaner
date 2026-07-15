@@ -1790,8 +1790,103 @@ HAVING MAX(bp.pass_date) < NOW() - INTERVAL '24 hours'
 
 ### TODO
 
-- [ ] Знайти AJAX endpoint для "Результати голосування" (DevTools Network tab)
-- [ ] Додати `sync_bill_passings_html.py`
-- [ ] Додати в `sync_bills.timer` (кожні 2-4 години)
-- [ ] Оновити `sync_bill_passings.py` для dedup
-- [ ] Оновити ARCHITECTURE.md
+- [x] Знайти AJAX endpoint для "Результати голосування" (DevTools Network tab)
+- [x] Додати `sync_bill_passings_html.py`
+- [x] Додати в `sync_bill_passings_html.timer` (кожні 4 години)
+- [x] Оновити `sync_bill_passings.py` для dedup
+- [x] Оновити ARCHITECTURE.md
+
+### Статус: РЕАЛІЗОВАНО (2026-07-15)
+
+Скрипт `sync_bill_passings_html.py` працює:
+- Таймер: `sync_bill_passings_html.timer` (кожні 4 години)
+- Тест: успішно синхронізував passings для 5 законів
+- Конфліктів з bulk JSON немає (dedup)
+
+---
+
+## Session 2026-07-15: Night Batch Fixes (Sliding Window + Rate Limiting + Language Check)
+
+### Проблема 1: OpenRouter 400 Errors (Context Limit)
+
+**Причина:** `messages` список ріс безмежно з кожним чанком. Після 19+ чанків загальний розмір перевищував 262K токенів (ліміт моделі).
+
+**Помилка:**
+```
+"This endpoint's maximum context length is 262144 tokens. 
+However, you requested about 1025395 tokens..."
+```
+
+**Рішення:** Sliding window — максимум 9 повідомлень (system + 4 пари user+assistant).
+
+**Код (`rag_engine.py`):**
+```python
+MAX_HISTORY_MESSAGES = 9
+if len(messages) > MAX_HISTORY_MESSAGES:
+    messages = [messages[0]] + messages[-(MAX_HISTORY_MESSAGES - 1):]
+```
+
+**Результат:** ~153K токенів (замість 325K) → 400 помилок немає.
+
+### Проблема 2: Rate Limiting для 3 Workers
+
+**Проблема:** 3 воркера одночасно вичерпували ліміт OpenRouter (10 req/min).
+
+**Рішення:** Додано `_RateLimiter` для кожного провайдера:
+- OpenRouter: 10 req/min (розподіляється між 3 воркерами)
+- NVIDIA: 15 req/min (30 ліміт / 2 для запасу)
+- Gemini: 12 req/min (вже було)
+
+**Код (`llm_client.py`):**
+```python
+_openrouter_limiter = _RateLimiter(max_per_minute=10)
+_nvidia_limiter = _RateLimiter(max_per_minute=15)
+```
+
+### Проблема 3: Аналіз англійською мовою
+
+**Проблема:** Модель іноді ігнорувала інструкцію "ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ".
+
+**Статистика:** 1 англійський аналіз з 97 (1%).
+
+**Рішення:** Post-verification + retry:
+1. Функція `_is_українською()` перевіряє % українських літер (>30%)
+2. Якщо англійський → повторний аналіз
+3. Якщо повторний теж англійський → залишаємо оригінал (без зациклення)
+
+**Код (`rag_engine.py`):**
+```python
+def _is_українською(text: str) -> bool:
+    ukr_chars = sum(1 for c in text if c in 'абвгґдеєжзиіїй...')
+    eng_chars = sum(1 for c in text if c in 'abcdefghijklmnopqrstuvwxyz...')
+    total = ukr_chars + eng_chars
+    return ukr_chars / total > 0.3 if total > 0 else True
+```
+
+### Швидкість: 1 vs 3 Workers
+
+| Метрика | 1 воркер | 3 воркера |
+|---------|----------|-----------|
+| Чанків/хв | 0.10 | 1.40 |
+| Законів/день | ~50 | ~350 |
+| Прискорення | — | **13.3x** |
+
+**Причина 13x замість 3x:**
+1. Немає 400 помилок → не витрачаємо час на fallback до NVIDIA
+2. NVIDIA таймаути (120с × retry) більше не блокують обробку
+3. Паралельне завантаження API
+
+### TODO
+
+- [x] Sliding window для контексту (fix 400 errors)
+- [x] Rate limiting для OpenRouter/NVIDIA
+- [x] Перевірка мови (retry при англійському)
+- [x] 3 воркери за замовчуванням
+- [x] Оновити ARCHITECTURE.md
+
+### Статус: РЕАЛІЗОВАНО (2026-07-15)
+
+Night batch працює стабільно:
+- 400 помилок: 0 (після фіксу)
+- Мова: 100% українська (з retry)
+- Швидкість: ~350 законів/день

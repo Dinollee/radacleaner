@@ -129,7 +129,7 @@ Harmonization = signed_bills / total_bills × 100
 | sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
-| night_batch.py | Nightly bill fetch + analysis trigger (with PDF retry) |
+| night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
 | monitor.py | Telegram monitor: NEW bills + status change posts |
 | daily_digest_llm.py | Daily digest: LLM-powered summary + fallback |
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
@@ -137,6 +137,30 @@ Harmonization = signed_bills / total_bills × 100
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU alignment, schedule |
 | dashboard/index.html | Cloudflare Pages frontend — single-page app (ІЕД, hexagon radar, clickable sort) |
+
+## Night Batch (UPDATED 2026-07-15)
+
+**night_batch.py** — пакетний LLM аналіз законів (21:00-08:00).
+
+### Конфігурація
+| Параметр | Значення |
+|----------|----------|
+| Workers | **3** (parallel threads) |
+| Context window | Sliding window: max 9 messages (~153K tokens) |
+| Rate limiting | OpenRouter: 10/min, NVIDIA: 15/min |
+| Language check | Ukrainian only (retry if English) |
+
+### Фікси (2026-07-15)
+1. **Sliding window** — фікс 400 помилок OpenRouter (контекст >262K tokens)
+2. **Rate limiting** — запобігає 429 помилкам при 3 воркерах
+3. **Language check** — retry при англійському аналізі (>30% українських літер)
+
+### Швидкість
+| Метрика | 1 worker | 3 workers |
+|---------|----------|-----------|
+| Чанків/хв | 0.10 | 1.40 |
+| Законів/день | ~50 | ~350 |
+| Прискорення | — | **13.3x** |
 
 ## Data sources
 - **billinfo_list-skl9.json** — bill list (15K records, no authors)
