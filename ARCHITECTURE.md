@@ -113,6 +113,8 @@ Harmonization = signed_bills / total_bills × 100
 |---|---|
 | sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI → requests |
 | bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**, isUrgent, isEuro) |
+| sync_bill_passings.py | Bill passings from bulk JSON (1x/day) |
+| sync_bill_passings_html.py | **Bill passings from HTML (every 4h, real-time)** |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
@@ -201,7 +203,8 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `telegram-bot` | — | Telegram bot polling |
 | `radacleaner-mpstats` | every 6h | factions + stats (with adoption_rate) + **ІЕД recalc** |
 | `night-batch` | 21:00-08:00 | LLM analysis (nemotron-super) |
-| `sync_bills` | periodic | Bill sync from RADA |
+| `sync_bills` | every hour | Bill sync from RADA (bulk JSON) |
+| `sync_bill_passings_html` | every 4h | Bill passings sync (HTML parsing, real-time) |
 | `radacleaner-votesync` | every 6h | Voting records sync |
 
 ## Roadmap
