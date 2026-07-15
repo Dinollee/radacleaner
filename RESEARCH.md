@@ -1633,3 +1633,165 @@ eu-ua.kmu.gov.ua (щотижня) → скрапінг → change_log
 1. Розширити Chapter 23 analysis на всі 35 глав (повний harmonization gap)
 2. Зв'язати наші закони з конкретними EU директивами (reverse engineering)
 3. Показувати harmonization gap на дашборді (що залишилось зробити)
+
+---
+
+## Session 2026-07-15: Real-time Bill Sync (HTML Parsing)
+
+### Проблема
+
+Bulk JSON з `data.rada.gov.ua` оновлюється **1 раз на добу** (зазвичай вночі). Голосування, яке відбулося сьогодні (14.07, 14:29) з'явиться в JSON лише **завтра вночі**.
+
+**Приклад:** Bill 15294
+- Сайт Ради: 14.07.2026 "Прийнято за основу"
+- Bulk JSON: `currentPhase.status = "Опрацьовується в комітеті"` (застарілі дані)
+- Наша БД: stage=2, status="Готується на друге читання" (correct, але без хронології голосування)
+
+### Наявні джерела даних
+
+| Джерело | Оновлення | Дані | Метод |
+|---------|-----------|------|-------|
+| `data.rada.gov.ua/billinfo-skl9.json` | 1x/добу | passings, stage, status | JSON bulk |
+| `w1.c1.rada.gov.ua/pls/radan_gs09/ns_golos` | Реальний час | голосування (result, votes) | HTML parsing |
+| `itd.rada.gov.ua/billinfo/Bills/Card/{id}` | Реальний час | хронологія, статус, документи | HTML parsing |
+
+**Існуючий скрипт:** `sync_votes.py` вже парсить HTML з `w1.c1.rada.gov.ua` для отримання результатів голосування.
+
+### Аналіз можливості парсингу Bill Card HTML
+
+**URL:** `https://itd.rada.gov.ua/billinfo/Bills/Card/{api_id}`
+
+**Що містить сторінка:**
+1. **Проходження** (вкладка) — хронологія з датами та статусами
+2. **Результати голосування** (вкладка) — AJAX, завантажується після кліку
+3. **Зв'язані** — пов'язані законопроекти
+4. **Альтернативні** — альтернативні проекти
+
+**Проблема:** "Результати голосування" завантажуються через JavaScript/AJAX, не в HTML напряму.
+
+### Варіанти рішення
+
+#### Варіант A: Парсинг хронології з Bill Card (простий)
+
+Парсити HTML вкладку "Проходження" для отримання актуальних passings.
+
+**Як працюватиме:**
+1. Визначити "гарячі" закони (stage 2,3,4 + останні 24-48 годин за registration_date або останньою зміною)
+2. Завантажити HTML карточку кожного
+3. Парсити таблицю "Проходження" → оновити `bill_passings`
+
+**Маппінг HTML → DB:**
+```html
+<!-- HTML -->
+<tr><td>14.07.2026</td><td>Прийнято за основу</td></tr>
+
+<!-- → DB -->
+INSERT INTO bill_passings (bill_id, pass_date, title, status)
+VALUES (15072, '2026-07-14', 'Прийнято за основу', 'Прийнято за основу')
+```
+
+**Переваги:**
+- Простий парсинг (таблиця з 2 колонок)
+- Реальний час для хронології
+- Існуючий pattern в `sync_bill_passings.py`
+
+**Недоліки:**
+- Не дає результатів голосування (тільки passings)
+- Потрібно знати API ID (не bill_number)
+
+#### Варіант B: Парсинг результатів голосування (складний)
+
+Парсити AJAX endpoint для "Результати голосування".
+
+**Дослідження:**
+- Tab "Результати голосування" завантажує дані через JavaScript
+- Потрібно знайти API endpoint (перевірити Network tab в DevTools)
+- Або: використати `w1.c1.rada.gov.ua` endpoint напряму
+
+**Існуючий код в `sync_votes.py`:**
+```python
+# Вже працює!
+url = f"http://w1.c1.rada.gov.ua/pls/radan_gs09/ns_golos?g_id={g_id}"
+html = fetch_url(url)
+# Парсить: За, Проти, Утрималися, Не голосували, Відсутні
+```
+
+**Проблема:** Потрібен `g_id` (vote ID). Він НЕ міститься в bulk JSON.
+
+#### Варіант C: Гібридний (рекомендований)
+
+1. **Основний sync:** Bulk JSON (1x/добу) — повна синхронізація
+2. **Додатковий sync (кожні 2-4 години):** Парсинг HTML для "гарячих" законів
+3. **Визначення "гарячих":** Ті, де `stage IN (2,3,4)` й остання зміна > 24 годин тому
+
+**Логіка визначення змін:**
+```python
+# Отримати закони де stage змінився або passings застарілі
+SELECT b.id, b.bill_number, b.stage, b.current_status, 
+       MAX(bp.pass_date) as last_passing
+FROM bills b
+LEFT JOIN bill_passings bp ON bp.bill_id = b.id
+WHERE b.stage IN (2,3,4)
+GROUP BY b.id
+HAVING MAX(bp.pass_date) < NOW() - INTERVAL '24 hours'
+   OR MAX(bp.pass_date) IS NULL
+```
+
+### Практична реалізація
+
+**Крок 1: Додати парсинг хронології з HTML (Варіант A)**
+
+Новий скрипт `sync_bill_passings_html.py`:
+1. Знайти закони де passings застарілі (>24 год)
+2. Для кожного: завантажити `itd.rada.gov.ua/billinfo/Bills/Card/{api_id}`
+3. Парсити таблицю "Проходження"
+4. INSERT нові passings (з dedup по (bill_id, pass_date, title))
+
+**API ID → Card URL:**
+```python
+# В bulk JSON є поле "url": "https://itd.rada.gov.ua/billinfo/Bills/Card/70129"
+# api_id = 70129
+# Або: bills.api_id з нашої БД (якщо є)
+```
+
+**Крок 2: Додати синхронізацію голосувань (Варіант B)**
+
+Після отримання passings з HTML, перевірити чи є "Результати голосування":
+1. Парсити вкладку (якщо AJAX endpoint знайдено)
+2. Або: дочекатися bulk JSON (простіше)
+
+### Обмеження
+
+1. **Rate limiting:** RADA API може блокувати часті запити (потребує `time.sleep(1-2)` між запитами)
+2. **API ID:** Потрібен маппінг `bill_number` → `api_id` (є в bulk JSON)
+3. **AJAX:** Результати голосування завантажуються через JS — потрібен окремий endpoint
+
+### Рекомендація
+
+**Почати з Варіанту A** (парсинг хронології). Це дасть:
+- Актуальні passings для "гарячих" законів
+- Без залежності від bulk JSON
+- Просту реалізацію (HTML parsing вже є в кодовій базі)
+
+**Варіант B** (голосування) — додати пізніше, якщо буде знайдено AJAX endpoint.
+
+### Конфлікти з bulk JSON: НЕМАЄ
+
+Обидва скрипти (bulk JSON + HTML) використовують однакову логіку дедупації:
+- Ключ: `(bill_id, pass_date, title)`
+- Unique constraint в БД: `ON CONFLICT DO NOTHING`
+- `existing_set` в пам'яті для швидкої перевірки
+
+**Сценарій:**
+1. HTML sync (14:00): вставляє "Прийнято за основу" для bill 15294
+2. Bulk JSON (03:00): бачить що вже є → пропускає
+
+**Результат:** HTML заповнює прогалини до наступного оновлення JSON. Конфліктів немає.
+
+### TODO
+
+- [ ] Знайти AJAX endpoint для "Результати голосування" (DevTools Network tab)
+- [ ] Додати `sync_bill_passings_html.py`
+- [ ] Додати в `sync_bills.timer` (кожні 2-4 години)
+- [ ] Оновити `sync_bill_passings.py` для dedup
+- [ ] Оновити ARCHITECTURE.md
