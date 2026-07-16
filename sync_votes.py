@@ -201,7 +201,7 @@ def save_vote(vote_data, bill_number=None):
         mps_lookup[m["name"]] = {"id": m["id"], "faction": m["faction"] or ""}
 
     mps = vote_data.get("mps", [])
-    valid_mps = [(mps_lookup.get(mp["name"], {}).get("id"), mp["status"])
+    valid_mps = [(mps_lookup.get(mp["name"], {}).get("id"), STATUS_IDS[mp["status"]])
                  for mp in mps if STATUS_IDS.get(mp["status"])]
 
     # Insert mp_votes using mp_id FK
