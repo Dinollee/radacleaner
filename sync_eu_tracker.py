@@ -12,6 +12,7 @@ import re
 import json
 import os
 import urllib.request
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
@@ -23,6 +24,31 @@ load_dotenv(Path(__file__).parent / ".env")
 DB_DSN = f"host={os.getenv('DB_HOST', '192.168.1.244')} dbname={os.getenv('DB_NAME', 'radacleaner')} user={os.getenv('DB_USER', 'postgres')} password={os.getenv('DB_PASSWORD', '164352')}"
 
 CLUSTER_KEYWORDS = ['кластер', 'cluster', 'відкриття переговорів', 'accession', 'acquis', 'screening']
+
+# Telegram config
+TG_BOT_TOKEN = os.getenv('TG_BOT_TOKEN', '')
+TG_CHAT_ID = os.getenv('TG_CHAT_ID', '349941927')
+
+
+def send_telegram(text: str):
+    """Надіслати повідомлення в Telegram."""
+    if not TG_BOT_TOKEN:
+        print("TG_BOT_TOKEN not set, skipping Telegram alert")
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
+        data = urllib.parse.urlencode({
+            'chat_id': TG_CHAT_ID,
+            'text': text[:4000],
+            'parse_mode': 'HTML',
+            'disable_web_page_preview': 'true',
+        }).encode()
+        req = urllib.request.Request(url, data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
+        resp = urllib.request.urlopen(req, timeout=10)
+        return resp.status == 200
+    except Exception as e:
+        print(f"Telegram error: {e}")
+        return False
 
 
 def fetch_ec_rss():
@@ -102,6 +128,8 @@ def check_cluster_updates():
 
     # Combine and store
     all_news = ec_news + ep_news
+    new_items = []
+
     if all_news:
         conn = psycopg2.connect(DB_DSN)
         cur = conn.cursor()
@@ -122,12 +150,29 @@ def check_cluster_updates():
                  json.dumps(item, ensure_ascii=False)]
             )
             print(f"   NEW: [{item['source']}] {item['title'][:60]}")
+            new_items.append(item)
 
         conn.commit()
         cur.close()
         conn.close()
 
-    print(f"\nTotal: {len(all_news)} cluster-related news items")
+    # Send Telegram alert for new cluster-related news
+    if new_items:
+        alert_lines = ["🇪🇺 <b>EU Cluster Tracker — нові новини:</b>\n"]
+        for item in new_items[:5]:
+            source = item['source']
+            title = item['title'][:80]
+            url = item.get('url', '')
+            alert_lines.append(f"📌 <b>{source}</b>: {title}")
+            if url:
+                alert_lines.append(f"   <a href='{url}'>Деталі</a>")
+            alert_lines.append("")
+
+        alert_text = "\n".join(alert_lines)
+        if send_telegram(alert_text):
+            print(f"\n✅ Telegram alert sent ({len(new_items)} items)")
+
+    print(f"\nTotal: {len(all_news)} cluster-related news items ({len(new_items)} new)")
     return all_news
 
 
