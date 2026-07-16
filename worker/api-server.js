@@ -206,7 +206,7 @@ app.get('/api/bills/:id', async (req, res) => {
     FROM votes WHERE bill_id = $1 ORDER BY vote_date ASC`, [id]);
 
     for (const vote of votesRaw) {
-      vote.deputies = await q('SELECT mv.mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.name = mv.mp_name WHERE mv.vote_id = $1 ORDER BY mp_faction, mv.mp_name', [vote.vote_id]);
+      vote.deputies = await q('SELECT COALESCE(m.name, mv.mp_name) as mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.id = mv.mp_id WHERE mv.vote_id = $1 ORDER BY mp_faction, mp_name', [vote.vote_id]);
     }
 
     json(res, { bill, risks, versions, changes, votes: votesRaw, documents, passings });
