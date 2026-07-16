@@ -124,7 +124,17 @@ app.get('/api/bills', async (req, res) => {
     let params = [];
     let idx = 1;
 
-    if (stage) { where.push(`b.stage = $${idx++}`); params.push(Number(stage)); }
+    if (stage) {
+      const stages = stage.split(',').map(s => Number(s.trim())).filter(s => s > 0);
+      if (stages.length === 1) {
+        where.push(`b.stage = $${idx++}`);
+        params.push(stages[0]);
+      } else if (stages.length > 1) {
+        const placeholders = stages.map(() => `$${idx++}`).join(',');
+        where.push(`b.stage IN (${placeholders})`);
+        params.push(...stages);
+      }
+    }
     if (status) { where.push(`b.current_status = $${idx++}`); params.push(status); }
     if (updatedAfter) { where.push(`b.status_changed_at >= $${idx++}`); params.push(updatedAfter); }
     if (updatedBefore) { where.push(`b.status_changed_at <= $${idx++}`); params.push(updatedBefore + ' 23:59:59'); }
@@ -196,7 +206,7 @@ app.get('/api/bills/:id', async (req, res) => {
     FROM votes WHERE bill_id = $1 ORDER BY vote_date ASC`, [id]);
 
     for (const vote of votesRaw) {
-      vote.deputies = await q('SELECT mv.mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.name = mv.mp_name WHERE mv.vote_id = $1 ORDER BY mp_faction, mv.mp_name', [vote.vote_id]);
+      vote.deputies = await q('SELECT COALESCE(m.name, mv.mp_name) as mp_name, COALESCE(m.faction, mv.mp_faction) as mp_faction, vs.code as vote_code, vs.label as vote_label FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id = vs.id LEFT JOIN mps m ON m.id = mv.mp_id WHERE mv.vote_id = $1 ORDER BY mp_faction, mp_name', [vote.vote_id]);
     }
 
     json(res, { bill, risks, versions, changes, votes: votesRaw, documents, passings });
@@ -318,7 +328,7 @@ app.get('/api/deputies', async (req, res) => {
     const status = req.query.status;
     const sort = req.query.sort || 'name';
     const order = (req.query.order || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score'].includes(sort) ? sort : 'name';
+    const safeSort = ['name','faction','py','pda','vkp','conversion','lei','avg_s','avg_i','avg_tox','kpi_score','eu_integration_score','kpi_v11_score','kpi_v11_effectiveness','kpi_v11_discipline','kpi_v11_efficiency','kpi_v11_control','kpi_v11_quality','kpi_v12_score','kpi_v12_discipline','kpi_v12_legislation','kpi_v12_efficiency','kpi_v12_committee','kpi_v12_requests','kpi_v12_impact'].includes(sort) ? sort : 'name';
     const sortCol = safeSort === 'conversion'
       ? `CASE WHEN m.total_bills > 0 THEN m.total_laws::float / m.total_bills ELSE 0 END`
       : `m.${safeSort}`;
@@ -332,7 +342,7 @@ app.get('/api/deputies', async (req, res) => {
     else if (status === 'former') { where.push(`m.end_date IS NOT NULL AND m.end_date != ''`); }
 
     const whereSQL = where.join(' AND ');
-    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, m.end_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox", COALESCE(m.kpi_score,0) as "kpiScore", COALESCE(m.kpi_rank,0) as "kpiRank" FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
+    const deputies = await q(`SELECT m.id, m.name, m.faction, m.start_date, m.end_date, COALESCE(m.py,0) as py, COALESCE(m.pda,0) as pda, COALESCE(m.vkp,0) as vkp, COALESCE(m.data_sufficient,0) as "dataSufficient", COALESCE(m.total_votes,0) as total, COALESCE(m.attended_votes,0) as attended, COALESCE(m.voted_votes,0) as voted, COALESCE(m.total_bills,0) as "totalBills", COALESCE(m.total_laws,0) as "totalLaws", COALESCE(m.lei,0) as lei, COALESCE(m.avg_s,0) as "avgS", COALESCE(m.avg_i,0) as "avgI", COALESCE(m.avg_tox,0) as "avgTox", COALESCE(m.kpi_score,0) as "kpiScore", COALESCE(m.kpi_rank,0) as "kpiRank", COALESCE(m.eu_integration_score,0) as "euScore", COALESCE(m.eu_euro_bills,0) as "euEuroBills", COALESCE(m.eu_risk_bills,0) as "euRiskBills", COALESCE(m.eu_state_aid_bills,0) as "euStateAidBills", COALESCE(m.requests_with_response,0) as "requestsWithResponse", COALESCE(m.kpi_v11_score,0) as "kpiV11", COALESCE(m.kpi_v11_effectiveness,0) as "kpiEff", COALESCE(m.kpi_v11_discipline,0) as "kpiDisc", COALESCE(m.kpi_v11_efficiency,0) as "kpiRes", COALESCE(m.kpi_v11_control,0) as "kpiCtrl", COALESCE(m.kpi_v11_quality,0) as "kpiQual", COALESCE(m.kpi_v12_score,0) as "ked12", COALESCE(m.kpi_v12_rank,0) as "kedRank12", COALESCE(m.kpi_v12_discipline,0) as "kedDisc12", COALESCE(m.kpi_v12_legislation,0) as "kedLegis12", COALESCE(m.kpi_v12_efficiency,0) as "kedEff12", COALESCE(m.kpi_v12_committee,0) as "kedComm12", COALESCE(m.kpi_v12_requests,0) as "kedReq12", COALESCE(m.kpi_v12_impact,0) as "kedImpact12", COALESCE(m.shannon_diversity,0) as "shannon", COALESCE(m.adoption_rate,0) as "adoptionRate", m.signal_warnings, m.signal_strengths, m.signal_features FROM mps m WHERE ${whereSQL} ORDER BY ${sortCol} ${order} NULLS LAST LIMIT $${idx++} OFFSET $${idx++}`, [...params, limit, offset]);
     const countResult = (await q(`SELECT COUNT(*) as total FROM mps m WHERE ${whereSQL}`, params))[0];
 
     const result = deputies.map(d => ({
@@ -403,14 +413,131 @@ app.get('/api/schedule', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- ACTIVITY CALENDAR ---
+app.get('/api/activity-calendar', async (req, res) => {
+  try {
+    const month = req.query.month;
+    if (!month) return error(res, 'month param required (YYYY-MM)');
+    const rows = await q(
+      `SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
+              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
+              COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
+       FROM change_log
+       WHERE created_at >= $1 AND created_at < $2
+       GROUP BY date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv')`,
+      [month + '-01', month + '-32']
+    );
+    const activity = {};
+    for (const r of rows) {
+      activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
+    }
+    json(res, { activity }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- ACTIVITY DAY DETAIL ---
+app.get('/api/activity-day', async (req, res) => {
+  try {
+    const date = req.query.date;
+    if (!date) return error(res, 'date param required (YYYY-MM-DD)');
+    const rows = await q(
+      `SELECT cl.change_type, b.bill_number, b.title, b.url, cl.old_value, cl.new_value
+       FROM change_log cl
+       JOIN bills b ON cl.bill_id = b.id
+       WHERE date(cl.created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv') = $1
+       ORDER BY cl.change_type, b.bill_number`,
+      [date]
+    );
+    json(res, { date, changes: rows }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
+// --- UNIFIED DASHBOARD ---
+app.get('/api/dashboard', async (req, res) => {
+  try {
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const monthParam = `${now.getFullYear()}-${mm}`;
+
+    // Parallel queries
+    const [stats, schedule, activity, eu] = await Promise.all([
+      q('SELECT key, value FROM stats_cache').then(rows => {
+        const cache = {};
+        for (const r of rows) cache[r.key] = r.value;
+        return {
+          totalBills: Number(cache.total_bills) || 0,
+          analyzedBills: Number(cache.analyzed_bills) || 0,
+          totalMps: Number(cache.total_mps) || 0,
+          activeMps: Number(cache.active_mps) || 0,
+          highRisk: Number(cache.high_risk) || 0,
+          mediumRisk: Number(cache.medium_risk) || 0,
+          recentChanges: Number(cache.recent_changes) || 0,
+          lastSync: cache.last_updated || null,
+        };
+      }).catch(() => ({})),
+      q(`SELECT * FROM rada_schedule WHERE date LIKE $1 ORDER BY date`, [monthParam + '%']).catch(() => []),
+      q(`SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
+              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
+              COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
+         FROM change_log
+         WHERE created_at >= $1 AND created_at < $2
+         GROUP BY date(created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv')`,
+        [monthParam + '-01', monthParam + '-32']
+      ).then(rows => {
+        const activity = {};
+        for (const r of rows) activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
+        return activity;
+      }).catch(() => ({})),
+      q(`SELECT overall_score, chapters_analyzed, total_chapters, calculated_at
+         FROM eu_alignment_overall ORDER BY id DESC LIMIT 1`).then(rows => rows[0] || null).catch(() => null),
+    ]);
+
+    json(res, { stats, schedule, activity, eu, month: monthParam }, 200, 60);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- EU ALIGNMENT ---
 app.get('/api/eu-alignment', async (req, res) => {
   try {
     const overall = await q('SELECT * FROM eu_alignment_overall ORDER BY id DESC LIMIT 1');
     const chapters = await q('SELECT * FROM eu_alignment_chapters WHERE id IN (SELECT MAX(id) FROM eu_alignment_chapters GROUP BY chapter_id) ORDER BY chapter_id');
-    json(res, { 
-      overall: overall[0] || null, 
-      chapters, 
+    
+    // Get harmonization data from stats_cache
+    const harmonization = {};
+    const hKeys = ['harmonization_cluster1', 'harmonization_cluster2', 'harmonization_cluster3', 
+                    'harmonization_cluster4', 'harmonization_cluster5', 'harmonization_cluster6'];
+    const hRows = await q(`SELECT key, value FROM stats_cache WHERE key IN (${hKeys.map((_, i) => `$${i+1}`).join(',')})`, hKeys);
+    for (const r of hRows) {
+      harmonization[r.key] = parseFloat(r.value);
+    }
+
+    // Calculate overall harmonization score (weighted by cluster importance)
+    const weights = {1: 1.5, 2: 1.2, 3: 1.0, 4: 1.0, 5: 0.8, 6: 0.8};
+    let weightedSum = 0, totalWeight = 0;
+    for (let i = 1; i <= 6; i++) {
+      const key = 'harmonization_cluster' + i;
+      if (harmonization[key] !== undefined) {
+        weightedSum += harmonization[key] * weights[i];
+        totalWeight += weights[i];
+      }
+    }
+    const harmonizationScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight * 10) / 10 : 0;
+
+    // Get total bills and signed for overall stats
+    const totals = await q(`SELECT
+      COUNT(*) as total_bills,
+      COUNT(*) FILTER (WHERE stage = 4) as signed_bills
+      FROM bills WHERE agenda_category IS NOT NULL`);
+    const totalBills = totals[0] ? Number(totals[0].total_bills) : 0;
+    const signedBills = totals[0] ? Number(totals[0].signed_bills) : 0;
+
+    json(res, {
+      overall: overall[0] || null,
+      chapters,
+      harmonization,
+      harmonizationScore,
+      totalBills,
+      signedBills,
       lastUpdated: overall[0]?.calculated_at || null,
       signed: overall[0] ? {
         score: overall[0].signed_score || 0,
