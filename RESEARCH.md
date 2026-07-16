@@ -528,7 +528,7 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 **Goal:** Interactive bot with menu + automated alerts.
 
 **Current state (verified 2026-07-01):**
-- Token: `8652716469:AAEOaydcpNzoaqRl5h9tGLkxTZJmMh-DH9U`, chat_id=349941927
+- Token: в .env (Telegram Bot API), chat_id=349941927
 - `send_message()` works ✅
 - `format_risk_message()` / `format_status_message()` — auto-triggered ✅
 
