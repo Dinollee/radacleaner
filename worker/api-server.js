@@ -452,15 +452,26 @@ app.get('/api/activity-day', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
-// --- UNIFIED DASHBOARD ---
+// --- UNIFIED DASHBOARD (4 blocks in 1 call) ---
 app.get('/api/dashboard', async (req, res) => {
   try {
     const now = new Date();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const monthParam = `${now.getFullYear()}-${mm}`;
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // Parallel queries
-    const [stats, schedule, activity, eu] = await Promise.all([
+    // Parallel queries for all 4 blocks
+    const [
+      stats,
+      schedule,
+      activity,
+      eu,
+      topDeputies,
+      topRiskyBills,
+      euHarmonization,
+      highRiskAlerts
+    ] = await Promise.all([
+      // Block 1: General stats
       q('SELECT key, value FROM stats_cache').then(rows => {
         const cache = {};
         for (const r of rows) cache[r.key] = r.value;
@@ -475,7 +486,11 @@ app.get('/api/dashboard', async (req, res) => {
           lastSync: cache.last_updated || null,
         };
       }).catch(() => ({})),
+
+      // Block 2: Schedule for current month
       q(`SELECT * FROM rada_schedule WHERE date LIKE $1 ORDER BY date`, [monthParam + '%']).catch(() => []),
+
+      // Block 3: Activity calendar
       q(`SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
               COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
               COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
@@ -488,11 +503,65 @@ app.get('/api/dashboard', async (req, res) => {
         for (const r of rows) activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
         return activity;
       }).catch(() => ({})),
+
+      // Block 4: EU alignment overall
       q(`SELECT overall_score, chapters_analyzed, total_chapters, calculated_at
          FROM eu_alignment_overall ORDER BY id DESC LIMIT 1`).then(rows => rows[0] || null).catch(() => null),
+
+      // --- NEW BLOCK 1: Top 20 deputies by ІЕД ---
+      q(`SELECT m.id, m.name, m.faction, m.end_date,
+              COALESCE(m.kpi_v12_score, 0) as ked12,
+              COALESCE(m.kpi_v12_rank, 0) as kedRank12,
+              COALESCE(m.kpi_v12_discipline, 0) as kedDisc12,
+              COALESCE(m.kpi_v12_legislation, 0) as kedLegis12,
+              COALESCE(m.kpi_v12_efficiency, 0) as kedEff12,
+              COALESCE(m.kpi_v12_committee, 0) as kedComm12,
+              COALESCE(m.kpi_v12_requests, 0) as kedReq12,
+              COALESCE(m.kpi_v12_impact, 0) as kedImpact12,
+              COALESCE(m.eu_integration_score, 0) as euScore
+         FROM mps m
+         WHERE m.end_date IS NULL OR m.end_date = ''
+         ORDER BY m.kpi_v12_score DESC NULLS LAST
+         LIMIT 20`).catch(() => []),
+
+      // --- NEW BLOCK 2: Top 10 risky bills (last 30 days) ---
+      q(`SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, b.updated_at,
+              ra.toxicity, ra.risk_score, ra.significance, ra.impact, ra.risk_level, ra.json_data
+         FROM bills b
+         JOIN risk_assessments ra ON ra.bill_id = b.id
+         WHERE b.updated_at >= $1
+           AND (ra.toxicity > 0.7 OR ra.risk_score >= 4)
+         ORDER BY ra.toxicity DESC NULLS LAST, ra.risk_score DESC NULLS LAST
+         LIMIT 10`, [thirtyDaysAgo]).catch(() => []),
+
+      // --- NEW BLOCK 3: EU Harmonization (6 clusters) ---
+      q(`SELECT key, value FROM stats_cache WHERE key LIKE 'harmonization_cluster%' ORDER BY key`).then(rows => {
+        const clusters = {};
+        for (const r of rows) clusters[r.key] = parseFloat(r.value);
+        return clusters;
+      }).catch(() => ({})),
+
+      // --- NEW BLOCK 4: Recent high-risk alerts ---
+      q(`SELECT b.bill_number, b.title, b.current_status, ra.toxicity, ra.risk_score, ra.json_data, ra.assessed_at
+         FROM risk_assessments ra
+         JOIN bills b ON b.id = ra.bill_id
+         WHERE ra.assessed_at >= $1
+           AND (ra.toxicity > 0.7 OR ra.risk_score >= 4)
+         ORDER BY ra.assessed_at DESC
+         LIMIT 10`, [thirtyDaysAgo]).catch(() => []),
     ]);
 
-    json(res, { stats, schedule, activity, eu, month: monthParam }, 200, 60);
+    json(res, {
+      stats,
+      schedule,
+      activity,
+      eu,
+      topDeputies,
+      topRiskyBills,
+      euHarmonization,
+      highRiskAlerts,
+      month: monthParam,
+    }, 200, 60);
   } catch (e) { error(res, e.message, 500); }
 });
 
