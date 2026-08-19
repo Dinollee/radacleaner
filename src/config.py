@@ -26,7 +26,11 @@ D1_QUERY_URL = f"{WORKER_URL}/api/query"
 
 # === LLM (OpenRouter) ===
 LLM_API_URL = "https://openrouter.ai/api/v1"
-LLM_MODEL = os.environ.get("LLM_MODEL", "openrouter/owl-alpha")
+LLM_MODEL = os.environ.get("LLM_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")
+
+# === LLM (NVIDIA Build API) ===
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+NVIDIA_API_URL = "https://integrate.api.nvidia.com/v1"
 
 # === LLM (Google AI Studio / Gemini) ===
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")

@@ -119,9 +119,16 @@ def main():
             continue
 
         for s in sponsors:
+            # Resolve mp_id from rada_uid
+            mp_id = None
+            if s.get("rada_uid"):
+                cur.execute("SELECT id FROM mps WHERE rada_uid = %s", (s["rada_uid"],))
+                row = cur.fetchone()
+                mp_id = row[0] if row else None
+
             cur.execute(
-                "INSERT INTO bill_sponsors (bill_id, mp_name, rada_uid, sponsor_order) VALUES (%s, %s, %s, %s)",
-                (bill_id, s["mp_name"], s.get("rada_uid"), s["sponsor_order"]),
+                "INSERT INTO bill_sponsors (bill_id, mp_id, mp_name, rada_uid, sponsor_order) VALUES (%s, %s, %s, %s, %s)",
+                (bill_id, mp_id, s["mp_name"], s.get("rada_uid"), s["sponsor_order"]),
             )
 
         success += 1

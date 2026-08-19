@@ -35,6 +35,24 @@ def _stage_indicator(stage, max_stages=4):
     return "●" * filled + "○" * (max_stages - filled)
 
 
+def _format_date(date_str):
+    """Конвертує дату з будь-якого формату в dd.mm.yyyy."""
+    if not date_str:
+        return ""
+    date_str = str(date_str).strip()
+    # ISO: 2026-07-03
+    if len(date_str) >= 10 and date_str[4] == '-':
+        try:
+            d = datetime.strptime(date_str[:10], "%Y-%m-%d")
+            return d.strftime("%d.%m.%Y")
+        except ValueError:
+            pass
+    # Вже dd.mm.yyyy
+    if len(date_str) >= 10 and date_str[2] == '.':
+        return date_str[:10]
+    return date_str
+
+
 def format_new_bill_message(info):
     bn = info["bill_number"]
     title = info["title"]
@@ -43,23 +61,26 @@ def format_new_bill_message(info):
     reg_date = info.get("reg_date", "")
     committee = info.get("committee", "")
     score = info.get("overall_score", 0)
+    author = info.get("author_name", "")
 
     step, stage_name = STATUS_MAP.get(status, (1, status or "Невідомо"))
-    indicator = _stage_indicator(step)
 
-    # Номер як посилання (інлайн, без прев'ю)
+    # Номер як посилання
     if url:
         header = f'<a href="{url}">#{bn}</a>'
     else:
         header = f"#{bn}"
 
-    lines = [f"<b>{header}</b>  {indicator}  {stage_name}"]
-    lines.append(f"🆕 {title}")
+    lines = [f"🆕 {header}  {stage_name}"]
+    lines.append(title)
 
     meta = []
-    if reg_date:
-        meta.append(reg_date)
-    if committee:
+    formatted_date = _format_date(reg_date)
+    if formatted_date:
+        meta.append(formatted_date)
+    if author:
+        meta.append(author)
+    elif committee:
         meta.append(committee[:40])
     if meta:
         lines.append(" · ".join(meta))
@@ -93,7 +114,8 @@ def format_status_update_group(changes):
 def format_daily_digest(changes, date_str):
     new_bills = [c for c in changes if c.get("change_type") == "new"]
     status_changes = [c for c in changes if c.get("change_type") == "status_change"]
-    lines = [f"📋 Дайджест <b>{date_str}</b>"]
+    formatted_date = _format_date(date_str) or date_str
+    lines = [f"📋 Дайджест <b>{formatted_date}</b>"]
 
     if new_bills:
         lines.append(f"\n<b>Нові</b> ({len(new_bills)})")
@@ -123,7 +145,8 @@ def get_unprocessed_changes(limit=100):
     rows = d1_query(
         "SELECT cl.id, cl.bill_id, cl.change_type, cl.old_value, cl.new_value, "
         "cl.created_at, b.bill_number, b.title, b.current_status, b.registration_date, "
-        "b.committee, b.url, b.agenda_category, ra.overall_score "
+        "b.committee, b.url, b.agenda_category, ra.overall_score, "
+        "(SELECT bs.mp_name FROM bill_sponsors bs WHERE bs.bill_id = b.id AND bs.sponsor_order = 0 AND bs.mp_name IS NOT NULL AND bs.mp_name != '' LIMIT 1) as author_name "
         "FROM change_log cl "
         "JOIN bills b ON cl.bill_id = b.id "
         "LEFT JOIN risk_assessments ra ON ra.bill_id = b.id "
@@ -140,6 +163,7 @@ def get_unprocessed_changes(limit=100):
             "category": r["agenda_category"], "change_type": r["change_type"],
             "old_value": r["old_value"], "new_value": r["new_value"],
             "created_at": r["created_at"], "overall_score": r["overall_score"] or 0,
+            "author_name": r.get("author_name") or "",
         }
         for r in rows
     ]
@@ -193,6 +217,62 @@ def run_monitor(test_mode=False, force=False):
     log.info("Done: %d processed", len(processed_ids))
 
 
+def check_high_risk_alerts(test_mode=False):
+    """Миттєвий алерт при toxicity > 0.7 для нових або змінених законів."""
+    HIGH_TOXICITY_THRESHOLD = 0.7
+
+    # Шукаємо закони з високою toxicістю, які ще не були відправлені
+    rows = d1_query(
+        "SELECT b.id as bill_id, b.bill_number, b.title, b.url, b.toxicity, b.current_status, "
+        "b.registration_date, ra.overall_score, ra.risk_level "
+        "FROM bills b "
+        "LEFT JOIN risk_assessments ra ON ra.bill_id = b.id "
+        "WHERE b.toxicity > ? "
+        "AND NOT EXISTS ("
+        "  SELECT 1 FROM change_log cl "
+        "  WHERE cl.bill_id = b.id AND cl.change_type = 'high_risk_alert'"
+        ") "
+        "ORDER BY b.toxicity DESC LIMIT 5",
+        [HIGH_TOXICITY_THRESHOLD],
+    )
+
+    if not rows:
+        return
+
+    log.info("Found %d high-risk bills (toxicity > %.1f)", len(rows), HIGH_TOXICITY_THRESHOLD)
+
+    for bill in rows:
+        bn = bill["bill_number"]
+        title = (bill["title"] or "")[:80]
+        toxicity = bill["toxicity"]
+        url = bill.get("url", "")
+        risk_level = bill.get("risk_level", "unknown")
+        overall = bill.get("overall_score", 0)
+
+        # Форматуємо повідомлення
+        link = f'<a href="{url}">#{bn}</a>' if url else f"#{bn}"
+        msg = (
+            f"🚨 <b>ВИСОКИЙ РИЗИК</b>\n\n"
+            f"{link} — {title}\n\n"
+            f"⚠️ Toxicity: <b>{toxicity:.2f}</b>/1.0\n"
+            f"📊 Risk score: {overall}/100\n"
+            f"🔴 Рівень ризику: {risk_level}\n\n"
+            f"Деталі: rada.gov.ua"
+        )
+
+        if not test_mode:
+            send_message(msg)
+            time.sleep(0.5)
+        else:
+            log.info("[TEST] HIGH RISK: #%s toxicity=%.2f — %s", bn, toxicity, title[:50])
+
+        # Позначаємо як відправлене
+        d1_exec("raw_sql", {
+            "sql": "INSERT INTO change_log (bill_id, change_type, new_value) VALUES (?, 'high_risk_alert', ?)",
+            "params": [bill.get("bill_id"), f"toxicity={toxicity:.2f}"],
+        })
+
+
 def run_daily_digest(test_mode=False):
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     rows = d1_query(
@@ -220,11 +300,15 @@ def main():
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--daily", action="store_true")
+    parser.add_argument("--high-risk", action="store_true", help="Тільки перевірка високого ризику")
     args = parser.parse_args()
     if args.daily:
         run_daily_digest(test_mode=args.test)
+    elif args.high_risk:
+        check_high_risk_alerts(test_mode=args.test)
     else:
         run_monitor(test_mode=args.test, force=args.force)
+        check_high_risk_alerts(test_mode=args.test)
 
 if __name__ == "__main__":
     main()

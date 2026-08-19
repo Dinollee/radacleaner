@@ -125,7 +125,12 @@ def check_and_download(url: str, local_path: str, filename: str):
         if e.code == 304:
             log.info("[304] Not modified. ETag: %s", old_etag)
             update_last_checked(filename)
-            return False, None
+            # Читаємо з кешу ( для оновлення author_sponsors)
+            try:
+                with open(local_path, "rb") as f:
+                    return False, f.read()
+            except FileNotFoundError:
+                return False, None
         else:
             log.error("[ERROR] HTTP %d: %s", e.code, e.read().decode()[:200])
             return False, None
@@ -231,7 +236,7 @@ def process_full_data(data: bytes) -> int:
     data = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", " ", data)
     bills = json.loads(data, strict=False)
 
-    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee, stage FROM bills")
+    db_rows = d1_query("SELECT id, bill_number, current_status, agenda_category, committee, stage, is_urgent, is_euro FROM bills")
     db_bills = {row["bill_number"]: row for row in db_rows}
 
     existing_file_ids = d1_query("SELECT bill_id, file_id FROM bill_documents")
@@ -266,6 +271,20 @@ def process_full_data(data: bytes) -> int:
                 "params": [new_rubric, bn],
             })
 
+        # Extract isUrgent and isEuro flags
+        new_urgent = bool(b.get("isUrgent", False))
+        new_euro = bool(b.get("isEuro", False))
+        if new_urgent != row.get("is_urgent", False):
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET is_urgent=? WHERE bill_number=?",
+                "params": [new_urgent, bn],
+            })
+        if new_euro != row.get("is_euro", False):
+            d1_exec("raw_sql", {
+                "sql": "UPDATE bills SET is_euro=? WHERE bill_number=?",
+                "params": [new_euro, bn],
+            })
+
         new_subject = b.get("subject", "").strip()
         if new_subject and new_subject != row.get("committee"):
             d1_exec("raw_sql", {
@@ -286,6 +305,34 @@ def process_full_data(data: bytes) -> int:
                     "sql": "UPDATE bills SET url=? WHERE bill_number=?",
                     "params": [correct_url, bn],
                 })
+
+        # Витягуємо авторів з initiators (якщо ще немає в bill_sponsors)
+        existing_sponsors = d1_query(
+            "SELECT 1 FROM bill_sponsors WHERE bill_id=? LIMIT 1", [db_id]
+        )
+        if not existing_sponsors:
+            initiators = b.get("initiators", [])
+            if initiators:
+                for i, init in enumerate(initiators):
+                    mp_data = init.get("mp") or {}
+                    person = mp_data.get("person") or {}
+                    rada_uid = person.get("id")
+                    surname = person.get("surname", "")
+                    firstname = person.get("firstname", "")
+                    patronymic = person.get("patronymic", "")
+                    full_name = f"{surname} {firstname[0]}.{patronymic[0]}." if firstname and patronymic else surname
+
+                    # Знаходимо mp_id через rada_uid
+                    mp_id = None
+                    if rada_uid:
+                        mp_rows = d1_query("SELECT id FROM mps WHERE rada_uid=?", [rada_uid])
+                        if mp_rows:
+                            mp_id = mp_rows[0]["id"]
+
+                    d1_exec("raw_sql", {
+                        "sql": "INSERT INTO bill_sponsors (bill_id, mp_id, mp_name, rada_uid, sponsor_order) VALUES (?, ?, ?, ?, ?)",
+                        "params": [db_id, mp_id, full_name, rada_uid, i],
+                    })
 
         stage = row.get("stage", 0) or 0
         if stage >= 4:
@@ -360,7 +407,7 @@ def main() -> None:
         log.info("=== Sync billinfo_full (%s) ===", datetime.now())
         fi = FILES["billinfo_full"]
         downloaded, data = check_and_download(fi["url"], fi["local"], "billinfo_full")
-        if downloaded and data:
+        if data:  # Process even from cache (downloaded=False means 304, data from cache)
             updated = process_full_data(data)
             log.info("Updated %d bill statuses", updated)
             recalc_stages()

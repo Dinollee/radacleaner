@@ -1,0 +1,15 @@
+[Unit]
+Description=Radacleaner — sync MP factions/dates + recalculate statistics
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_mp_factions.py
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_mp_stats.py
+ExecStart=/home/radamon/radacleaner/venv/bin/python calc_kpi_v12.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600

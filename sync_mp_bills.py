@@ -90,30 +90,29 @@ def get_deputy_user_id(deputy_name):
     return None
 
 
-def sync_deputy_bills(user_id, deputy_name):
+def sync_deputy_bills(user_id, deputy_name, mp_id=None):
     """Синхронізація законопроектів депутата."""
     url = f"https://itd.rada.gov.ua/billInfo/LawmakingActivity/deputies/{user_id}/10"
     html = fetch_url(url)
-    
+
     bills = parse_deputy_bills(html)
-    
+
     if not bills:
         log.warning("No bills found for %s (user_id=%s)", deputy_name, user_id)
         return 0, 0
-    
+
     total_bills = len(bills)
     total_laws = sum(1 for b in bills if b["is_law"])
-    
-    # Зберігаємо в БД
+
     for bill in bills:
         try:
             d1_exec("raw_sql", {
-                "sql": """INSERT INTO mp_bills (mp_name, reg_number, reg_date, title, law_number, is_law)
-                          VALUES (?, ?, ?, ?, ?, ?)
+                "sql": """INSERT INTO mp_bills (mp_id, mp_name, reg_number, reg_date, title, law_number, is_law)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)
                           ON CONFLICT(mp_name, reg_number) DO UPDATE SET
-                            law_number=excluded.law_number, is_law=excluded.is_law""",
+                            mp_id=excluded.mp_id, law_number=excluded.law_number, is_law=excluded.is_law""",
                 "params": [
-                    deputy_name, bill["reg_number"], bill["reg_date"],
+                    mp_id, deputy_name, bill["reg_number"], bill["reg_date"],
                     bill["title"][:500], bill["law_number"], 1 if bill["is_law"] else 0
                 ]
             })
@@ -165,47 +164,50 @@ def sync_all():
         name = match.group(1).strip()
         card_url = match.group(2).strip()
         card_url_map[name] = card_url
-    
+
     log.info("Found %d deputies with card URLs", len(card_url_map))
-    
-    # Створюємо маппінг за прізвищем
-    last_name_map = {}
+
+    # Convert full names to initials format for matching with DB
+    def full_name_to_initials(full_name):
+        parts = full_name.strip().split()
+        if len(parts) < 2:
+            return full_name
+        last_name = parts[0]
+        initials = ''.join(f"{p[0]}." for p in parts[1:] if p)
+        return f"{last_name} {initials}"
+
+    # Map: initials_name → card_url
+    full_name_map = {}
     for name, url in card_url_map.items():
-        parts = name.split()
-        if parts:
-            last_name = parts[0]
-            last_name_map[last_name] = (name, url)
-    
+        initials = full_name_to_initials(name)
+        full_name_map[initials] = url
+
+    log.info("Mapped %d deputies with initials", len(full_name_map))
+
     # Синхронізуємо кожного депутата
     total_synced = 0
     total_errors = 0
     for deputy in deputies:
         name = deputy["name"]
-        
-        # Шукаємо за прізвищем
-        parts = name.split()
-        if not parts:
-            continue
-        
-        last_name = parts[0]
-        match = last_name_map.get(last_name)
-        
-        if not match:
+        mp_id = deputy["id"]
+
+        match_url = full_name_map.get(name)
+
+        if not match_url:
             log.debug("No match for %s, skipping", name)
             continue
-        
-        full_name, card_url = match
-        
+
+        card_url = match_url
+
         try:
-            # Отримуємо userId з картки депутата
             user_id = get_deputy_user_id(card_url)
             if not user_id:
                 log.warning("No user ID found for %s", name)
                 continue
-            
-            bills, laws = sync_deputy_bills(user_id, name)
+
+            bills, laws = sync_deputy_bills(user_id, name, mp_id)
             total_synced += 1
-            time.sleep(0.5)  # Пауза між запитами
+            time.sleep(0.5)
         except Exception as e:
             total_errors += 1
             log.error("Failed to sync %s: %s", name, str(e)[:200])

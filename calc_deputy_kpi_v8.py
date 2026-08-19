@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """
-KPI v6: добавлены Депутатские запросы.
+KPI v8: Додано політичний бар'єр (K_pb).
 
 Формула (0-100):
-  Score = 0.20×norm(LEI) + 0.12×norm(ПЯ) + 0.08×norm(ПДА) + 0.05×norm(ВКП)
-        + 0.10×norm(Конверсія) + 0.15×norm(Комітет) + 0.20×norm(Quality) + 0.10×norm(Requests)
+  Score = 0.20×norm(LEI) + 0.15×norm(ПЯ) + 0.10×norm(ПДА)
+        + 0.15×norm(Quality) + 0.15×norm(Committee)
+        + 0.10×norm(Conversion) + 0.10×norm(Impact)
 
-LEI = adopted² / total_bills  — adopted = bills.stage=4, penalizes bill spam
+Змінені метрики vs v6:
+  LEI = LN(1+adopted) / LN(1+total_bills×max(kpb,0.1))
+  Conversion = (adopted/total_bills) × kpb × 100%
+  Impact = Σ(toxicity×weight)/adopted (avg toxicity of authored bills)
+  ПДА = voted/attended × 100% (no IVI)
 """
+import math
 import psycopg2
 import os
 from pathlib import Path
@@ -17,13 +23,12 @@ load_dotenv(Path(__file__).parent / ".env")
 
 WEIGHTS = {
     "lei": 0.20,
-    "py": 0.12,
-    "pda": 0.08,
-    "vkp": 0.05,
-    "conv": 0.10,
+    "py": 0.15,
+    "pda": 0.10,
+    "quality": 0.15,
     "committee": 0.15,
-    "quality": 0.20,
-    "requests": 0.10,
+    "conv": 0.10,
+    "impact": 0.10,
 }
 
 MIN_FACTION_SIZE = 10
@@ -46,7 +51,7 @@ def normalize(values):
     return [(v - mn) / (mx - mn) * 100 for v in values]
 
 
-def calc_kpi_v6():
+def calc_kpi_v8():
     conn = get_db()
     cur = conn.cursor()
 
@@ -61,6 +66,8 @@ def calc_kpi_v6():
             COALESCE(m.committee_score, 0) as committee_score,
             COALESCE(m.bill_quality_score, 0) as quality,
             COALESCE(m.requests_with_response, 0) as requests,
+            COALESCE(m.kpb, 1.0) as kpb,
+            COALESCE(m.avg_tox, 0) as avg_tox,
             COALESCE(
                 (SELECT COUNT(*)
                  FROM bill_sponsors bs
@@ -71,20 +78,41 @@ def calc_kpi_v6():
         WHERE m.end_date IS NULL OR m.end_date = ''
         ORDER BY m.name
     """)
-    
+
     deputies = []
     for row in cur.fetchall():
-        dep_id, name, faction, py, pda, vkp, total_bills, total_laws, committee_score, quality, requests, adopted = row
+        dep_id, name, faction, py, pda, vkp, total_bills, total_laws, \
+            committee_score, quality, requests, kpb, avg_tox, adopted = row
+
         total_bills = int(total_bills or 0)
         total_laws = int(total_laws or 0)
         adopted = int(adopted or 0)
-        lei = (adopted * adopted / total_bills) if total_bills > 0 else 0
-        conv = (total_laws / total_bills * 100) if total_bills > 0 else 0
+        kpb = float(kpb or 1.0)
+        avg_tox = float(avg_tox or 0)
+
+        kpb_eff = max(kpb, 0.1)
+
+        # LEI: logarithmic with political barrier
+        if total_bills > 0 and adopted > 0:
+            lei = math.log(1 + adopted) / math.log(1 + total_bills * kpb_eff)
+        else:
+            lei = 0.0
+
+        # Conversion: linear with political barrier
+        if total_bills > 0:
+            conv = (adopted / total_bills) * kpb_eff * 100
+        else:
+            conv = 0.0
+
+        # Impact: avg toxicity of authored bills (proxy from avg_tox)
+        impact = avg_tox * 100 if avg_tox > 0 else 0.0
+
         deputies.append({
             "id": dep_id, "name": name, "faction": faction or "",
-            "lei": lei, "py": py, "pda": pda, "vkp": vkp,
+            "lei": lei, "py": py, "pda": pda,
             "conv": conv, "committee_score": committee_score,
-            "quality": quality, "requests": requests,
+            "quality": quality, "impact": impact,
+            "kpb": kpb,
         })
 
     # Count faction sizes
@@ -96,11 +124,10 @@ def calc_kpi_v6():
     lei_global = normalize([d["lei"] for d in deputies])
     py_global = normalize([d["py"] for d in deputies])
     pda_global = normalize([d["pda"] for d in deputies])
-    vkp_global = normalize([d["vkp"] for d in deputies])
     conv_global = normalize([d["conv"] for d in deputies])
     comm_global = normalize([d["committee_score"] for d in deputies])
     qual_global = normalize([d["quality"] for d in deputies])
-    req_global = normalize([d["requests"] for d in deputies])
+    imp_global = normalize([d["impact"] for d in deputies])
 
     # Faction normalization
     factions = {}
@@ -110,46 +137,42 @@ def calc_kpi_v6():
     lei_faction = {f: normalize([deputies[i]["lei"] for i in idx]) for f, idx in factions.items()}
     py_faction = {f: normalize([deputies[i]["py"] for i in idx]) for f, idx in factions.items()}
     pda_faction = {f: normalize([deputies[i]["pda"] for i in idx]) for f, idx in factions.items()}
-    vkp_faction = {f: normalize([deputies[i]["vkp"] for i in idx]) for f, idx in factions.items()}
     conv_faction = {f: normalize([deputies[i]["conv"] for i in idx]) for f, idx in factions.items()}
     comm_faction = {f: normalize([deputies[i]["committee_score"] for i in idx]) for f, idx in factions.items()}
     qual_faction = {f: normalize([deputies[i]["quality"] for i in idx]) for f, idx in factions.items()}
-    req_faction = {f: normalize([deputies[i]["requests"] for i in idx]) for f, idx in factions.items()}
+    imp_faction = {f: normalize([deputies[i]["impact"] for i in idx]) for f, idx in factions.items()}
 
     # Apply hybrid normalization
     for i, d in enumerate(deputies):
         use_faction = faction_sizes.get(d["faction"], 0) >= MIN_FACTION_SIZE
-        
+
         if use_faction and d["faction"] in lei_faction:
             indices = factions[d["faction"]]
             pos = indices.index(i)
             lei_n = lei_faction[d["faction"]][pos]
             py_n = py_faction[d["faction"]][pos]
             pda_n = pda_faction[d["faction"]][pos]
-            vkp_n = vkp_faction[d["faction"]][pos]
             conv_n = conv_faction[d["faction"]][pos]
             comm_n = comm_faction[d["faction"]][pos]
             qual_n = qual_faction[d["faction"]][pos]
-            req_n = req_faction[d["faction"]][pos]
+            imp_n = imp_faction[d["faction"]][pos]
         else:
             lei_n = lei_global[i]
             py_n = py_global[i]
             pda_n = pda_global[i]
-            vkp_n = vkp_global[i]
             conv_n = conv_global[i]
             comm_n = comm_global[i]
             qual_n = qual_global[i]
-            req_n = req_global[i]
+            imp_n = imp_global[i]
 
         score = (
             WEIGHTS["lei"] * lei_n +
             WEIGHTS["py"] * py_n +
             WEIGHTS["pda"] * pda_n +
-            WEIGHTS["vkp"] * vkp_n +
-            WEIGHTS["conv"] * conv_n +
-            WEIGHTS["committee"] * comm_n +
             WEIGHTS["quality"] * qual_n +
-            WEIGHTS["requests"] * req_n
+            WEIGHTS["committee"] * comm_n +
+            WEIGHTS["conv"] * conv_n +
+            WEIGHTS["impact"] * imp_n
         )
         d["score"] = round(score, 2)
 
@@ -162,7 +185,7 @@ def calc_kpi_v6():
     return deputies
 
 
-def save_kpi_v6(deputies):
+def save_kpi_v8(deputies):
     conn = get_db()
     cur = conn.cursor()
 
@@ -180,16 +203,16 @@ def save_kpi_v6(deputies):
 
 
 if __name__ == "__main__":
-    print("Розрахунок KPI v6 (з депутатськими запитами)...")
-    deputies = calc_kpi_v6()
+    print("Розрахунок KPI v8 (з політичним бар'єром)...")
+    deputies = calc_kpi_v8()
     print(f"Оброблено {len(deputies)} депутатів")
 
-    save_kpi_v6(deputies)
-    print("KPI v6 збережено в БД")
+    save_kpi_v8(deputies)
+    print("KPI v8 збережено в БД")
 
     top = sorted(deputies, key=lambda x: x["score"], reverse=True)[:15]
-    print("\nТоп-15 за KPI Score v6:")
-    print(f"  {'Name':<25} {'Faction':<20} {'Score':<8} {'LEI':<8} {'Quality':<8} {'Reqs':<6} {'Comm':<8}")
+    print("\nТоп-15 за KPI Score v8:")
+    print(f"  {'Name':<25} {'Faction':<20} {'Score':<8} {'LEI':<8} {'K_pb':<8} {'Quality':<8} {'Comm':<8}")
     print("-" * 110)
     for d in top:
-        print(f"  {d['name']:<25} {d['faction']:<20} {d['score']:<8.1f} {d['lei']:<8.1f} {d['quality']:<8.2f} {d['requests']:<6} {d['committee_score']:<8.1f}")
+        print(f"  {d['name']:<25} {d['faction']:<20} {d['score']:<8.1f} {d['lei']:<8.3f} {d['kpb']:<8.3f} {d['quality']:<8.2f} {d['committee_score']:<8.1f}")

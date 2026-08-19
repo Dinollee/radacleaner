@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram bot — Страж Демократії
+After=network.target
+
+[Service]
+Type=simple
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python telegram_bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/telegram_bot.log
+StandardError=append:/var/log/telegram_bot.log
+
+[Install]
+WantedBy=multi-user.target

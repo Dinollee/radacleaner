@@ -90,6 +90,9 @@ nav button.active { background: var(--blue); color: #fff; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th { text-align: left; padding: 10px 12px; color: var(--text2); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+th[data-sort] { cursor: pointer; user-select: none; transition: color 0.2s; }
+th[data-sort]:hover { color: var(--blue); }
+th[data-sort].sort-active { color: var(--blue); font-weight: 700; }
 td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
 tr:hover td { background: var(--hover); }
 tr.clickable { cursor: pointer; }
@@ -129,6 +132,21 @@ tr.former-deputy:hover td { opacity: 0.75; }
 .stage-progress .sq.done { background: var(--blue); }
 .stage-progress .sq.rejected { background: var(--red); }
 .stage-progress .sq.done.s1 { background: var(--text2); }
+
+/* Activity modal */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.modal-content { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-width: 600px; width: 90%; max-height: 70vh; overflow-y: auto; position: relative; }
+.modal-close { position: absolute; top: 12px; right: 16px; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text2); }
+.modal-close:hover { color: var(--text); }
+.modal-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.modal-bill { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.modal-bill:last-child { border-bottom: none; }
+.modal-bill .bill-num { font-weight: 600; color: var(--blue); }
+.modal-bill .bill-title { color: var(--text); margin-top: 2px; }
+.modal-bill .bill-status { font-size: 11px; color: var(--text2); margin-top: 2px; }
+.modal-bill .bill-status .old { text-decoration: line-through; opacity: 0.6; }
+.cal-badge { cursor: pointer; }
+.cal-badge:hover { opacity: 0.7; }
 .stage-progress .sq.done.s2 { background: var(--blue); }
 .stage-progress .sq.done.s3 { background: var(--purple); }
 .stage-progress .sq.done.s4 { background: var(--green); }
@@ -379,18 +397,27 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <option value="former">Вибулі</option>
       </select>
       <select id="dep-sort">
-        <option value="kpi_score" selected>За KPI Score ↓</option>
-        <option value="lei">За LEI ↓</option>
-        <option value="py">За ПЯ ↓</option>
-        <option value="pda">За ПДА ↓</option>
-        <option value="vkp">За ВКП ↓</option>
-        <option value="conversion">За конверсією ↓</option>
-        <option value="avg_tox">За токсичністю ↓</option>
+        <option value="kpi_v12_score" selected>За ІЕД ↓</option>
+        <option value="kpi_v12_discipline">За Дисципліною ↓</option>
+        <option value="kpi_v12_legislation">За Законотворчістю ↓</option>
+        <option value="kpi_v12_efficiency">За Результативністю ↓</option>
+        <option value="kpi_v12_committee">За Комітетом ↓</option>
+        <option value="kpi_v12_requests">За Зверненнями ↓</option>
+        <option value="kpi_v12_impact">За Впливом ↓</option>
         <option value="name">За ім'ям</option>
       </select>
     </div>
     <div class="card">
-      <div class="table-wrap"><table id="deputies-table"><thead><tr><th>Ім'я</th><th>Фракція</th><th>Score</th><th>LEI</th><th>Закони</th><th>ПЯ</th><th>ПДА</th><th>ВКП</th><th>Tox</th><th>Голосувань</th></tr></thead><tbody></tbody></table></div>
+      <div class="table-wrap"><table id="deputies-table"><thead><tr>
+        <th>Ім'я</th><th>Фракція</th>
+        <th style="text-align:center;font-size:15px;cursor:pointer" data-sort="kpi_v12_score">ІЕД</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_discipline">Дисципліна</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_legislation">Законотв.</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_efficiency">Результат.</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_committee">Комітет</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_requests">Звернення</th>
+        <th style="font-size:11px;cursor:pointer" data-sort="kpi_v12_impact">Вплив</th>
+      </tr></thead><tbody></tbody></table></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
         <span id="deputies-count" style="font-size:13px;color:var(--text2)"></span>
         <div style="display:flex;gap:8px">
@@ -413,9 +440,9 @@ tr.former-deputy:hover td { opacity: 0.75; }
       <div class="card-header">
         <div class="card-title">Графік роботи Верховної Ради</div>
         <div style="display:flex;gap:8px;align-items:center">
-          <button class="btn btn-sm" onclick="scheduleMonth(-1)">← Назад</button>
+          <button class="back-btn" onclick="scheduleMonth(-1)">← Назад</button>
           <span id="schedule-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
-          <button class="btn btn-sm" onclick="scheduleMonth(1)">Далі →</button>
+          <button class="back-btn" onclick="scheduleMonth(1)">Далі →</button>
         </div>
       </div>
       <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
@@ -457,6 +484,14 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
       </div>
       <div id="eu-clusters"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🇪🇺 Harmonization по ключових директивах ЄС</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Internal metric: порівняння наших законів з EU директивами</div>
+      </div>
+      <div id="eu-directives"></div>
     </div>
 
     <div class="card">
@@ -1211,31 +1246,27 @@ async function loadDeputies() {
     const data = await api(url);
     depsTotal = data.total || 0;
     document.getElementById('deputies-count').textContent = depsTotal ? `Показано ${depsOffset+1}–${Math.min(depsOffset+PAGE,depsTotal)} з ${depsTotal}` : 'Нічого не знайдено';
+    // Highlight active sort column
+    document.querySelectorAll('#deputies-table th[data-sort]').forEach(th => {
+      th.classList.toggle('sort-active', th.dataset.sort === sort);
+    });
     tbody.innerHTML = (data.deputies||[]).map(d => {
       const isFormer = !!d.end_date;
       const rowClass = isFormer ? 'clickable former-deputy' : 'clickable';
-      const formerBadge = isFormer ? '<span class="badge-former">Вибулий</span>' : '';
-      const kpiScore = d.kpiScore || 0;
-      const kpiColor = kpiScore >= 70 ? 'var(--green)' : kpiScore >= 40 ? 'var(--orange)' : 'var(--red)';
+      const formerBadge = isFormer ? ' <span class="badge-former" style="font-size:10px">Вибулий</span>' : '';
+      const ied = Number(d.ked12) || 0;
+      const iedColor = ied >= 60 ? 'var(--green)' : ied >= 40 ? 'var(--orange)' : 'var(--red)';
+      const bar = (val) => { const n = Number(val)||0; return `<div style="display:flex;align-items:center;gap:4px"><div style="width:60px;height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="width:${n}%;height:100%;background:${n>=70?'var(--green)':n>=40?'var(--orange)':'var(--red)'};border-radius:3px"></div></div><span style="font-size:11px;color:var(--text2);width:28px;text-align:right">${n.toFixed(0)}</span></div>`; };
       return `<tr class="${rowClass}" data-deputy-name="${attr(d.name)}">
       <td><strong>${escHtml(d.name)}</strong>${formerBadge}</td>
-      <td style="font-size:13px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
-      <td style="font-weight:700;color:${kpiColor}">${kpiScore.toFixed(1)}</td>
-      <td><span class="lei-value ${leiClass(d.lei||0)}">${(d.lei||0).toFixed(1)}</span></td>
-      <td style="font-size:12px;color:${d.conversion >= 50 ? 'var(--green)' : d.conversion >= 25 ? 'var(--orange)' : 'var(--text2)'}">
-        ${d.totalBills||0}/${d.totalLaws||0}<br>
-        <span style="font-size:11px">${d.conversion||0}%</span>
-      </td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.py||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td style="color:${d.dataSufficient ? 'inherit' : 'var(--muted)'}">${d.pda||0}%${!d.dataSufficient ? ' *' : ''}</td>
-      <td>
-        <div class="kpd-bar">
-          <div class="kpd-track"><div class="kpd-fill" style="width:${d.vkp||0}%;background:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}"></div></div>
-          <span class="kpd-value" style="color:${d.dataSufficient ? kpdColor(d.vkp||0) : 'var(--muted)'}">${d.vkp||0}%${!d.dataSufficient ? ' *' : ''}</span>
-        </div>
-      </td>
-      <td>${toxBadge(d.avg_tox)}</td>
-      <td>${d.total||0}</td>
+      <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</td>
+      <td style="text-align:center"><span style="font-size:20px;font-weight:800;color:${iedColor}">${ied.toFixed(0)}</span></td>
+      <td>${bar(d.kedDisc12)}</td>
+      <td>${bar(d.kedLegis12)}</td>
+      <td>${bar(d.kedEff12)}</td>
+      <td>${bar(d.kedComm12)}</td>
+      <td>${bar(d.kedReq12)}</td>
+      <td>${bar(d.kedImpact12)}</td>
     </tr>`;
     }).join('');
   } catch(e) {
@@ -1259,37 +1290,106 @@ async function showDeputy(name, votesOffset) {
     const votesTotal = data.votesTotal || 0;
     const stats = data.stats || {};
 
+    // KPI v12 (ІЕД) values
+    const ied = Number(d.kpi_v12_score) || 0;
+    const disc = Number(d.kpi_v12_discipline) || 0;
+    const legis = Number(d.kpi_v12_legislation) || 0;
+    const eff = Number(d.kpi_v12_efficiency) || 0;
+    const comm = Number(d.kpi_v12_committee) || 0;
+    const req = Number(d.kpi_v12_requests) || 0;
+    const impact = Number(d.kpi_v12_impact) || 0;
+    const warnings = d.signal_warnings || [];
+    const strengths = d.signal_strengths || [];
+    const features = d.signal_features || [];
+    const shannon = d.shannon_diversity || 0;
+
+    // SVG Hexagon radar chart (6 axes)
+    const cx=120, cy=120, r=90;
+    const axes = [
+      {label:'Дисципліна', val:disc, angle:-90},
+      {label:'Законотв.', val:legis, angle:-30},
+      {label:'Результат.', val:eff, angle:30},
+      {label:'Комітет', val:comm, angle:90},
+      {label:'Звернення', val:req, angle:150},
+      {label:'Вплив', val:impact, angle:210}
+    ];
+    const toXY = (angle, radius) => ({
+      x: cx + radius * Math.cos(angle * Math.PI / 180),
+      y: cy + radius * Math.sin(angle * Math.PI / 180)
+    });
+    const gridPaths = [0.2, 0.4, 0.6, 0.8, 1.0].map(f => {
+      return axes.map((a, i) => {
+        const p = toXY(a.angle, r * f);
+        return `${i===0?'M':'L'}${p.x},${p.y}`;
+      }).join(' ') + 'Z';
+    });
+    const dataPath = axes.map((a, i) => {
+      const p = toXY(a.angle, r * a.val / 100);
+      return `${i===0?'M':'L'}${p.x},${p.y}`;
+    }).join(' ') + 'Z';
+    const dataPoints = axes.map(a => toXY(a.angle, r * a.val / 100));
+
+    let radarSvg = `<svg viewBox="0 0 240 240" width="240" height="240" style="display:block;margin:0 auto">
+      ${gridPaths.map(p => `<path d="${p}" fill="none" stroke="var(--border)" stroke-width="0.5"/>`).join('')}
+      ${axes.map((a, i) => {
+        const p = toXY(a.angle, r);
+        return `<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="var(--border)" stroke-width="0.5"/>
+          <text x="${toXY(a.angle, r+18).x}" y="${toXY(a.angle, r+18).y}" text-anchor="middle" dominant-baseline="middle" fill="var(--text2)" font-size="9">${a.label}</text>`;
+      }).join('')}
+      <path d="${dataPath}" fill="rgba(52,152,219,0.15)" stroke="var(--blue)" stroke-width="2"/>
+      ${dataPoints.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="3" fill="var(--blue)"/>`).join('')}
+      ${dataPoints.map((p, i) => `<text x="${p.x}" y="${p.y-8}" text-anchor="middle" fill="var(--blue)" font-size="9" font-weight="600">${axes[i].val.toFixed(0)}</text>`).join('')}
+    </svg>`;
+
     let html = `
       <div class="detail-panel">
-        <h2 style="font-size:20px;margin-bottom:8px">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:12px">Вибулий</span>' : ''}</h2>
-        <div class="detail-row"><div class="detail-label">Фракція</div><div class="detail-value"><span class="faction-dot" style="background:${factionColor(d.faction)}"></span>${escHtml(d.faction||'—')}</div></div>
-        ${d.end_date ? `<div class="detail-row"><div class="detail-label">Статус</div><div class="detail-value" style="color:var(--muted)">Вибулий (${escHtml(d.end_date)})</div></div>` : ''}
-        ${!stats.dataSufficient ? `<div style="margin-top:8px;padding:8px 12px;background:rgba(243,156,18,0.15);border:1px solid var(--orange);border-radius:6px;font-size:13px;color:var(--orange)">⚠️ Мало даних (${stats.total||0} голосувань). Метрики можуть бути неточними.</div>` : ''}
-        <div style="margin-top:16px;display:grid;grid-template-columns:repeat(6,1fr);gap:16px">
-          <div class="stat-card" style="border:2px solid ${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}">
-            <div class="stat-label">KPI Score</div>
-            <div class="stat-value" style="color:${stats.kpiScore >= 70 ? 'var(--green)' : stats.kpiScore >= 40 ? 'var(--orange)' : 'var(--red)'}; font-size:32px">${(stats.kpiScore||0).toFixed(1)}</div>
-            <div style="font-size:11px;color:var(--text2)">Ранг: #${stats.kpiRank||'—'}</div>
+        <!-- Header -->
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+          <div>
+            <h2 style="font-size:22px;margin:0">${escHtml(d.name)}${d.end_date ? ' <span class="badge-former" style="font-size:11px">Вибулий</span>' : ''}</h2>
+            <div style="font-size:13px;color:var(--text2);margin-top:2px">
+              <span class="faction-dot" style="background:${factionColor(d.faction)}"></span> ${escHtml(d.faction||'—')}
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">LEI</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? (stats.lei||0) >= 50 ? 'var(--green)' : (stats.lei||0) >= 20 ? 'var(--orange)' : 'var(--text2)' : 'var(--muted)'}">${(stats.lei||0).toFixed(1)}</div>
+          <div style="margin-left:auto;text-align:center">
+            <div style="font-size:36px;font-weight:800;color:${ied>=60?'var(--green)':ied>=40?'var(--orange)':'var(--red)'}">${ied.toFixed(0)}</div>
+            <div style="font-size:11px;color:var(--text2)">ІЕД · #${d.kpi_v12_rank||'—'}</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">ПЯ (Явка)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.py||0) : 'var(--muted)'}">${stats.py||0}%</div>
+        </div>
+
+        <!-- Two-column layout: Radar left, Profile + Signals right -->
+        <div style="display:grid;grid-template-columns:240px 1fr;gap:16px">
+          <!-- LEFT: Radar Chart -->
+          <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div style="font-size:13px;font-weight:600;margin-bottom:8px">ІЕД</div>
+            ${radarSvg}
           </div>
-          <div class="stat-card">
-            <div class="stat-label">ПДА (Участь)</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.pda||0) : 'var(--muted)'}">${stats.pda||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">ВКП</div>
-            <div class="stat-value" style="color:${stats.dataSufficient ? kpdColor(stats.vkp||0) : 'var(--muted)'}">${stats.vkp||0}%</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-label">Tox</div>
-            <div class="stat-value">${toxBadge(stats.avg_tox)}</div>
+
+          <!-- RIGHT: Profile + Signals stacked -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <!-- Profile -->
+            <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;font-size:13px">
+                <div><span style="color:var(--text2)">Спеціалізація:</span> <strong>${shannon<2?'Дуже вузька':shannon<3?'Вузька':shannon<4.5?'Середня':'Широка'}</strong> <span style="color:var(--muted)">(H=${shannon.toFixed(1)})</span></div>
+                <div><span style="color:var(--text2)">Стиль:</span> <strong>${(d.authorship_ratio||0)>0.5?'Індивідуальний':(d.authorship_ratio||0)>0.2?'Змішаний':'Колективний'}</strong></div>
+                <div><span style="color:var(--text2)">Законів:</span> <strong>${d.total_bills||0}</strong> (прийнято ${d.total_laws||0})</div>
+                <div><span style="color:var(--text2)">EU:</span> <strong>${d.eu_integration_score?d.eu_integration_score.toFixed(1):'0'}</strong></div>
+                <div><span style="color:var(--text2)">ПЯ:</span> <strong>${d.py||0}%</strong></div>
+                <div><span style="color:var(--text2)">ПДА:</span> <strong>${d.pda||0}%</strong></div>
+                <div><span style="color:var(--text2)">ВКП:</span> <strong>${d.vkp||0}%</strong></div>
+                <div><span style="color:var(--text2)">LEI:</span> <strong>${(d.lei||0).toFixed(1)}</strong></div>
+              </div>
+            </div>
+
+            <!-- Signals -->
+            ${(warnings.length||strengths.length||features.length) ? `
+            <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Аналітичні сигнали</div>
+              ${warnings.length ? `<div style="margin-bottom:8px">${warnings.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(231,76,60,0.12);color:var(--red);border:1px solid rgba(231,76,60,0.2)">⚠ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+              ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+              ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
+            </div>` : ''}
           </div>
         </div>
       </div>`;
@@ -1391,17 +1491,20 @@ async function loadSchedule() {
   const monthParam = scheduleYear + '-' + mm;
 
   try {
-    const data = await api('/api/schedule?month=' + monthParam);
-    renderCalendar(data.schedule || []);
-    renderCommittees(data.committees || []);
+    const [schedData, actData] = await Promise.all([
+      api('/api/schedule?month=' + monthParam),
+      api('/api/activity-calendar?month=' + monthParam)
+    ]);
+    renderCalendar(schedData.schedule || [], actData.activity || {});
+    renderCommittees(schedData.committees || []);
   } catch(e) {
     console.error('Schedule error:', e);
     document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
   }
 
-  // Bills for voting (same as before)
+  // Bills for voting: stage 2 (first reading) + stage 3 (second reading)
   try {
-    const upcoming = await api('/api/bills?limit=10&stage=2&sort=registration_date&order=DESC');
+    const upcoming = await api('/api/bills?limit=10&sort=registration_date&order=DESC&stage=2,3');
     const ub = document.getElementById('upcoming-bills');
     if (upcoming.bills?.length) {
       ub.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Дата</th></tr></thead><tbody>${upcoming.bills.map(b => `
@@ -1417,7 +1520,7 @@ async function loadSchedule() {
   } catch(e) {}
 }
 
-function renderCalendar(events) {
+function renderCalendar(events, activity) {
   const cal = document.getElementById('schedule-calendar');
   const firstDay = new Date(scheduleYear, scheduleMonthNum - 1, 1);
   const lastDay = new Date(scheduleYear, scheduleMonthNum, 0);
@@ -1445,14 +1548,21 @@ function renderCalendar(events) {
       } else {
         const dateStr = scheduleYear + '-' + String(scheduleMonthNum).padStart(2,'0') + '-' + String(day).padStart(2,'0');
         const dayEvents = byDate[dateStr] || [];
+        const act = activity[dateStr] || {};
+        const isNew = (act.new || 0) > 0;
+        const isChanged = (act.changed || 0) > 0;
         const isToday = new Date().toISOString().slice(0,10) === dateStr;
         const todayStyle = isToday ? 'font-weight:bold;color:#fff;background:#1a73e8;border-radius:4px;' : '';
         const dots = dayEvents.map(ev => {
           const c = SCH_COLORS[ev.event_type] || '#888';
           return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
         }).join('');
-        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}">
+        const badges = [];
+        if (isNew) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','new')" style="font-size:10px;color:#2ecc71;font-weight:600">+${act.new}</span>`);
+        if (isChanged) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','changed')" style="font-size:10px;color:#3498db;font-weight:600">~${act.changed}</span>`);
+        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}${isNew ? ', +' + act.new + ' new' : ''}${isChanged ? ', ~' + act.changed + ' changes' : ''}">
           <div style="font-size:13px;${todayStyle}">${day}</div>
+          ${badges.length ? '<div style="display:flex;gap:3px;justify-content:center;margin-top:1px">' + badges.join('') + '</div>' : ''}
           <div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${dots}</div>
         </td>`;
         day++;
@@ -1462,6 +1572,44 @@ function renderCalendar(events) {
   }
   html += '</table>';
   cal.innerHTML = html;
+}
+
+async function showActivityDay(dateStr, filter) {
+  try {
+    const data = await api('/api/activity-day?date=' + dateStr);
+    const changes = data.changes || [];
+    const filtered = filter === 'new' ? changes.filter(c => c.change_type === 'new') :
+                     filter === 'changed' ? changes.filter(c => c.change_type === 'status_change') : changes;
+    const title = filter === 'new' ? 'Нові законопроекти' : filter === 'changed' ? 'Зміни статусів' : 'Всі зміни';
+
+    const d = new Date(dateStr);
+    const dayNames = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'];
+    const monthNames = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'];
+    const dateLabel = dayNames[d.getDay()] + ', ' + d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
+
+    let html = `<div class="modal-overlay" onclick="if(event.target===this)this.remove()">
+      <div class="modal-content">
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+        <div class="modal-title">${dateLabel} — ${title} (${filtered.length})</div>
+        ${filtered.length === 0 ? '<p style="color:var(--text2)">Змін немає</p>' : filtered.map(c => {
+          const bn = c.bill_number || '?';
+          const url = c.url || '';
+          const num = url ? `<a href="${url}" target="_blank" class="bill-num">#${escHtml(bn)}</a>` : `<span class="bill-num">#${escHtml(bn)}</span>`;
+          const titleText = (c.title || '').substring(0, 80);
+          let statusHtml = '';
+          if (c.change_type === 'status_change' && c.old_value && c.new_value) {
+            statusHtml = `<div class="bill-status"><span class="old">${escHtml(c.old_value)}</span> → ${escHtml(c.new_value)}</div>`;
+          } else if (c.new_value) {
+            statusHtml = `<div class="bill-status">${escHtml(c.new_value)}</div>`;
+          }
+          return `<div class="modal-bill">${num}<div class="bill-title">${escHtml(titleText)}</div>${statusHtml}</div>`;
+        }).join('')}
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', html);
+  } catch(e) {
+    console.error('Activity day error:', e);
+  }
 }
 
 function renderCommittees(committees) {
@@ -1587,6 +1735,17 @@ function init() {
   document.getElementById('dep-sort').addEventListener('change', () => { depsOffset = 0; loadDeputies(); });
   document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
 
+  // Clickable column headers for sorting
+  document.querySelectorAll('#deputies-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const sortField = th.dataset.sort;
+      const sel = document.getElementById('dep-sort');
+      sel.value = sortField;
+      depsOffset = 0;
+      loadDeputies();
+    });
+  });
+
   // Load initial data
   loadDashboard();
 
@@ -1627,54 +1786,60 @@ function init() {
 const EU_CLUSTERS = [
   {
     id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
-    status: 'opened', statusText: 'Відкрито 15.06.2026',
-    chapters: [23, 24, 5, 18, 32],
-    chapterNames: {23:'Судова система та основоположні права',24:'Правосуддя, свобода та безпека',5:'Публічні закупівлі',18:'Статистика',32:'Фінансовий контроль'}
+    chapters: [1, 6, 27, 33],
+    opened: true, openedDate: '15.06.2026',
   },
   {
     id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [1, 2, 3, 4, 6, 7, 8, 9, 28],
-    chapterNames: {1:'Вільний рух товарів',2:'Вільний рух капіталів',3:'Вільний рух осіб',4:'Вільний рух послуг',6:'Корпоративне право',7:'Інтелектуальна власність',8:'Конкурентна політика',9:'Фінансові послуги',28:'Захист прав споживачів та здоров\'я'}
+    chapters: [2, 3, 4, 5, 7, 8, 9, 22, 23],
+    opened: false,
   },
   {
-    id: 3, name: 'Конкурентоспроможність та інклюзивне зростання', nameEn: 'Competitiveness & Inclusive Growth', icon: '📈',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [10, 16, 17, 19, 20, 25, 26, 29],
-    chapterNames: {10:'Цифрова трансформація та ЗМІ',16:'Оподаткування',17:'Економічна та грошово-кредитна політика',19:'Соціальна політика та зайнятість',20:'Промислова політика та підприємництво',25:'Наука та дослідження',26:'Освіта та культура',29:'Митний союз'}
+    id: 3, name: 'Конкурентоспроможність', nameEn: 'Competitiveness', icon: '📈',
+    chapters: [10, 16, 17, 18, 19, 20, 25, 26, 29, 30],
+    opened: false,
   },
   {
-    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda & Sustainable Connectivity', icon: '🌿',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [14, 15, 21, 27],
-    chapterNames: {14:'Транспортна політика',15:'Енергетика',21:'Трансєвропейські мережі',27:'Охорона навколишнього середовища'}
+    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda', icon: '🌿',
+    chapters: [11, 12, 13, 14, 15, 21],
+    opened: false,
   },
   {
-    id: 5, name: 'Ресурси, сільське господарство та згуртованість', nameEn: 'Resources, Agriculture & Cohesion', icon: '🌾',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [11, 12, 13, 22, 33],
-    chapterNames: {11:'Сільське господарство',12:'Безпечність харчових продуктів',13:'Риболовство',22:'Регіональна політика',33:'Фінансові та бюджетні положення'}
+    id: 5, name: 'Безпека та оборона', nameEn: 'Security & Defence', icon: '🛡️',
+    chapters: [24, 28, 31],
+    opened: false,
   },
   {
-    id: 6, name: 'Зовнішні зв\'язки', nameEn: 'External Relations', icon: '🌍',
-    status: 'preparing', statusText: 'Готується до відкриття',
-    chapters: [30, 31],
-    chapterNames: {30:'Зовнішні зв\'язки',31:'Зовнішня політика, безпека та оборона'}
+    id: 6, name: 'Загальні положення', nameEn: 'General Provisions', icon: '📋',
+    chapters: [32, 34, 35],
+    opened: true, openedDate: '15.07.2026',
   }
 ];
 
 let euChaptersData = {};
 let euOverallData = null;
 
+const EU_DIRECTIVES = [
+  {name: 'GDPR', name_ua: 'Захист персональних даних', celex: '32016L0679', total: 35, signed: 9},
+  {name: 'Anti-corruption', name_ua: 'Антикорупція (НАБУ/САП)', total: 292, signed: 62},
+  {name: 'ProZorro', name_ua: 'Публічні закупівлі', total: 114, signed: 42},
+  {name: 'Energy', name_ua: 'Енергоефективність', total: 77, signed: 23},
+  {name: 'Victims Rights', name_ua: 'Захист жертв', total: 100, signed: 28},
+  {name: 'Food Safety', name_ua: 'Безпечність харчових продуктів', total: 16, signed: 4},
+  {name: 'Competition', name_ua: 'Конкурентна політика', total: 50, signed: 15},
+  {name: 'Transport', name_ua: 'Транспортна політика', total: 297, signed: 51},
+  {name: 'Agriculture', name_ua: 'Сільське господарство', total: 304, signed: 66},
+];
+
 function loadEUAlignment() {
   api('/api/eu-alignment').then(data => {
     euOverallData = data;
-    renderEUOverallScore(data.overall, data.signed, data.inProcess);
+    renderEUOverallScore(data.overall, data.signed, data.inProcess, data.harmonizationScore, data.totalBills, data.signedBills);
     if (data.chapters) {
       euChaptersData = {};
       for (const ch of data.chapters) euChaptersData[ch.chapter_id] = ch;
     }
-    renderEUClusters();
+    renderEUClusters(data.harmonization || {});
     if (data.lastUpdated) {
       document.getElementById('eu-last-updated').textContent =
         'Останнє оновлення: ' + new Date(data.lastUpdated).toLocaleString('uk-UA');
@@ -1691,18 +1856,39 @@ function loadEUAlignment() {
   api('/api/eu-alignment/trend').then(data => {
     renderEUTrend(data.trend);
   }).catch(() => {});
+
+  renderEUDirectives();
 }
 
-function renderEUOverallScore(overall, signed, inProcess) {
-  if (!overall) {
-    document.getElementById('eu-overall-score').innerHTML =
-      '<div style="color:var(--text2);padding:20px">Немає даних для розрахунку</div>';
-    return;
-  }
+function renderEUDirectives() {
+  let html = '<div style="padding:8px 16px">';
+  for (const dir of EU_DIRECTIVES) {
+    const pct = dir.total > 0 ? Math.round(dir.signed / dir.total * 100) : 0;
+    let color = 'var(--red)';
+    if (pct > 30) color = 'var(--green)';
+    else if (pct > 20) color = 'var(--orange)';
+    const status = pct > 30 ? '🟢' : pct > 20 ? '🟠' : '🔴';
 
-  const score = overall.weighted_score || 0;
-  const filled = Math.round(score / 100 * 50);
-  const bar = '█'.repeat(filled) + '░'.repeat(50 - filled);
+    html += `
+      <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div style="width:12px;margin-right:8px">${status}</div>
+        <div style="flex:1">
+          <div style="font-weight:500">${dir.name_ua}</div>
+          <div style="font-size:11px;color:var(--text2)">${dir.signed} з ${dir.total} законів</div>
+        </div>
+        <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-right:12px">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
+        </div>
+        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${pct}%</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  document.getElementById('eu-directives').innerHTML = html;
+}
+
+function renderEUOverallScore(overall, signed, inProcess, harmonizationScore, totalBills, signedBills) {
+  const score = harmonizationScore || 0;
   let color = 'var(--red)';
   let emoji = '🔴';
   if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
@@ -1711,11 +1897,14 @@ function renderEUOverallScore(overall, signed, inProcess) {
   document.getElementById('eu-overall-score').innerHTML = `
     <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
     <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Загальний Alignment Score</div>
-    <div style="font-family:monospace;font-size:14px;letter-spacing:2px;color:${color};margin-bottom:20px">${bar}</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Індекс гармонізації з ЄС</div>
+    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 12px">
+      <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width 0.5s"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;font-style:italic">Internal metric: % EU-related bills signed into law (not official EU benchmark)</div>
     <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
-      <div><span style="color:var(--green)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
-      <div><span style="color:var(--blue)">●</span> Всього: ${overall.total_bills || 0} законів</div>
+      <div><span style="color:var(--green)">●</span> Прийнято: ${signedBills || 0} з ${totalBills || 0} законів</div>
+      <div><span style="color:var(--blue)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
     </div>
   `;
 }
@@ -1738,20 +1927,20 @@ function getClusterBills(cluster) {
   return total;
 }
 
-function renderEUClusters() {
+function renderEUClusters(harmonization) {
+  harmonization = harmonization || {};
   let html = '<div style="padding:4px 0">';
   for (const cluster of EU_CLUSTERS) {
-    const avg = getClusterAlignment(cluster);
     const bills = getClusterBills(cluster);
-    const filled = Math.round(avg / 100 * 20);
-    const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+    const hKey = 'harmonization_cluster' + cluster.id;
+    const hPct = harmonization[hKey] || 0;
     let color = 'var(--red)';
-    if (avg > 70) color = 'var(--green)';
-    else if (avg > 40) color = 'var(--orange)';
+    if (hPct > 70) color = 'var(--green)';
+    else if (hPct > 40) color = 'var(--orange)';
 
     let statusBadge = '';
-    if (cluster.status === 'opened') statusBadge = '<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито</span>';
-    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Підготовка</span>';
+    if (cluster.opened) statusBadge = `<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито ${cluster.openedDate || ''}</span>`;
+    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Не відкрито</span>';
 
     html += `
       <div class="eu-cluster" onclick="toggleCluster(${cluster.id})" style="border:1px solid var(--border);border-radius:8px;margin:6px 0;overflow:hidden;cursor:pointer;transition:all 0.2s">
@@ -1760,11 +1949,13 @@ function renderEUClusters() {
           <div style="font-size:20px;margin-right:8px">${cluster.icon}</div>
           <div style="flex:1">
             <div style="font-weight:600;font-size:14px">${cluster.name} <span style="font-weight:400;color:var(--text2);font-size:12px">${cluster.nameEn}</span>${statusBadge}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів · Harmonization: ${hPct}%</div>
           </div>
           <div style="display:flex;align-items:center;gap:12px">
-            <div style="font-family:monospace;color:${color};font-size:12px">${bar}</div>
-            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${avg.toFixed(1)}%</div>
+            <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+              <div style="width:${hPct}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
+            </div>
+            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${hPct.toFixed(1)}%</div>
             <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
           </div>
         </div>
@@ -1798,18 +1989,25 @@ function renderClusterDetail(clusterId) {
   const detail = document.getElementById('cluster-detail-' + clusterId);
   let html = '<div style="padding:4px 8px">';
 
-  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${cluster.statusText}</div>`;
+  const statusText = cluster.opened ? `Відкрито ${cluster.openedDate || ''}` : 'Не відкрито';
+  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${statusText}</div>`;
+
+  // Calculate total bills and signed for this cluster
+  let clusterTotal = 0, clusterSigned = 0;
+  for (const chId of cluster.chapters) {
+    const ch = euChaptersData[chId];
+    if (ch) {
+      clusterTotal += ch.total_bills || 0;
+      clusterSigned += (ch.total_bills || 0) * (ch.alignment || 0) / 100;
+    }
+  }
 
   for (const chId of cluster.chapters) {
     const ch = euChaptersData[chId];
-    const name = cluster.chapterNames[chId] || `Глава ${chId}`;
-    const alignment = ch ? ch.alignment : 0;
+    const name = ch ? ch.chapter_name : `Глава ${chId}`;
     const bills = ch ? ch.total_bills : 0;
-    const keywords = ch ? ch.keywords_matched : 0;
-    const totalKw = ch ? ch.total_keywords : 0;
+    const alignment = ch ? ch.alignment : 0;
 
-    const filled = Math.round(alignment / 100 * 15);
-    const bar = '█'.repeat(filled) + '░'.repeat(15 - filled);
     let color = 'var(--red)';
     if (alignment > 70) color = 'var(--green)';
     else if (alignment > 40) color = 'var(--orange)';
@@ -1819,9 +2017,11 @@ function renderClusterDetail(clusterId) {
         <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:500">${escHtml(name)}</div>
-          <div style="font-size:11px;color:var(--text2)">${keywords}/${totalKw} ключових слів · ${bills} законів</div>
+          <div style="font-size:11px;color:var(--text2)">${bills} законів</div>
         </div>
-        <div style="font-family:monospace;color:${color};font-size:12px;margin-right:8px">${bar}</div>
+        <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-right:8px">
+          <div style="width:${alignment}%;height:100%;background:${color};border-radius:3px"></div>
+        </div>
         <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${alignment.toFixed(1)}%</div>
       </div>
     `;
@@ -1837,7 +2037,7 @@ function showChapterBills(chapterId) {
     const ch = euChaptersData[chapterId];
     const cluster = EU_CLUSTERS.find(c => c.chapters.includes(chapterId));
     let html = '<div class="card"><div class="card-header">';
-    html += `<div class="card-title">Ch.${chapterId} — ${cluster ? cluster.chapterNames[chapterId] : ''} (${bills.length} законів)</div>`;
+    html += `<div class="card-title">Ch.${chapterId} — ${ch ? ch.chapter_name : ''} (${bills.length} законів)</div>`;
     html += `<div style="cursor:pointer;font-size:18px" onclick="this.closest('.card').remove()">✕</div>`;
     html += '</div>';
 

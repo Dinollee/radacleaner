@@ -345,8 +345,8 @@ export default {
 				const param = decodeURIComponent(deputyMatch[1]);
 				const isNum = /^\d+$/.test(param);
 				const deputy = isNum
-					? await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, lei, avg_s, avg_i, avg_tox, data_sufficient, total_votes, total_bills, total_laws FROM mps WHERE id = ?').bind(Number(param)).first()
-					: await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, lei, avg_s, avg_i, avg_tox, data_sufficient, total_votes, total_bills, total_laws FROM mps WHERE name = ?').bind(param).first();
+					? await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, lei, kpi_score, kpi_rank, avg_s, avg_i, avg_tox, data_sufficient, total_votes, total_bills, total_laws, msi, kpb FROM mps WHERE id = ?').bind(Number(param)).first()
+					: await env.radacleaner_db.prepare('SELECT id, name, faction, start_date, py, pda, vkp, lei, kpi_score, kpi_rank, avg_s, avg_i, avg_tox, data_sufficient, total_votes, total_bills, total_laws, msi, kpb FROM mps WHERE name = ?').bind(param).first();
 				if (!deputy) return error('Deputy not found', 404);
 
 				// Use cached stats from mps table (updated daily by sync_mp_stats.py)
@@ -378,7 +378,7 @@ export default {
 
 				const votesTotal = countResult?.total || 0;
 
-				return json({ deputy, votes, votesTotal, votesLimit: limit, votesOffset: offset, stats: { total, attended: total, py, pda, vkp, lei: deputy.lei || 0, avg_s: deputy.avg_s || 0, avg_i: deputy.avg_i || 0, avg_tox: deputy.avg_tox || 0, dataSufficient } });
+				return json({ deputy, votes, votesTotal, votesLimit: limit, votesOffset: offset, stats: { total, attended: total, py, pda, vkp, lei: deputy.lei || 0, msi: deputy.msi || 0, kpb: deputy.kpb || 1.0, kpiScore: deputy.kpi_score || 0, kpiRank: deputy.kpi_rank || 0, avg_s: deputy.avg_s || 0, avg_i: deputy.avg_i || 0, avg_tox: deputy.avg_tox || 0, dataSufficient } });
 			}
 
 			// --- DEPUTIES LIST ---
@@ -396,18 +396,22 @@ export default {
 				if (search) { whereClause += ' AND m.name LIKE ?'; params.push(`%${search}%`); }
 				if (faction) { whereClause += ' AND m.faction = ?'; params.push(faction); }
 
-				const safeSort = ['name','faction','lei','avg_s','avg_i','avg_tox','py','pda','vkp','total_votes'].includes(sort) ? sort : 'name';
+				const safeSort = ['name','faction','lei','kpi_score','avg_s','avg_i','avg_tox','py','pda','vkp','total_votes','msi','kpb'].includes(sort) ? sort : 'name';
 
 				const dataQuery = `
-					SELECT 
+					SELECT
 						m.id, m.name, m.faction, m.start_date,
 						COALESCE(m.py, 0) as py,
 						COALESCE(m.pda, 0) as pda,
 						COALESCE(m.vkp, 0) as vkp,
 						COALESCE(m.lei, 0) as lei,
+						COALESCE(m.kpi_score, 0) as kpiScore,
+						COALESCE(m.kpi_rank, 0) as kpiRank,
 						COALESCE(m.avg_s, 0) as avg_s,
 						COALESCE(m.avg_i, 0) as avg_i,
 						COALESCE(m.avg_tox, 0) as avg_tox,
+						COALESCE(m.msi, 0) as msi,
+						COALESCE(m.kpb, 1.0) as kpb,
 						COALESCE(m.data_sufficient, 0) as dataSufficient,
 						COALESCE(m.total_votes, 0) as total,
 						COALESCE(m.attended_votes, 0) as attended,
@@ -435,6 +439,8 @@ export default {
 						pda: d.pda || 0,
 						vkp: d.vkp || 0,
 						lei: d.lei || 0,
+						msi: d.msi || 0,
+						kpb: d.kpb || 1.0,
 						avg_s: d.avg_s || 0,
 						avg_i: d.avg_i || 0,
 						avg_tox: d.avg_tox || 0,

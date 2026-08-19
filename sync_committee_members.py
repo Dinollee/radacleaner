@@ -51,17 +51,17 @@ def sync_committees():
             continue
 
         name = d.get("FullName", "")
-        post_name = d.get("PostComName", "")
+        post_name = d.get("PostComName", "") or ""
 
         # Визначаємо роль
-        if "Голова" in post_name and "Заступник" not in post_name:
+        if "Голова" in post_name and "Заступник" not in post_name and "підкомітету" not in post_name:
             role = "chair"
+        elif "Голова підкомітету" in post_name:
+            role = "subcommittee_head"
         elif "Заступник голови" in post_name:
             role = "vice_chair"
         elif "Секретар" in post_name:
             role = "secretary"
-        elif "Голова підкомітету" in post_name:
-            role = "subcommittee_head"
         else:
             role = "member"
 

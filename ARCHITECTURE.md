@@ -229,6 +229,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `night-batch` | 21:00-08:00 | LLM analysis (nemotron-super) |
 | `sync_bills` | every hour | Bill sync from RADA (bulk JSON) |
 | `sync_bill_passings_html` | every 4h | Bill passings sync (HTML parsing, real-time) |
+| `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
 | `radacleaner-votesync` | every 6h | Voting records sync |
 
 ## Roadmap

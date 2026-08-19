@@ -28,14 +28,51 @@ def get_session():
     return opener
 
 
-def get_mprequests_id(opener, last_name):
+def get_mprequests_id(opener, full_name):
+    """Find deputy's mprequests ID by full name matching.
+
+    full_name format: "Прізвище І.І." (from mps table)
+    API returns: surname, firstname, patronymic (full forms)
+    """
+    name_parts = full_name.split()
+    if not name_parts:
+        return None
+    last_name = name_parts[0]
+
+    # Extract initials from mps name: "Ткаченко М.М." -> ["М", "М"]
+    # Handle both "М.М." and "О.М" formats
+    initials = []
+    for p in name_parts[1:]:
+        p = p.rstrip('.')
+        if '.' in p:
+            # "О.М" -> split into ["О", "М"]
+            initials.extend([x for x in p.split('.') if x])
+        elif p:
+            initials.append(p)
+
     url = f'https://itd.rada.gov.ua/mprequests/api/DeputyRequest/mpautocomplite?word={urllib.parse.quote(last_name)}&convId=10'
     try:
         resp = opener.open(url)
         data = json.loads(resp.read().decode('utf-8'))
         authors = data.get('authors', [])
-        if authors:
+        if not authors:
+            return None
+        if len(authors) == 1:
             return authors[0].get('id')
+
+        # Multiple matches — find by first name + patronymic initials
+        for a in authors:
+            api_first = (a.get('firstname') or "")[:1]
+            api_patronymic = (a.get('patronymic') or "")[:1]
+            if len(initials) >= 2 and api_first == initials[0] and api_patronymic == initials[1]:
+                return a.get('id')
+            elif len(initials) == 1 and api_first == initials[0]:
+                return a.get('id')
+
+        # ponytail: Edge case — same first+patronymic initials for 2+ deputies
+        # (e.g., Стефанчук М.О. vs Микола О., Павленко Р.М. vs Ростислав М.)
+        # ~6 deputies affected out of 460. Acceptable for request count accuracy.
+        return authors[0].get('id')
     except Exception:
         pass
     return None
@@ -91,11 +128,9 @@ def sync_requests():
         name_parts = name.split()
         if not name_parts:
             continue
-        
-        last_name = name_parts[0]
-        
+
         try:
-            mp_req_id = get_mprequests_id(opener, last_name)
+            mp_req_id = get_mprequests_id(opener, name)
             if not mp_req_id:
                 continue
             

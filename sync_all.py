@@ -6,9 +6,10 @@
   1. Фракції депутатів (sync_mp_factions.py)
   2. Статистику голосувань (sync_mp_stats.py)
   3. Комітети (sync_committee_members.py)
-  4. KPI Score (calc_deputy_kpi_v6.py)
-    ("Sync deputy requests", "sync_deputy_requests.py"),
-  5. LEI (calc_deputy_kpi.py)
+  4. MSI та K_pb (calc_msi_kpb.py)
+  5. Quality, Risk, Authorship (calc_bill_quality.py)
+  6. KPI Score v9 (calc_deputy_kpi_v9.py)
+  7. Депутатські запити (sync_deputy_requests.py)
 """
 import subprocess
 import sys
@@ -32,24 +33,27 @@ def run_script(name, script):
     return result.returncode
 
 def main():
-    print("Повна синхронізація KPI даних")
+    print("Повна синхронізація KPI даних (v9)")
     print("=" * 60)
-    
+
     steps = [
         ("Sync factions", "sync_mp_factions.py"),
         ("Sync MP stats", "sync_mp_stats.py"),
         ("Sync committee members", "sync_committee_members.py"),
-        ("Calculate LEI", "calc_deputy_kpi.py"),
-        ("Calculate KPI Score v6", "calc_deputy_kpi_v6.py"),
+        ("Calculate MSI & K_pb", "calc_msi_kpb.py"),
+        ("Calculate Quality, Risk, Authorship", "calc_bill_quality.py"),
+        ("Recalculate EU Deputy Scores", "calc_eu_llm.py"),
+        ("Recalculate EU Alignment", "eu_alignment.py"),
+        ("Calculate KPI Score v9", "calc_deputy_kpi_v9.py"),
         ("Sync deputy requests", "sync_deputy_requests.py"),
     ]
-    
+
     errors = []
     for name, script in steps:
         rc = run_script(name, script)
         if rc != 0:
             errors.append(name)
-    
+
     print(f"\n{'='*60}")
     print("DONE")
     if errors:
