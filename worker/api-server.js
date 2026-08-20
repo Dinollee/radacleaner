@@ -488,6 +488,7 @@ app.get('/api/dashboard', async (req, res) => {
           lastSync: cache.last_updated || null,
           newBills24h: Number(cache.new_bills_24h) || 0,
           statusChanges24h: Number(cache.status_changes_24h) || 0,
+          totalVotes: Number(cache.total_votes) || 0,
         };
       }).catch(() => ({})),
 
