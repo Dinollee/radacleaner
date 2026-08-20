@@ -459,8 +459,9 @@ app.get('/api/dashboard', async (req, res) => {
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const monthParam = `${now.getFullYear()}-${mm}`;
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const d120 = new Date(now.getTime() - 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    // Parallel queries for all 4 blocks
+    // Parallel queries for all blocks
     const [
       stats,
       schedule,
@@ -469,7 +470,8 @@ app.get('/api/dashboard', async (req, res) => {
       topDeputies,
       topRiskyBills,
       euHarmonization,
-      highRiskAlerts
+      highRiskAlerts,
+      activeBills
     ] = await Promise.all([
       // Block 1: General stats
       q('SELECT key, value FROM stats_cache').then(rows => {
@@ -484,6 +486,8 @@ app.get('/api/dashboard', async (req, res) => {
           mediumRisk: Number(cache.medium_risk) || 0,
           recentChanges: Number(cache.recent_changes) || 0,
           lastSync: cache.last_updated || null,
+          newBills24h: Number(cache.new_bills_24h) || 0,
+          statusChanges24h: Number(cache.status_changes_24h) || 0,
         };
       }).catch(() => ({})),
 
@@ -549,6 +553,16 @@ app.get('/api/dashboard', async (req, res) => {
            AND (ra.toxicity > 0.7 OR ra.risk_score >= 4)
          ORDER BY ra.assessed_at DESC
          LIMIT 10`, [thirtyDaysAgo]).catch(() => []),
+
+      // --- BLOCK 5: Active bills (last 120 days, threats=2) for threats table + counter ---
+      q(`SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, b.updated_at,
+              ra.toxicity, ra.risk_score, ra.significance, ra.impact, ra.risk_level, ra.json_data, ra.has_analysis
+         FROM bills b
+         LEFT JOIN (SELECT bill_id, 1 as has_analysis, toxicity, risk_score, significance, impact, risk_level, json_data FROM risk_assessments) ra ON ra.bill_id = b.id
+         WHERE b.updated_at >= $1
+           AND (ra.toxicity > 0.7 OR ra.risk_score >= 4)
+         ORDER BY b.updated_at DESC
+         LIMIT 20`, [d120]).catch(() => []),
     ]);
 
     json(res, {
@@ -560,6 +574,7 @@ app.get('/api/dashboard', async (req, res) => {
       topRiskyBills,
       euHarmonization,
       highRiskAlerts,
+      activeBills,
       month: monthParam,
     }, 200, 60);
   } catch (e) { error(res, e.message, 500); }

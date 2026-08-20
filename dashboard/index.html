@@ -653,7 +653,7 @@ async function loadDashboard() {
     const data = await api('/api/dashboard');
 
     const stats = data.stats || {};
-    const threats = data.topRiskyBills || [];
+    const threats = data.activeBills || [];  // Active bills (120 days, threats=2)
     const eu = data.eu || null;
     const euHarm = data.euHarmonization || {};
 
@@ -672,19 +672,19 @@ async function loadDashboard() {
     // Оновлюємо секцію dashboard
     statsEl.innerHTML = `
       <div class="stat-card"><div class="stat-label">Всього законів</div><div class="stat-value">${stats.totalBills||0}</div><div class="stat-daily"><span class="stat-badge new${(stats.newBills24h||0)===0?' zero':''}">+${stats.newBills24h||0} new</span><span class="stat-badge changed${(stats.statusChanges24h||0)===0?' zero':''}">~${stats.statusChanges24h||0} змін</span></div></div>
-      <div class="stat-card"><div class="stat-label">Топ-ризикових (30 дн)</div><div class="stat-value" style="color:var(--red)">${threats.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Активні загрози (120 днів)</div><div class="stat-value" style="color:var(--red)">${threats.length}</div></div>
       <div class="stat-card"><div class="stat-label">Проаналізовано</div><div class="stat-value" style="color:var(--green)">${stats.analyzedBills||0}</div></div>
       <div class="stat-card"><div class="stat-label">Високий ризик</div><div class="stat-value" style="color:var(--red)">${stats.highRisk||0}</div></div>
       <div class="stat-card"><div class="stat-label">Депутатів (активних)</div><div class="stat-value">${stats.activeMps||0}<span style="font-size:13px;color:var(--text2);font-weight:400">/${stats.totalMps||0}</span></div></div>
     `;
 
-    // Threats table — now from topRiskyBills (last 30 days, toxicity>0.7 or risk>=4)
+    // Threats table — from activeBills (last 120 days, toxicity>0.7 or risk>=4)
     tbody.innerHTML = (threats).map(b => {
       const age = b.updated_at ? daysSince(b.updated_at) : null;
       const tox = b.toxicity != null ? Number(b.toxicity) : 0;
       const risk = b.risk_score != null ? Number(b.risk_score) : 0;
       const riskLevel = tox > 0.7 || risk >= 4 ? 'high' : risk >= 2 ? 'medium' : 'low';
-      const hasAnalysis = b.toxicity != null || b.risk_score != null;
+      const hasAnalysis = b.has_analysis || b.toxicity != null || b.risk_score != null;
       return `<tr class="clickable" data-bill-id="${b.id}">
         <td><strong>${escHtml(b.bill_number)}</strong></td>
         <td title="${attr(b.title)}">${escHtml((b.title||'').substring(0,60))}${(b.title||'').length>60?'...':''}</td>
@@ -703,7 +703,7 @@ async function loadDashboard() {
         </div>` : '<span style="color:var(--text2);font-size:11px">—</span>'}</td>
         <td style="font-size:12px;color:var(--text2)">${formatDate(b.updated_at || b.updated_at)}${age !== null ? ` · ${age}д` : ''}</td>
       </tr>`;
-    }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Ризикових законів за 30 днів немає</td></tr>';
+    }).join('') || '<tr><td colspan="8" style="color:var(--text2)">Активних загроз за 120 днів немає</td></tr>';
   } catch(e) {
     console.error('Dashboard error:', e);
     statsEl.innerHTML = '<div class="stat-card" style="grid-column:1/-1"><p style="color:var(--red)">Помилка завантаження даних</p></div>';
