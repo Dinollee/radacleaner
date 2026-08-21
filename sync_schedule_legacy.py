@@ -72,7 +72,7 @@ def sync_plenary_from_legacy():
         d1_exec_sql("""
             INSERT INTO rada_schedule (date, event_type, title, description, session)
             VALUES (%s, 'plenary', 'Пленарне засідання', %s, %s)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (date, event_type) DO NOTHING
         """, [
             date_str,
             "Дані з календаря ВРУ",

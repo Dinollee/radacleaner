@@ -9,6 +9,7 @@
 import sys
 import os
 import re
+import html
 import requests
 from datetime import datetime, timedelta
 
@@ -77,8 +78,8 @@ def extract_committees_from_html(html, week_start):
             continue
 
         raw_name = name_match.group(1)
-        # Clean up HTML tags and extra whitespace
-        name = re.sub(r"<[^>]+>", "", raw_name)
+        # Clean up HTML tags, entities and extra whitespace
+        name = html.unescape(re.sub(r"<[^>]+>", "", raw_name))
         name = re.sub(r"\s+", " ", name).strip()
         name = name.rstrip(".")  # Remove trailing period
 
@@ -130,6 +131,7 @@ def extract_committees_from_html(html, week_start):
                 topic_lines.append(topic[:150])
 
         topic = "; ".join(topic_lines[:3]) if topic_lines else ""
+        topic = html.unescape(topic)
 
         for date_str in dates_found:
             meetings.append({
@@ -182,7 +184,7 @@ def sync_committee_schedules():
             d1_exec_sql("""
                 INSERT INTO rada_committee_schedule (week_start, committee_name, meeting_date, meeting_time, topic, url)
                 VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT DO NOTHING
+                ON CONFLICT (week_start, committee_name, meeting_date, COALESCE(meeting_time,''), COALESCE(topic,'')) DO NOTHING
             """, [
                 week_start,
                 m["name"],
