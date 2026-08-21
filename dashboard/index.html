@@ -426,6 +426,28 @@ tr.former-deputy:hover td { opacity: 0.75; }
         </div>
       </div>
     </div>
+    <div class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Методологія ІЕД — відкриті коефіцієнти</summary>
+        <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
+          <p style="margin:0 0 8px"><strong>ІЕД = середнє шести компонент (C1–C6)</strong>, кожна від 0 до 100. Всі коефіцієнти опубліковані, прихованих ваг немає. Джерела — офіційні дані ВРУ (голосування, структури, звернення, законопроєкти).</p>
+          <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+            <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
+              <th style="padding:4px 6px">Компонента</th><th style="padding:4px 6px">Що вимірює</th><th style="padding:4px 6px">Шкала</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:4px 6px"><strong>C1 Дисципліна</strong></td><td style="padding:4px 6px">явка 50% · голосування 30% · дисципліна фракції 20%</td><td style="padding:4px 6px">0–100; &lt;10% явки → 0</td></tr>
+              <tr><td style="padding:4px 6px"><strong>C2 Законотворчість</strong></td><td style="padding:4px 6px">якість 30% · низький ризик 30% · документи 20% · авторство 20%</td><td style="padding:4px 6px">0–100; без даних → 50</td></tr>
+              <tr><td style="padding:4px 6px"><strong>C3 Результативність</strong></td><td style="padding:4px 6px">прийняття своїх законів 70% · обсяг 30%</td><td style="padding:4px 6px">0–100; &lt;3 своїх законів → 50</td></tr>
+              <tr><td style="padding:4px 6px"><strong>C4 Комітет</strong></td><td style="padding:4px 6px">роль у комітеті (єдина монотонна шкала)</td><td style="padding:4px 6px">немає ролі <b>40</b> · член <b>55</b> · секретар/голова підком. <b>70</b> · заступник голови <b>85</b> · голова <b>100</b></td></tr>
+              <tr><td style="padding:4px 6px"><strong>C5 Звернення</strong></td><td style="padding:4px 6px">депутатські запити з відповідями (обсяг 70% · рівень відповідей 30%)</td><td style="padding:4px 6px">0–100; 0 відповідей → 0</td></tr>
+              <tr><td style="padding:4px 6px"><strong>C6 Вплив</strong></td><td style="padding:4px 6px">низький ризик законів 60% · ЄС-інтеграція 40%</td><td style="padding:4px 6px">0–100; без даних → 50</td></tr>
+            </tbody>
+          </table>
+          <p style="margin:8px 0 0;color:var(--text2);font-size:12px">Шкала C4 зростає строго: будь-яка роль у комітеті дає більше, ніж її відсутність. «Без даних → 50» означає нейтральне значення, коли офіційних даних ще немає. Версія методології: 2.0 (2026-08-21).</p>
+        </div>
+      </details>
+    </div>
   </div>
 
   <!-- DEPUTY DETAIL -->

@@ -58,14 +58,30 @@ class TestC3Efficiency:
 
 
 class TestC4Committee:
-    def test_no_role_neutral(self):
-        assert calc_c4(0) == 0.5
+    """Публічна монотонна шкала C4_LADDER: будь-яка роль >= немає ролі."""
+
+    def test_no_role_is_40(self):
+        assert calc_c4(0) == 0.40
+
+    def test_member(self):
+        assert calc_c4(3) == 0.55
+
+    def test_secretary_subhead(self):
+        assert calc_c4(5) == 0.70
+
+    def test_vice_chair(self):
+        assert calc_c4(7) == 0.85
 
     def test_chair(self):
         assert calc_c4(10) == 1.0
 
-    def test_member(self):
-        assert calc_c4(3) == 0.3
+    def test_monotonic_ladder(self):
+        scores = [calc_c4(s) for s in [0, 3, 5, 7, 10]]
+        assert scores == sorted(scores)
+        assert len(set(scores)) == 5
+
+    def test_unknown_score_falls_to_no_role(self):
+        assert calc_c4(99) == 0.40
 
 
 class TestC5Requests:
