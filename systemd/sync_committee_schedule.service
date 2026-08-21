@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — VRU committee meetings schedule sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_committee_schedule.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300

@@ -1,0 +1,9 @@
+[Unit]
+Description=Radacleaner - daily VRU committee schedule sync
+
+[Timer]
+OnCalendar=*-*-* 07:40:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

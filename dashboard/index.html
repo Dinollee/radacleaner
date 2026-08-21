@@ -145,8 +145,6 @@ tr.former-deputy:hover td { opacity: 0.75; }
 .modal-bill .bill-title { color: var(--text); margin-top: 2px; }
 .modal-bill .bill-status { font-size: 11px; color: var(--text2); margin-top: 2px; }
 .modal-bill .bill-status .old { text-decoration: line-through; opacity: 0.6; }
-.cal-badge { cursor: pointer; }
-.cal-badge:hover { opacity: 0.7; }
 .stage-progress .sq.done.s2 { background: var(--blue); }
 .stage-progress .sq.done.s3 { background: var(--purple); }
 .stage-progress .sq.done.s4 { background: var(--green); }
@@ -437,6 +435,12 @@ tr.former-deputy:hover td { opacity: 0.75; }
 
   <!-- SCHEDULE -->
   <div id="sec-schedule" class="section">
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Найближчі події</div></div>
+      <div id="schedule-upcoming"></div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div class="card-title">Графік роботи Верховної Ради</div>
@@ -446,25 +450,35 @@ tr.former-deputy:hover td { opacity: 0.75; }
           <button class="back-btn" onclick="scheduleMonth(1)">Далі →</button>
         </div>
       </div>
+      <div id="schedule-freshness" style="padding:8px 16px 0;font-size:12px;color:var(--text2)"></div>
       <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарні</span>
-        <span><span class="sch-dot" style="background:#9b59b6"></span> Погоджувальні ради</span>
+        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарне засідання</span>
+        <span><span class="sch-dot" style="background:#e74c3c"></span> День запитань</span>
+        <span><span class="sch-dot" style="background:#95a5a6"></span> Свято/вихідний</span>
+        <span><span class="sch-dot" style="background:#9b59b6"></span> Голосування</span>
         <span><span class="sch-dot" style="background:#27ae60"></span> Комітети</span>
-        <span><span class="sch-dot" style="background:#3498db"></span> Робота з виборцями</span>
-        <span><span class="sch-dot" style="background:#e67e22"></span> Позачергові</span>
-        <span><span class="sch-dot" style="background:#e74c3c"></span> Запитання до Уряду</span>
-        <span><span class="sch-dot" style="background:#95a5a6"></span> Свята</span>
+        <span><span class="sch-dot" style="background:#3498db"></span> Подія ЄС</span>
+        <span><span class="sch-dot" style="background:#e67e22"></span> Законопроєкти</span>
       </div>
       <div id="schedule-calendar" style="padding:8px 16px"></div>
     </div>
+
     <div class="card">
-      <div class="card-header"><div class="card-title">Засідання комітетів (тижневий графік)</div></div>
+      <div class="card-header">
+        <div class="card-title">Засідання комітетів</div>
+        <div id="committees-freshness" style="font-size:12px;color:var(--text2)"></div>
+      </div>
       <div id="schedule-committees"></div>
     </div>
+
     <div class="card">
-      <div class="card-header"><div class="card-title">Закони на голосування</div></div>
+      <div class="card-header">
+        <div class="card-title">Нові законопроєкти</div>
+        <div style="font-size:12px;color:var(--text2)">свіжо зареєстровані, стадія 2-3</div>
+      </div>
       <div id="upcoming-bills"></div>
     </div>
+
   </div>
 
   <!-- EU Alignment Section -->
@@ -1704,14 +1718,44 @@ let scheduleYear, scheduleMonthNum;
 const MONTH_NAMES = ['Січень','Лютий','Березень','Квітень','Травень','Червень','Липень','Серпень','Вересень','Жовтня','Листопад','Грудень'];
 const DAY_NAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Нд'];
 
-const SCH_COLORS = {
-  plenary: '#f1c40f', coordination: '#9b59b6', committee: '#27ae60',
-  voter_work: '#3498db', extraordinary: '#e67e22', question_day: '#e74c3c', holiday: '#95a5a6'
-};
-const SCH_LABELS = {
-  plenary: 'Пленарне', coordination: 'Погоджувальна', committee: 'Комітет',
-  voter_work: 'Виборці', extraordinary: 'Позачергове', question_day: 'Запитання', holiday: 'Свято'
-};
+// Реальні типи подій графіка: 3 з /api/schedule + 4 лічильники активності
+const SCH_TYPES = [
+  { key: 'plenary',      label: 'Пленарне засідання', color: '#f1c40f' },
+  { key: 'question_day', label: 'День запитань',      color: '#e74c3c' },
+  { key: 'holiday',      label: 'Свято/вихідний',     color: '#95a5a6' },
+  { key: 'votes',        label: 'Голосування',        color: '#9b59b6' },
+  { key: 'committee',    label: 'Комітети',           color: '#27ae60' },
+  { key: 'eu',           label: 'Подія ЄС',           color: '#3498db' },
+  { key: 'bills',        label: 'Законопроєкти',      color: '#e67e22' }
+];
+const SCH_COLORS = Object.fromEntries(SCH_TYPES.map(t => [t.key, t.color]));
+const SCH_LABELS = Object.fromEntries(SCH_TYPES.map(t => [t.key, t.label]));
+
+function stripTags(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.innerHTML = String(s);
+  return d.textContent.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function schStamp(iso) {
+  const m = String(iso || '').replace('T', ' ').match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  return m ? m[3] + '.' + m[2] + ' ' + m[4] + ':' + m[5] : '';
+}
+
+function todayStr() {
+  const n = new Date();
+  return n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0');
+}
+
+function schDow(dateStr) {
+  return ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'][new Date(dateStr + 'T00:00:00').getDay()];
+}
+
+function schBadge(type) {
+  const t = SCH_TYPES.find(x => x.key === type) || { label: type, color: '#888' };
+  return `<span style="background:${t.color}22;color:${t.color};padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap">${escHtml(t.label)}</span>`;
+}
 
 function scheduleMonth(dir) {
   scheduleMonthNum += dir;
@@ -1732,14 +1776,29 @@ async function loadSchedule() {
       api('/api/schedule?month=' + monthParam),
       api('/api/activity-calendar?month=' + monthParam)
     ]);
-    renderCalendar(schedData.schedule || [], actData.activity || {});
-    renderCommittees(schedData.committees || []);
+    const schedule = schedData.schedule || [];
+    const committees = schedData.committees || [];
+
+    const freshEl = document.getElementById('schedule-freshness');
+    if (freshEl) {
+      const stamp = schStamp(schedData.freshness?.scheduleUpdatedAt);
+      freshEl.textContent = stamp ? 'Джерело: календар ВРУ · оновлено ' + stamp : '';
+    }
+    const comFreshEl = document.getElementById('committees-freshness');
+    if (comFreshEl) {
+      const comStamp = schStamp(schedData.freshness?.committeeUpdatedAt);
+      comFreshEl.textContent = (comStamp && committees.length) ? 'Джерело: тижневий графік ВРУ · оновлено ' + comStamp : '';
+    }
+
+    renderUpcoming(schedule, committees);
+    renderCalendar(schedule, actData.activity || {});
+    renderCommittees(committees);
   } catch(e) {
     console.error('Schedule error:', e);
     document.getElementById('schedule-calendar').innerHTML = '<p style="color:var(--text2)">Помилка завантаження графіку</p>';
   }
 
-  // Bills for voting: stage 2 (first reading) + stage 3 (second reading)
+  // Свіжі законопроєкти: реєстрації стадії 2-3 (окремих дат голосувань у джерелах немає)
   try {
     const upcoming = await api('/api/bills?limit=10&sort=registration_date&order=DESC&stage=2,3');
     const ub = document.getElementById('upcoming-bills');
@@ -1752,9 +1811,53 @@ async function loadSchedule() {
           <td style="font-size:12px;color:var(--text2)">${formatDate(b.registration_date)||''}</td>
         </tr>`).join('')}</tbody></table></div>`;
     } else {
-      ub.innerHTML = '<p style="color:var(--text2)">Закони на голосування поки відсутні</p>';
+      ub.innerHTML = '<p style="color:var(--text2);padding:12px 0">Свіжозареєстрованих законопроєктів (стадія 2-3) поки немає</p>';
     }
   } catch(e) {}
+}
+
+// Найближчі події: майбутні дати з графіка ВРУ + засідання комітетів
+function renderUpcoming(schedule, committees) {
+  const el = document.getElementById('schedule-upcoming');
+  if (!el) return;
+  const today = todayStr();
+  const items = [];
+  (schedule || []).forEach(ev => {
+    if (!ev.date || ev.date < today) return;
+    items.push({
+      date: ev.date,
+      type: ev.event_type,
+      title: stripTags(ev.title) || SCH_LABELS[ev.event_type] || 'Подія',
+      description: stripTags(ev.description),
+      url: ev.url || ''
+    });
+  });
+  (committees || []).forEach(c => {
+    if (!c.meeting_date || c.meeting_date < today) return;
+    items.push({
+      date: c.meeting_date,
+      type: 'committee',
+      title: stripTags(c.committee_name),
+      description: stripTags(c.topic),
+      url: c.url || ''
+    });
+  });
+  items.sort((a, b) => (a.date + a.title).localeCompare(b.date + b.title));
+  const next = items.slice(0, 5);
+
+  if (!next.length) {
+    el.innerHTML = '<p style="color:var(--text2);padding:12px 0">Джерела публікують графік без майбутнього горизонту — події з\'являться ближче до дати</p>';
+    return;
+  }
+  el.innerHTML = next.map(it => `
+    <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="min-width:96px;font-weight:700;font-size:14px">${it.date.slice(8,10)}.${it.date.slice(5,7)} <span style="font-weight:400;font-size:12px;color:var(--text2)">${schDow(it.date)}</span></div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${schBadge(it.type)}${it.title !== SCH_LABELS[it.type] ? `<span style="font-size:13px">${escHtml(it.title)}</span>` : ''}</div>
+        ${it.description && it.description !== 'Дані з календаря ВРУ' ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${escHtml(it.description.substring(0,140))}${it.description.length > 140 ? '…' : ''}</div>` : ''}
+      </div>
+      ${it.url ? `<a href="${attr(it.url)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue);white-space:nowrap;padding-top:2px">${it.type === 'committee' ? 'порядок денний ↗' : 'детальніше ↗'}</a>` : ''}
+    </div>`).join('');
 }
 
 function renderCalendar(events, activity) {
@@ -1767,40 +1870,58 @@ function renderCalendar(events, activity) {
 
   // Group events by date
   const byDate = {};
-  events.forEach(ev => {
+  (events || []).forEach(ev => {
     if (!byDate[ev.date]) byDate[ev.date] = [];
     byDate[ev.date].push(ev);
   });
+  const hasPlenary = (events || []).some(ev => ev.event_type === 'plenary');
 
   let html = '<table style="width:100%;border-collapse:collapse;text-align:center">';
   html += '<tr>' + DAY_NAMES.map(d => `<th style="padding:6px;font-size:13px;color:var(--text2)">${d}</th>`).join('') + '</tr>';
 
+  const MAX_DOTS = 4;
   let day = 1;
   for (let row = 0; row < 6; row++) {
     if (day > daysInMonth) break;
     html += '<tr>';
     for (let col = 0; col < 7; col++) {
       if (row === 0 && col < startDow || day > daysInMonth) {
-        html += '<td style="padding:4px;height:60px"></td>';
+        html += '<td style="padding:4px;height:56px"></td>';
       } else {
         const dateStr = scheduleYear + '-' + String(scheduleMonthNum).padStart(2,'0') + '-' + String(day).padStart(2,'0');
         const dayEvents = byDate[dateStr] || [];
         const act = activity[dateStr] || {};
-        const isNew = (act.new || 0) > 0;
-        const isChanged = (act.changed || 0) > 0;
-        const isToday = new Date().toISOString().slice(0,10) === dateStr;
+        const isToday = todayStr() === dateStr;
         const todayStyle = isToday ? 'font-weight:bold;color:#fff;background:#1a73e8;border-radius:4px;' : '';
-        const dots = dayEvents.map(ev => {
-          const c = SCH_COLORS[ev.event_type] || '#888';
-          return `<span class="sch-dot" style="background:${c}" title="${SCH_LABELS[ev.event_type] || ev.event_type}: ${escHtml(ev.title)}"></span>`;
+
+        // Типи дня у порядку легенди: події графіка, потім лічильники активності
+        const types = [];
+        ['plenary', 'question_day', 'holiday'].forEach(k => {
+          if (dayEvents.some(ev => ev.event_type === k)) types.push(k);
+        });
+        if ((Number(act.votes) || 0) > 0) types.push('votes');
+        if ((Number(act.committee) || 0) > 0) types.push('committee');
+        if ((Number(act.eu) || 0) > 0) types.push('eu');
+        if (((Number(act.new) || 0) + (Number(act.changed) || 0)) > 0) types.push('bills');
+
+        const shown = types.slice(0, MAX_DOTS);
+        const extra = types.length - shown.length;
+        const dots = shown.map(k => {
+          const t = SCH_TYPES.find(x => x.key === k);
+          return `<span class="sch-dot" style="background:${t.color}" title="${attr(t.label)}"></span>`;
         }).join('');
-        const badges = [];
-        if (isNew) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','new')" style="font-size:10px;color:#2ecc71;font-weight:600">+${act.new}</span>`);
-        if (isChanged) badges.push(`<span class="cal-badge" onclick="showActivityDay('${dateStr}','changed')" style="font-size:10px;color:#3498db;font-weight:600">~${act.changed}</span>`);
-        html += `<td style="padding:4px;height:60px;vertical-align:top;border:1px solid var(--border);cursor:default" title="${dayEvents.map(e=>SCH_LABELS[e.event_type]||e.event_type).join(', ')}${isNew ? ', +' + act.new + ' new' : ''}${isChanged ? ', ~' + act.changed + ' changes' : ''}">
+        const more = extra > 0 ? `<span style="font-size:10px;font-weight:600;color:var(--text2)" title="${attr(types.slice(MAX_DOTS).map(k => SCH_LABELS[k]).join(', '))}">+${extra}</span>` : '';
+
+        // Видимі лічильники активності законопроєктів (+N нових / ~N змін)
+        const cnts = [];
+        if ((Number(act.new) || 0) > 0) cnts.push(`<span style="font-size:10px;font-weight:700;color:var(--green)" title="${attr('+' + act.new + ' нових')}">+${act.new}</span>`);
+        if ((Number(act.changed) || 0) > 0) cnts.push(`<span style="font-size:10px;font-weight:700;color:var(--orange)" title="${attr('~' + act.changed + ' змін')}">~${act.changed}</span>`);
+        const cntHtml = cnts.length ? `<div style="display:flex;gap:3px;justify-content:center;align-items:center;margin-top:2px">${cnts.join('')}</div>` : '';
+
+        html += `<td onclick="showActivityDay('${dateStr}')" style="padding:4px;height:64px;vertical-align:top;border:1px solid var(--border);cursor:pointer" title="${attr(types.map(k => SCH_LABELS[k]).join(', '))}">
           <div style="font-size:13px;${todayStyle}">${day}</div>
-          ${badges.length ? '<div style="display:flex;gap:3px;justify-content:center;margin-top:1px">' + badges.join('') + '</div>' : ''}
-          <div style="display:flex;gap:2px;justify-content:center;margin-top:2px">${dots}</div>
+          ${(shown.length || more) ? `<div style="display:flex;gap:2px;justify-content:center;align-items:center;margin-top:4px;flex-wrap:wrap">${dots}${more}</div>` : ''}
+          ${cntHtml}
         </td>`;
         day++;
       }
@@ -1808,6 +1929,11 @@ function renderCalendar(events, activity) {
     html += '</tr>';
   }
   html += '</table>';
+
+  // Місяць без пленарних засідань (тільки свята або порожньо)
+  if (!hasPlenary) {
+    html += '<div style="margin-top:8px;padding:10px;text-align:center;font-size:13px;color:var(--text2);background:var(--bg3);border:1px dashed var(--border);border-radius:8px">Пленарні засідання не заплановані — канікули ВР</div>';
+  }
   cal.innerHTML = html;
 }
 
@@ -1817,18 +1943,43 @@ async function showActivityDay(dateStr, filter) {
     const changes = data.changes || [];
     const filtered = filter === 'new' ? changes.filter(c => c.change_type === 'new') :
                      filter === 'changed' ? changes.filter(c => c.change_type === 'status_change') : changes;
-    const title = filter === 'new' ? 'Нові законопроекти' : filter === 'changed' ? 'Зміни статусів' : 'Всі зміни';
+    const events = data.events || {};
+    const votes = Number(events.votes) || 0;
 
-    const d = new Date(dateStr);
+    const d = new Date(dateStr + 'T00:00:00');
     const dayNames = ['Нд','Пн','Вт','Ср','Чт','Пт','Сб'];
     const monthNames = ['січня','лютого','березня','квітня','травня','червня','липня','серпня','вересня','жовтня','листопада','грудня'];
     const dateLabel = dayNames[d.getDay()] + ', ' + d.getDate() + ' ' + monthNames[d.getMonth()] + ' ' + d.getFullYear();
 
+    const secHead = t => `<div style="margin:16px 0 6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text2)">${t}</div>`;
+
+    const schedHtml = (events.schedule || []).map(ev => {
+      const ttl = stripTags(ev.title) || SCH_LABELS[ev.event_type] || 'Подія';
+      return `<div class="modal-bill">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${schBadge(ev.event_type)}<strong>${escHtml(ttl)}</strong></div>
+        ${ev.description ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${escHtml(stripTags(ev.description))}</div>` : ''}
+        ${ev.url ? `<a href="${attr(ev.url)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue)">детальніше ↗</a>` : ''}
+      </div>`;
+    }).join('');
+
+    const commHtml = (events.committees || []).map(c => {
+      const topic = stripTags(c.topic);
+      return `<div class="modal-bill">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${schBadge('committee')}<strong>${escHtml(stripTags(c.committee_name))}</strong>${c.meeting_time ? `<span style="font-size:12px;color:var(--text2)">· ${attr(c.meeting_time)}</span>` : ''}</div>
+        ${topic ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${escHtml(topic.substring(0,200))}${topic.length > 200 ? '…' : ''}</div>` : ''}
+        ${c.url ? `<a href="${attr(c.url)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue)">порядок денний ↗</a>` : ''}
+      </div>`;
+    }).join('');
+
     let html = `<div class="modal-overlay" onclick="if(event.target===this)this.remove()">
       <div class="modal-content">
         <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
-        <div class="modal-title">${dateLabel} — ${title} (${filtered.length})</div>
-        ${filtered.length === 0 ? '<p style="color:var(--text2)">Змін немає</p>' : filtered.map(c => {
+        <div class="modal-title">${dateLabel}</div>
+        ${votes > 0 ? `<div style="margin-bottom:4px"><span style="background:#9b59b622;color:#9b59b6;padding:3px 10px;border-radius:10px;font-size:12px;font-weight:600">Голосувань: ${votes}</span></div>` : ''}
+        ${secHead('Події дня')}
+        ${(schedHtml + commHtml) || '<p style="font-size:13px;color:var(--text2)">Засідань цього дня не заплановано</p>'}
+        ${secHead('Законопроєкти (' + filtered.length + ')')}
+        ${filtered.length === 0 ? '<p style="font-size:13px;color:var(--text2)">Змін законопроєктів у цей день немає</p>' : filtered.map(c => {
           const bn = c.bill_number || '?';
           const url = c.url || '';
           const num = url ? `<a href="${url}" target="_blank" class="bill-num">#${escHtml(bn)}</a>` : `<span class="bill-num">#${escHtml(bn)}</span>`;
@@ -1851,16 +2002,24 @@ async function showActivityDay(dateStr, filter) {
 
 function renderCommittees(committees) {
   const el = document.getElementById('schedule-committees');
-  if (!committees.length) {
-    el.innerHTML = '<p style="color:var(--text2);padding:12px">Графік засідань комітетів на цей місяць відсутній</p>';
+  const list = (committees || []).slice().sort((a, b) =>
+    String(a.meeting_date || '').localeCompare(String(b.meeting_date || '')) ||
+    String(a.meeting_time || '').localeCompare(String(b.meeting_time || '')));
+  if (!list.length) {
+    el.innerHTML = '<p style="color:var(--text2);padding:12px 0">Графік засідань комітетів на цей місяць відсутній</p>';
     return;
   }
-  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Дата</th><th>Комітет</th><th>Питання</th></tr></thead><tbody>${committees.map(c => `
+  el.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Дата</th><th>Час</th><th>Комітет</th><th>Питання дня</th><th></th></tr></thead><tbody>${list.map(c => {
+    const topic = stripTags(c.topic || '');
+    return `
     <tr>
-      <td style="white-space:nowrap">${escHtml(c.meeting_date)}</td>
-      <td>${escHtml(c.committee_name)}</td>
-      <td style="font-size:13px">${escHtml((c.topic||'').substring(0,100))}</td>
-    </tr>`).join('')}</tbody></table></div>`;
+      <td style="white-space:nowrap">${escHtml(c.meeting_date_ua || formatDate(c.meeting_date))}</td>
+      <td style="white-space:nowrap;font-size:13px;color:var(--text2)">${escHtml(c.meeting_time || '—')}</td>
+      <td style="font-size:13px">${escHtml(stripTags(c.committee_name))}</td>
+      <td style="font-size:13px;color:var(--text2)" title="${attr(c.topic || '')}">${escHtml(topic.substring(0, 110))}${topic.length > 110 ? '…' : ''}</td>
+      <td style="white-space:nowrap">${c.url ? `<a href="${attr(c.url)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue)">порядок денний ↗</a>` : ''}</td>
+    </tr>`;
+  }).join('')}</tbody></table></div>`;
 }
 
 // === EVENT DELEGATION ===

@@ -2287,3 +2287,21 @@ C4-нейтраль (44% депутатов на халявных 50) остаё
 ### Версія методології
 **2.1 (2026-08-21)** — вказана на дашборді. При зміні формул/промптів: оновити код,
 розділ на дашборді і версію. Тести: 41 (включно з монотонністю C4_LADDER).
+
+## Графік rework: sync fixes (2026-08-21)
+
+Діагностика (explore-агент): sync_schedule.timer був enable-без-start → жодного запуску
+(виправлено 2026-08-21, перший запуск 17:30); sync_committee_schedule.py не був підключений
+до оркестрації (тепер systemd timer 07:40). Дублікати (date,event_type) в rada_schedule
+видалені при створенні uniq_rs_date_type (477→409 plenary). uniq_rcs_meeting — виразний
+унікум для ON CONFLICT.
+
+Календар збагачено 3 новими типами подій: votes (votes.vote_date), committee
+(rada_committee_schedule), eu (eu_cluster_status.event_date). /api/activity-day віддає
+events{schedule,committees,votes} + changes. /api/schedule: session без фейкових дат
+(лише «IX скликання»), freshness-штампи (max updated_at), committees з
+meeting_date_ua (форматування на сервері через node-pg DATE→local-midnight баг).
+
+Обмеження: пленарні дати ВР публікує без майбутнього горизонту (вересень порожній —
+це канікули, не баг); комітети публікують лише поточний тиждень. UI має показувати
+freshness-штамп замість «зламаного» вигляду.

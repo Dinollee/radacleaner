@@ -49,7 +49,7 @@ def sync_holidays(year=2026):
             ON CONFLICT DO NOTHING
         """, [
             date_str,
-            f"{title} <span style='color:#f33' class='iday'>&#11044;</span>",
+            title,
             title,
             f"П'ятнадцята сесія IX скликання"
         ])

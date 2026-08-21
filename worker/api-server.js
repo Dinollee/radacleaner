@@ -400,15 +400,24 @@ app.get('/api/schedule', async (req, res) => {
 
     const schedule = await q(query, params);
 
-    let cQuery = 'SELECT * FROM rada_committee_schedule WHERE 1=1';
+    // meeting_date is ISO text — lexicographic compare works; show upcoming + last 30 days
+    let cQuery = `SELECT *, to_char(meeting_date::date, 'DD.MM.YYYY') AS meeting_date_ua
+                  FROM rada_committee_schedule WHERE meeting_date >= to_char(now() - interval '30 days', 'YYYY-MM-DD')`;
     const cParams = [];
     if (month) { cQuery += ` AND meeting_date LIKE $1`; cParams.push(month + '%'); }
     cQuery += ' ORDER BY meeting_date ASC LIMIT 100';
     const committees = cParams.length ? await q(cQuery, cParams) : await q(cQuery);
 
+    const fresh = await q(`SELECT (SELECT max(updated_at) FROM rada_schedule) AS schedule_updated_at,
+                                  (SELECT max(created_at) FROM rada_committee_schedule) AS committee_updated_at`);
+
     json(res, {
       schedule, committees,
-      session: { number: 15, name: "П'ятнадцята сесія", convocation: 'IX скликання', start: '2026-02-01', end: '2026-07-31' }
+      session: { convocation: 'IX скликання' },
+      freshness: {
+        scheduleUpdatedAt: fresh[0].schedule_updated_at,
+        committeeUpdatedAt: fresh[0].committee_updated_at
+      }
     }, 200, 300);
   } catch (e) { error(res, e.message, 500); }
 });
@@ -431,6 +440,36 @@ app.get('/api/activity-calendar', async (req, res) => {
     for (const r of rows) {
       activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
     }
+    // votes per day (vote_date is ISO text)
+    const vrows = await q(
+      `SELECT left(vote_date,10) as day, count(*) as cnt FROM votes
+       WHERE vote_date >= $1 AND vote_date < $2 GROUP BY 1`,
+      [month + '-01', month + '-32']
+    );
+    for (const r of vrows) {
+      if (!activity[r.day]) activity[r.day] = { new: 0, changed: 0 };
+      activity[r.day].votes = Number(r.cnt);
+    }
+    // committee meetings per day
+    const crows = await q(
+      `SELECT meeting_date as day, count(*) as cnt FROM rada_committee_schedule
+       WHERE meeting_date >= $1 AND meeting_date < $2 GROUP BY 1`,
+      [month + '-01', month + '-32']
+    );
+    for (const r of crows) {
+      if (!activity[r.day]) activity[r.day] = { new: 0, changed: 0 };
+      activity[r.day].committee = Number(r.cnt);
+    }
+    // EU milestones per day
+    const erows = await q(
+      `SELECT to_char(event_date,'YYYY-MM-DD') as day, count(*) as cnt FROM eu_cluster_status
+       WHERE event_date IS NOT NULL AND to_char(event_date,'YYYY-MM') = $1 GROUP BY 1`,
+      [month]
+    );
+    for (const r of erows) {
+      if (!activity[r.day]) activity[r.day] = { new: 0, changed: 0 };
+      activity[r.day].eu = Number(r.cnt);
+    }
     json(res, { activity }, 200, 300);
   } catch (e) { error(res, e.message, 500); }
 });
@@ -448,7 +487,17 @@ app.get('/api/activity-day', async (req, res) => {
        ORDER BY cl.change_type, b.bill_number`,
       [date]
     );
-    json(res, { date, changes: rows }, 200, 300);
+    const schedule = await q(
+      `SELECT event_type, title, description, url FROM rada_schedule WHERE date = $1`, [date]
+    );
+    const committees = await q(
+      `SELECT committee_name, meeting_time, topic, url FROM rada_committee_schedule WHERE meeting_date = $1`, [date]
+    );
+    const vot = await q(`SELECT count(*)::int as cnt FROM votes WHERE left(vote_date,10) = $1`, [date]);
+    json(res, {
+      date, changes: rows,
+      events: { schedule, committees, votes: Number(vot[0]?.cnt || 0) }
+    }, 200, 300);
   } catch (e) { error(res, e.message, 500); }
 });
 
