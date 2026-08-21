@@ -147,7 +147,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
 | monitor.py | Telegram monitor: NEW bills + status change posts |
 | daily_digest_llm.py | **Daily digest: deterministic format (no LLM)** — fixed template, data from DB + rada.gov.ua scraping |
-| telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
+| telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /attacks (синхронні хвилі), /fakes (ТОП фактчеків), /sub+/off (персональні підписки на пуші) |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest |
@@ -206,6 +206,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **rada_schedule** — пленарні/день запитань/свята (uniq date+event_type); **rada_committee_schedule** — засідання комітетів (uniq_rcs_meeting)
 - **info_items** — сырий інфопотік детектора атак: factcheck RSS + t.me/s канали, url UNIQUE, simhash BIGINT, cluster_id (migration 024)
 - **attack_alerts** — зафіксовані синхронні хвилі: label, channels/posts count, debunk_url, related_bill_number, alert_sent
+- **bot_subscribers** — персональні підписки пушів бота: chat_id PK, attacks BOOL, digest BOOL (migration 025); розсилку роблять detect_attacks.py (attacks) та daily_digest_llm.py (digest)
 - **deputy_aliases** — name change history (6 entries)
 
 ## API

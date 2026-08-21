@@ -2,6 +2,7 @@
 """Telegram bot — інтерактивний інтерфейс для моніторингу законопроектів."""
 import logging
 import re
+import json
 
 import psycopg2
 import os
@@ -31,13 +32,91 @@ def db_query(sql, params=None):
     return rows
 
 
+def db_exec(sql, params=None):
+    conn = psycopg2.connect(DB_DSN)
+    cur = conn.cursor()
+    cur.execute(sql, params or [])
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+# --- Info attacks / fakes formatters (чистые, покрыты тестами) ---
+
+def format_attacks(alerts):
+    """attack_alerts rows -> український текст. Пусто -> спокійний стейт."""
+    if not alerts:
+        return "✅ <b>Синхронних хвиль не зафіксовано.</b>\n\nЦе добре — координованих кампаній зараз не видно."
+    lines = ["🚨 <b>Зафіксовані синхронні хвилі:</b>\n"]
+    for a in alerts:
+        d = a.get("detected_at")
+        when = d.strftime("%d.%m %H:%M") if d else ""
+        lines.append(
+            f"🚨 <b>{(a.get('label') or 'нарратив')[:80]}</b>\n"
+            f"   {a.get('posts_count', 0)} постів × {a.get('channels_count', 0)} каналів · {when}")
+        if a.get("debunk_url"):
+            lines.append(f"   🔎 <a href='{a['debunk_url']}'>спростування ↗</a>")
+    lines.append("\n<i>Ознаки скоординованої хвилі; вердикт — за фактчекерами.</i>")
+    return "\n".join(lines)
+
+
+def format_fakes(digest):
+    """info_digest dict -> ТОП перевірок фактчекерів. None/пусто -> заглушка."""
+    fakes = (digest or {}).get("fakes") or []
+    if not fakes:
+        return "🧪 <b>ТОП перевірок фактчекерів</b>\n\nЗа останню добу розборів немає — зазирни пізніше."
+    lines = ["🧪 <b>ТОП перевірок фактчекерів (24г):</b>\n"]
+    for i, f in enumerate(fakes[:10], 1):
+        src = f.get("source") or ""
+        line = f"{i}. {(f.get('one_line') or f.get('title') or '')[:180]}"
+        if src:
+            line = f"{i}. [{src}] {(f.get('one_line') or f.get('title') or '')[:170]}"
+        if f.get("url"):
+            line += f"\n   <a href='{f['url']}'>повний розбір ↗</a>"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def build_attacks_text():
+    rows = db_query(
+        "SELECT label, channels_count, posts_count, debunk_url, detected_at "
+        "FROM attack_alerts ORDER BY detected_at DESC LIMIT 5")
+    return format_attacks(rows)
+
+
+def build_fakes_text():
+    rows = db_query("SELECT value FROM stats_cache WHERE key = 'info_digest' LIMIT 1")
+    try:
+        digest = json.loads(rows[0]["value"]) if rows else None
+    except Exception:
+        digest = None
+    return format_fakes(digest)
+
+
+def sub_keyboard(chat_id):
+    row = db_query("SELECT attacks, digest FROM bot_subscribers WHERE chat_id = %s", [chat_id])
+    atk = bool(row and row[0]["attacks"])
+    dig = bool(row and row[0]["digest"])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"🚨 Атаки: {'✅ увімк' if atk else '❌ вимк'}",
+                              callback_data="sub_toggle_attacks")],
+        [InlineKeyboardButton(f"📰 Дайджест: {'✅ увімк' if dig else '❌ вимк'}",
+                              callback_data="sub_toggle_digest")],
+        [InlineKeyboardButton("🗑 Видалити мене повністю", callback_data="sub_off")],
+    ])
+
+
 # --- Command handlers ---
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [InlineKeyboardButton("📜 Закон за номером", callback_data="bill_search")],
+        [InlineKeyboardButton("👤 Депутат", callback_data="dep_search")],
         [InlineKeyboardButton("🏆 Топ депутатів", callback_data="top_deputies")],
         [InlineKeyboardButton("🇪🇺 Євроінтеграція", callback_data="eu_top")],
+        [InlineKeyboardButton("🚨 Інфоатаки", callback_data="ia_attacks"),
+         InlineKeyboardButton("🧪 Фейкі дня", callback_data="ia_fakes")],
+        [InlineKeyboardButton("🔔 Підписки", callback_data="sub_menu")],
         [InlineKeyboardButton("ℹ️ Допомога", callback_data="help")],
     ]
     reply = InlineKeyboardMarkup(keyboard)
@@ -57,6 +136,10 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "/dep <i>ім'я</i> — профіль депутата (ІЕД)\n"
         "/top — топ депутатів за ІЕД\n"
         "/eu — топ за євроінтеграцією\n"
+        "/attacks — синхронні інфохвилі\n"
+        "/fakes — ТОП перевірок фактчекерів дня\n"
+        "/sub — керування підписками на сповіщення\n"
+        "/off — видалити себе та всі підписки\n"
         "/help — це повідомлення\n\n"
         "Або скористайтесь кнопками нижче.",
         parse_mode="HTML",
@@ -120,8 +203,10 @@ async def cmd_dep(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not match:
         await update.message.reply_text("Введіть ім'я депутата. Приклад: /dep Юрчишин")
         return
+    await send_dep_profile(update, match.group(1).strip())
 
-    name_query = match.group(1).strip()
+
+async def send_dep_profile(update, name_query):
     rows = db_query(
         "SELECT id, name, faction, kpi_v11_score, kpi_v11_effectiveness, kpi_v11_discipline, "
         "kpi_v11_efficiency, kpi_v11_control, kpi_v11_quality, "
@@ -184,6 +269,38 @@ async def cmd_dep(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             lines.append(f"  ℹ {f}")
 
     await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
+
+
+# --- Info attacks / subscriptions (v2) ---
+
+async def cmd_attacks(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        build_attacks_text(), parse_mode="HTML", disable_web_page_preview=True)
+
+
+async def cmd_fakes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        build_fakes_text(), parse_mode="HTML", disable_web_page_preview=True)
+
+
+async def cmd_sub(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(
+        "🔔 <b>Підписки на сповіщення</b>\n\n"
+        "🚨 <b>Атаки</b> — пуш, коли ≥4 каналів синхронно поширюють один нарратив.\n"
+        "📰 <b>Дайджест</b> — щоденне зведення проєкту у твій чат.\n\n"
+        "Твій статус:",
+        reply_markup=sub_keyboard(chat_id),
+        parse_mode="HTML",
+    )
+
+
+async def cmd_off(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    db_exec("DELETE FROM bot_subscribers WHERE chat_id = %s", [chat_id])
+    await update.message.reply_text(
+        "🗑 Тебе видалено зі списку підписників. Дані про тебе не зберігаються.\n\n"
+        "Повернутись: /sub")
 
 
 # --- Bill info ---
@@ -331,9 +448,54 @@ async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await cmd_help(update, ctx)
         return
 
+    if query.data == "ia_attacks":
+        await query.edit_message_text(
+            build_attacks_text(), parse_mode="HTML", disable_web_page_preview=True)
+        return
+
+    if query.data == "ia_fakes":
+        await query.edit_message_text(
+            build_fakes_text(), parse_mode="HTML", disable_web_page_preview=True)
+        return
+
+    if query.data == "dep_search":
+        await query.edit_message_text(
+            "👤 Введіть прізвище депутата:\n\nПриклад: <code>Юрчишин</code>",
+            parse_mode="HTML",
+        )
+        ctx.user_state = "awaiting_dep_name"
+        return
+
+    if query.data == "sub_menu":
+        await query.edit_message_text(
+            "🔔 <b>Підписки на сповіщення</b>\n\n"
+            "Керуй тим, що приходитиме у твій чат:",
+            reply_markup=sub_keyboard(query.message.chat_id),
+            parse_mode="HTML",
+        )
+        return
+
+    if query.data in ("sub_toggle_attacks", "sub_toggle_digest"):
+        chat_id = query.message.chat_id
+        field = "attacks" if query.data == "sub_toggle_attacks" else "digest"
+        db_exec(
+            f"""INSERT INTO bot_subscribers (chat_id, {field}, subscribed_at)
+                VALUES (%s, true, now())
+                ON CONFLICT (chat_id) DO UPDATE SET {field} = NOT bot_subscribers.{field}""",
+            [chat_id])
+        await query.edit_message_reply_markup(reply_markup=sub_keyboard(chat_id))
+        return
+
+    if query.data == "sub_off":
+        chat_id = query.message.chat_id
+        db_exec("DELETE FROM bot_subscribers WHERE chat_id = %s", [chat_id])
+        await query.edit_message_text(
+            "🗑 Тебе видалено зі списку підписників.\n\nПовернутись: /sub")
+        return
+
 
 async def text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Обробка текстових повідомлень (номер закону)."""
+    """Обробка текстових повідомлень (номер закону / ім'я депутата)."""
     state = getattr(ctx, "user_state", None)
     if state == "awaiting_bill_number":
         ctx.user_state = None
@@ -342,6 +504,13 @@ async def text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await send_bill_info(update, text)
         else:
             await update.message.reply_text("Введіть коректний номер (наприклад: 14332)")
+    elif state == "awaiting_dep_name":
+        ctx.user_state = None
+        name = update.message.text.strip()
+        if 2 <= len(name) <= 60:
+            await send_dep_profile(update, name)
+        else:
+            await update.message.reply_text("Введіть прізвище депутата (наприклад: Юрчишин)")
 
 
 def main():
@@ -372,6 +541,10 @@ def main():
     app.add_handler(CommandHandler("top", cmd_top))
     app.add_handler(CommandHandler("eu", cmd_eu))
     app.add_handler(CommandHandler("dep", cmd_dep))
+    app.add_handler(CommandHandler("attacks", cmd_attacks))
+    app.add_handler(CommandHandler("fakes", cmd_fakes))
+    app.add_handler(CommandHandler("sub", cmd_sub))
+    app.add_handler(CommandHandler("off", cmd_off))
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
 
@@ -384,6 +557,10 @@ def main():
         BotCommand("dep", "Профіль депутата"),
         BotCommand("top", "Топ депутатів за ІЕД"),
         BotCommand("eu", "Топ за євроінтеграцією"),
+        BotCommand("attacks", "Синхронні інфохвилі"),
+        BotCommand("fakes", "ТОП перевірок фактчекерів дня"),
+        BotCommand("sub", "Підписки на сповіщення"),
+        BotCommand("off", "Видалити підписки"),
         BotCommand("help", "Довідка"),
     ]))
 

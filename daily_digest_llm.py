@@ -20,6 +20,23 @@ NL = chr(10)
 logger = logging.getLogger('daily_digest_llm')
 
 
+def broadcast_digest(text):
+    """Рассылка дайджеста подписчикам bot_subscribers (digest=true)."""
+    try:
+        rows = d1_query("SELECT chat_id FROM bot_subscribers WHERE digest = true")
+    except Exception as e:
+        logger.warning('Subscribers query failed: %s', e)
+        return 0
+    sent = 0
+    for r in rows or []:
+        cid = r.get('chat_id')
+        if cid and send_message(text, str(cid)):
+            sent += 1
+    if rows:
+        logger.info('Digest broadcast: %s/%s subscribers', sent, len(rows))
+    return sent
+
+
 def get_today_date():
     return datetime.now().strftime('%Y-%m-%d')
 
@@ -339,6 +356,7 @@ def run_daily_digest(test_mode=False, force=False):
         print(digest_text)
     else:
         send_message(digest_text)
+        broadcast_digest(digest_text)
         logger.info('Digest sent (%d chars)', len(digest_text))
 
 

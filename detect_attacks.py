@@ -17,6 +17,7 @@ import html
 import os
 import re
 import sys
+import time
 import urllib.parse
 import urllib.request
 from collections import Counter
@@ -203,6 +204,38 @@ def send_telegram(text):
         return False
 
 
+def broadcast_subscribers(cur, text):
+    """Рассылка алерта подписчикам bot_subscribers (attacks=true).
+
+    Ошибка одного чата не роняет рассылку; сам broadcast — вне транзакции
+    основного алерта (подписка может быть прочитана отдельным соединением).
+    """
+    try:
+        cur.execute("SELECT chat_id FROM bot_subscribers WHERE attacks = true")
+        chat_ids = [r[0] for r in cur.fetchall()]
+    except Exception as e:
+        log(f"WARN subscribers query: {e}")
+        return 0
+    sent = 0
+    for cid in chat_ids:
+        try:
+            url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
+            data = urllib.parse.urlencode({
+                "chat_id": cid, "text": text[:4000],
+                "parse_mode": "HTML", "disable_web_page_preview": "true"}).encode()
+            req = urllib.request.Request(
+                url, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    sent += 1
+        except Exception as e:
+            log(f"WARN broadcast {cid}: {e}")
+        time.sleep(0.1)
+    if chat_ids:
+        log(f"broadcast: {sent}/{len(chat_ids)} подписчиков")
+    return sent
+
+
 # ------------------------------------------------------------------- DB -----
 def load_window(cur, hours):
     """info_items за окно с посчитанными токенами текстов."""
@@ -289,6 +322,7 @@ def run(dry_run=False, no_send=False):
                 sent = False
             else:
                 sent = send_telegram(text)
+                broadcast_subscribers(cur, text)
 
             first = min(cluster, key=lambda it: (it["posted_at"], it["id"]))
             cur.execute(
