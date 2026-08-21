@@ -2362,3 +2362,26 @@ detect_attacks.py — другим ExecStart у sync_info_monitor.service (Type=
 з маскою знакового BIGINT, jaccard, find_clusters копипаст/парафраз/синглтони,
 бьорст 4 канали так / 3 ні / розкид / factcheck-only, cooldown-ескалація,
 текст алерта, bill regex). Повний suite: 70 pass.
+
+## Info Attack Detector — Phases 3+4 (2026-08-21, SHIPPED)
+
+**Фаза 3** — label_narratives.py (щодня 07:15): топ-15 кластерів + factcheck-ітеми
+за 24г → рівно 2 виклики nemotron (llm_completion_raw + власний JSON-парсинг,
+бо llm_completion() падає на масивах) → stats_cache `info_digest`
+{clusters[{label,category,size}], fakes[{one_line,significance}]}. Fallback при
+смітті LLM: label = топ-токени, significance=0.
+
+**Фаза 4** — вкладка «🛡 Інфоатаки» на дашборді: hero (постів/каналів/атак за
+24г), лента Зафіксовані атаки (з attack_alerts, empty-state «це добре ✅»),
+плитки Наративи доби (LLM-labels + категорії вибори/закони/інше), ТОП перевірок
+фактчекерів (truth-sandwich: суть → бейдж джерела → повний розбір ↗),
+методологія: вердикти — тільки за людськими фактчекерами.
+
+API GET /api/info-digest: digest + останні attack_alerts + stats 24г.
+Тести: 75 passed (5 нових). Жива верифікація: браузерний скриншот вкладки +
+енд-то-енд тест алерта (синтетична хвиля 8 постів × 4 канали → TG push
+sent=True → тестові дані видалені з БД).
+
+Обмеження v1: лексична кластеризація ловить копипаст-кампанії; парафрази —
+тільки через Jaccard ≥0.45 (семантика — кандидат у v2 через embeddings).
+Мертві канали у списку СБУ дають старі posted_at — не шкодять (cutoff).
