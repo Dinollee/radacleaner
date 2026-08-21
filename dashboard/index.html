@@ -496,13 +496,6 @@ tr.former-deputy:hover td { opacity: 0.75; }
 
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Закони за класифікацією EU</div>
-      </div>
-      <div id="eu-classified-bills"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
         <div class="card-title">📈 Динаміка Alignment Score</div>
       </div>
       <div id="eu-trend-chart" style="padding:16px"></div>
@@ -1851,10 +1844,6 @@ function loadEUAlignment() {
       '<div style="color:var(--text2);padding:20px">Дані EU Alignment поки недоступні</div>';
   });
 
-  api('/api/eu-alignment/bills?limit=20').then(data => {
-    renderEUClassifiedBills(data.bills);
-  }).catch(() => {});
-
   api('/api/eu-alignment/trend').then(data => {
     renderEUTrend(data.trend);
   }).catch(() => {});
@@ -2015,7 +2004,7 @@ function renderClusterDetail(clusterId) {
     else if (alignment > 40) color = 'var(--orange)';
 
     html += `
-      <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="event.stopPropagation();showChapterBills(${chId})">
+      <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px">
         <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:500">${escHtml(name)}</div>
@@ -2031,78 +2020,6 @@ function renderClusterDetail(clusterId) {
 
   html += '</div>';
   detail.innerHTML = html;
-}
-
-function showChapterBills(chapterId) {
-  api(`/api/eu-alignment/bills?chapter=${chapterId}&limit=15`).then(data => {
-    const bills = data.bills || [];
-    const ch = euChaptersData[chapterId];
-    const cluster = EU_CLUSTERS.find(c => c.chapters.includes(chapterId));
-    let html = '<div class="card"><div class="card-header">';
-    html += `<div class="card-title">Ch.${chapterId} — ${ch ? ch.chapter_name : ''} (${bills.length} законів)</div>`;
-    html += `<div style="cursor:pointer;font-size:18px" onclick="this.closest('.card').remove()">✕</div>`;
-    html += '</div>';
-
-    if (bills.length === 0) {
-      html += '<div style="padding:20px;color:var(--text2)">Немає класифікованих законів для цієї глави</div>';
-    } else {
-      html += '<div class="table-wrap"><table><thead><tr><th>Номер</th><th>Назва</th><th>Статус</th><th>Відповідність</th></tr></thead><tbody>';
-      for (const b of bills) {
-        const conf = ((b.confidence || 0) * 100).toFixed(0);
-        let badgeClass = 'badge-low';
-        if (conf > 70) badgeClass = 'badge-high';
-        else if (conf > 40) badgeClass = 'badge-medium';
-
-        html += `<tr>
-          <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
-          <td style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
-          <td><span class="badge ${badgeClass}">${conf}%</span></td>
-        </tr>`;
-      }
-      html += '</tbody></table></div>';
-    }
-
-    html += '</div>';
-    const container = document.getElementById('eu-clusters');
-    const firstCard = container.parentElement.querySelector('.card');
-    firstCard.insertAdjacentHTML('afterend', html);
-  }).catch(() => {});
-}
-
-function renderEUClassifiedBills(bills) {
-  if (!bills || !bills.length) {
-    document.getElementById('eu-classified-bills').innerHTML =
-      '<div style="color:var(--text2);padding:16px">Немає класифікованих законів</div>';
-    return;
-  }
-
-  let html = '<div class="table-wrap"><table><thead><tr>';
-  html += '<th>Номер</th><th>Назва</th><th>EU Глава</th><th>Відповідність</th><th>Знайдені терміни</th>';
-  html += '</tr></thead><tbody>';
-
-  for (const b of bills) {
-    const conf = (b.confidence * 100).toFixed(0);
-    let badgeClass = 'badge-low';
-    if (conf > 70) badgeClass = 'badge-high';
-    else if (conf > 40) badgeClass = 'badge-medium';
-
-    let matched = '';
-    try {
-      const keywords = JSON.parse(b.matched_keywords || '[]');
-      matched = keywords.slice(0, 3).map(k => `<span class="badge badge-low" style="margin:1px">${escHtml(k)}</span>`).join('');
-      if (keywords.length > 3) matched += `<span style="color:var(--text2);font-size:11px"> +${keywords.length - 3}</span>`;
-    } catch(e) {}
-
-    html += `<tr>
-      <td><a href="#" onclick="showBillDetail(${b.bill_id});return false" style="color:var(--blue)">${escHtml(b.bill_number)}</a></td>
-      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.title)}</td>
-      <td><span class="badge badge-medium">Ch. ${b.chapter_id}</span></td>
-      <td><span class="badge ${badgeClass}">${conf}%</span></td>
-      <td>${matched}</td>
-    </tr>`;
-  }
-  html += '</tbody></table></div>';
-  document.getElementById('eu-classified-bills').innerHTML = html;
 }
 
 function renderEUTrend(trend) {

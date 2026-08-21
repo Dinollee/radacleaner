@@ -275,7 +275,9 @@ def format_digest(data, news=None):
             reg = _fmt_date(b.get('registration_date', ''))
             stage_name = STAGE_NAMES.get(stage, status)
             lines.append(f'📌 {bill_num} — {title}')
-            lines.append(f'   Стадія {stage}/4 · {stage_name} · {reg}')
+            # Стадія 5 = відхилено — «5/4» виглядає як помилка, статус і так каже «Відхилено»
+            mid = f'Стадія {stage}/4 · ' if stage < 5 else ''
+            lines.append(f'   {mid}{stage_name} · {reg}')
     else:
         high_risk = data.get('high_risk_bills', [])
         if high_risk:
@@ -285,7 +287,8 @@ def format_digest(data, news=None):
                 stage = b.get('stage') or 1
                 status = b.get('current_status') or 'Невідомо'
                 lines.append(f'📌 {bill_num} — {title}')
-                lines.append(f'   Стадія {stage}/4 · {status}')
+                mid = f'Стадія {stage}/4 · ' if stage < 5 else ''
+                lines.append(f'   {mid}{status}')
         else:
             lines.append('📌 Ризикових законів не виявлено')
 

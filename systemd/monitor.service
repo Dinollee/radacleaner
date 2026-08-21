@@ -1,0 +1,12 @@
+[Unit]
+Description=Radacleaner Monitor - unified change monitoring + Telegram notifications
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python monitor.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300

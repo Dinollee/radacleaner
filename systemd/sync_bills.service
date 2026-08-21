@@ -1,0 +1,17 @@
+[Unit]
+Description=Sync Bills from RADA API
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+EnvironmentFile=/home/radamon/radacleaner/.env
+ExecStart=/home/radamon/radacleaner/venv/bin/python3 /home/radamon/radacleaner/sync_bills.py all
+ExecStart=/home/radamon/radacleaner/venv/bin/python3 /home/radamon/radacleaner/sync_bill_passings.py
+StandardOutput=append:/var/log/sync_bills.log
+StandardError=append:/var/log/sync_bills.log
+
+[Install]
+WantedBy=multi-user.target

@@ -652,21 +652,8 @@ app.get('/api/eu-alignment/chapter/:id', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
-app.get('/api/eu-alignment/bills', async (req, res) => {
-  try {
-    const limit = Math.min(Number(req.query.limit) || 50, 200);
-    const chapterId = req.query.chapter;
-    let sql = 'SELECT bec.*, b.bill_number, b.title, b.stage FROM bill_eu_classification bec JOIN bills b ON bec.bill_id = b.id';
-    const params = [];
-    if (chapterId) { sql += ' WHERE bec.chapter_id = $1'; params.push(parseInt(chapterId)); }
-    sql += ` ORDER BY bec.confidence DESC LIMIT $${params.length + 1}`;
-    params.push(limit);
-    const bills = await q(sql, params);
-    json(res, { bills }, 200, 300);
-  } catch (e) { error(res, e.message, 500); }
-});
-
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
+// --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 
 app.use((req, res) => error(res, 'Not found', 404));
 

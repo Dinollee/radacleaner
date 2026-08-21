@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — Period sync (every 10 min Mon-Fri)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_period.py --all
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=600

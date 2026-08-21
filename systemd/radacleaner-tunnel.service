@@ -1,0 +1,14 @@
+[Unit]
+Description=Cloudflare Tunnel for Radacleaner API
+After=network.target radacleaner-api.service
+Wants=radacleaner-api.service
+
+[Service]
+Type=simple
+User=radamon
+ExecStart=/usr/local/bin/cloudflared tunnel run radatun
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

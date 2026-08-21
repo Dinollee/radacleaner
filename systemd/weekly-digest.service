@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — weekly digest (deterministic, no LLM)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python weekly_digest.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300
