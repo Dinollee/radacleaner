@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — daily disinfo channel watchlist refresh (SBU list + liveness)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_disinfo_channels.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=900

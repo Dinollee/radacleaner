@@ -1,0 +1,9 @@
+[Unit]
+Description=Radacleaner - daily disinfo channel list refresh
+
+[Timer]
+OnCalendar=*-*-* 06:50:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

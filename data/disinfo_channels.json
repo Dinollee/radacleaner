@@ -1,20 +1,98 @@
 [
-  {"name": "Легітимний", "handle": "legitimniy", "origin": "sbu"},
-  {"name": "Резидентъ", "handle": "rezident_ua", "origin": "sbu"},
-  {"name": "Картель", "handle": "kartel_ua", "origin": "sbu"},
-  {"name": "Наблюдатель", "handle": "nablyudatel", "origin": "sbu"},
-  {"name": "MediaPostUA", "handle": "mediapostua", "origin": "sbu"},
-  {"name": "Сплетница", "handle": "spletnica", "origin": "sbu"},
-  {"name": "Клименко Тайм", "handle": "klimenkotime", "origin": "sbu"},
-  {"name": "Moroz.Live", "handle": "morozlive", "origin": "sbu"},
-  {"name": "Пліткарка", "handle": "plitkarka_ua", "origin": "sbu"},
-  {"name": "Чорний квартал", "handle": "chorniy_kvartal", "origin": "sbu"},
-  {"name": "Дніпро live", "handle": "dnepr_live", "origin": "sbu"},
-  {"name": "Харківський регіон", "handle": "kharkov_region", "origin": "sbu"},
-  {"name": "Запорізький регіон", "handle": "zaporozhye_region", "origin": "sbu"},
-  {"name": "Потужний Інформатор", "handle": "ukr_informant", "origin": "texty"},
-  {"name": "Ukraine Context", "handle": "ukraine_context", "origin": "texty"},
-  {"name": "Одеська область на кожен день", "handle": "odessa_oblast", "origin": "texty"},
-  {"name": "Zelenskiy Official (фейк)", "handle": "V_Zelenskiy_official", "origin": "manual"},
-  {"name": "Страна UA", "handle": "strana_ua_news", "origin": "manual"}
+  {
+    "name": "Легітимний",
+    "handle": "legitimniy",
+    "origin": "sbu"
+  },
+  {
+    "name": "Резидентъ",
+    "handle": "rezident_ua",
+    "origin": "sbu"
+  },
+  {
+    "name": "Картель",
+    "handle": "kartel_ua",
+    "origin": "sbu"
+  },
+  {
+    "name": "Наблюдатель",
+    "handle": "nablyudatel",
+    "origin": "sbu"
+  },
+  {
+    "name": "MediaPostUA",
+    "handle": "mediapostua",
+    "origin": "sbu"
+  },
+  {
+    "name": "Сплетница",
+    "handle": "spletnica",
+    "origin": "sbu"
+  },
+  {
+    "name": "Клименко Тайм",
+    "handle": "klimenkotime",
+    "origin": "sbu"
+  },
+  {
+    "name": "Moroz.Live",
+    "handle": "morozlive",
+    "origin": "sbu"
+  },
+  {
+    "name": "Пліткарка",
+    "handle": "plitkarka_ua",
+    "origin": "sbu"
+  },
+  {
+    "name": "Чорний квартал",
+    "handle": "chorniy_kvartal",
+    "origin": "sbu"
+  },
+  {
+    "name": "Дніпро live",
+    "handle": "dnepr_live",
+    "origin": "sbu"
+  },
+  {
+    "name": "Харківський регіон",
+    "handle": "kharkov_region",
+    "origin": "sbu"
+  },
+  {
+    "name": "Запорізький регіон",
+    "handle": "zaporozhye_region",
+    "origin": "sbu"
+  },
+  {
+    "name": "Потужний Інформатор",
+    "handle": "ukr_informant",
+    "origin": "texty"
+  },
+  {
+    "name": "Ukraine Context",
+    "handle": "ukraine_context",
+    "origin": "texty"
+  },
+  {
+    "name": "Одеська область на кожен день",
+    "handle": "odessa_oblast",
+    "origin": "texty"
+  },
+  {
+    "name": "Zelenskiy Official (фейк)",
+    "handle": "V_Zelenskiy_official",
+    "origin": "manual"
+  },
+  {
+    "name": "Страна UA",
+    "handle": "strana_ua_news",
+    "origin": "manual"
+  },
+  {
+    "name": "Херсон live",
+    "handle": "kherson_live",
+    "origin": "sbu_auto",
+    "added": "2026-08-21"
+  }
 ]

@@ -141,6 +141,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | sync_info_monitor.py | **Info attack collector** (every 30 min): factcheck RSS + t.me/s disinfo channels → info_items (simhash dedup) |
 | detect_attacks.py | **Burst detector**: union-find кластеризація 48ч вікна, правило ≥4 TG-каналів/≥8 постів, debunk lookup, bill linking, TG-алерт з cooldown+ескалацією |
 | label_narratives.py | **Nightly LLM labeling** (07:15): 2 nemotron виклики → stats_cache `info_digest` (нарративи дня + ТОП фактчеків) |
+| sync_disinfo_channels.py | **Daily watchlist refresh** (06:50): список СБУ → новые каналы авто (SearXNG `site:t.me` + og:title fuzzy-match UA/RU нормализация), liveness всех, prune dead_streak≥3 |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
@@ -250,6 +251,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_schedule` | daily 07:30 | VRU plenary calendar sync (legacy HTML calendar) |
 | `sync_committee_schedule` | daily 07:40 | Committee meetings sync (committees.rada.gov.ua weekly pages) |
 | `sync_info_monitor` | every 30 min | Info attack collector: factcheck RSS (ЦПД/VoxCheck/StopFake/Детектор/SPRAVDI) + t.me/s disinfo channels → info_items; другим ExecStart — `detect_attacks.py` (Phase 2 burst detector: union-find кластеризация simham/Jaccard, бьорст ≥4 TG-каналов и ≥8 постов за ≤24ч, спростування фактчекеров, cooldown кампаний, TG-алерт) |
+| `sync_disinfo_channels` | daily 06:50 | Watchlist refresh: парсинг списка СБУ (5.ua), резолвинг новых каналов через SearXNG site:t.me + og:title, liveness-проверка всех, prune мёртвых ≥3 дней, TG-отчёт при изменениях |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
