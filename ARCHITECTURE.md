@@ -115,6 +115,26 @@ Harmonization = signed_bills / total_bills × 100
 2. Європравда: `eurointegration.com.ua` (скрапінг)
 3. pulse.kmu.gov.ua: моніторинг 24 напрямків асоціації
 
+## EU Integration Index v1 (гіпотетичний рівень євроінтеграції)
+
+Композитний індекс: переговорний трек (статуси кластерів) + законодавчий трек (гармонізація).
+
+### Формула
+```
+INDEX       = round(0.5 × NEGOTIATION + 0.5 × LEGISLATION, 1)
+NEGOTIATION = середнє по 6 кластерах: not_opened=0, opened=50, provisionally_closed=100
+LEGISLATION = overall гармонізація (calc_harmonization.py: total_signed/total_bills×100)
+```
+Поточне значення: **23.9** (NEGOTIATION=16.7 — відкриті C1+C6; LEGISLATION=31.1).
+
+### Дані
+- Таблиця `eu_cluster_status` (migration 023): cluster_id PK, status CHECK, event_date, source_url
+- Ключ `stats_cache` → `eu_integration_v1`: JSON `{v, index, negotiation, legislation, clusters[], computed_at}` — пише calc_harmonization.py при нічному перерахунку
+- API `/api/eu-alignment`: повертає `index{value,negotiation,legislation,computedAt}`, `clusters[{id,status,eventDate,sourceUrl,harm}]` (harm = середнє harmonization_ch по главах кластера), `timeline[]`, `news[]` (8 свіжих з eu_news_*), `trend[]` + legacy поля (overall, chapters, harmonizationScore...)
+
+### Авто-детекція відкриттів
+`sync_eu_tracker.py` (щоденно 09:00): консервативна регекс-детекція `detect_cluster_opening(title, summary)` — потрібні одночасно контекст «accession negotiations/cluster», дієслово відкриття та номер/назва кластера. При збігу — UPSERT статусу 'opened' в eu_cluster_status (тільки якщо статус ще не змінювався).
+
 ## Key scripts
 | Script | Purpose |
 |---|---|
@@ -131,7 +151,7 @@ Harmonization = signed_bills / total_bills × 100
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | calc_eu_llm.py | EU Score from LLM aggregation (raw_analysis) |
-| sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) |
+| sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) + авто-детекція відкриттів кластерів → eu_cluster_status |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |

@@ -471,10 +471,10 @@ tr.former-deputy:hover td { opacity: 0.75; }
   <div id="sec-eu-alignment" class="section">
     <div class="card">
       <div class="card-header">
-        <div class="card-title">🇪🇺 Відповідність нормам ЄС (EU Alignment Score)</div>
+        <div class="card-title">🇪🇺 EU Alignment — гармонізація з ЄС</div>
         <div id="eu-last-updated" style="font-size:12px;color:var(--text2)"></div>
       </div>
-      <div id="eu-overall-score" style="text-align:center;padding:20px">
+      <div id="eu-index-hero">
         <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
       </div>
     </div>
@@ -482,24 +482,24 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <div class="card">
       <div class="card-header">
         <div class="card-title">Кластери переговорів</div>
-        <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
+        <div style="font-size:12px;color:var(--text2)">Статуси — за рішеннями Ради ЄС / Єврокомісії</div>
       </div>
       <div id="eu-clusters"></div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div class="card-title">🇪🇺 Harmonization по ключових директивах ЄС</div>
-        <div style="font-size:11px;color:var(--muted);font-style:italic">Internal metric: порівняння наших законів з EU директивами</div>
+        <div class="card-title">🧭 Віхи переговорів</div>
       </div>
-      <div id="eu-directives"></div>
+      <div id="eu-timeline"></div>
     </div>
 
     <div class="card">
       <div class="card-header">
-        <div class="card-title">📈 Динаміка Alignment Score</div>
+        <div class="card-title">Новини євроінтеграції</div>
+        <div style="font-size:12px;color:var(--text2)">RSS Єврокомісії (DG ENLARGEMENT)</div>
       </div>
-      <div id="eu-trend-chart" style="padding:16px"></div>
+      <div id="eu-news"></div>
     </div>
   </div>
 
@@ -2020,179 +2020,132 @@ function init() {
 }
 
 // === EU ALIGNMENT ===
+// Назви/іконки кластерів для відображення. Статуси, дати та оцінки приходять з /api/eu-alignment.
 const EU_CLUSTERS = [
-  {
-    id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️',
-    chapters: [1, 6, 27, 33],
-    opened: true, openedDate: '15.06.2026',
-  },
-  {
-    id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪',
-    chapters: [2, 3, 4, 5, 7, 8, 9, 22, 23],
-    opened: false,
-  },
-  {
-    id: 3, name: 'Конкурентоспроможність', nameEn: 'Competitiveness', icon: '📈',
-    chapters: [10, 16, 17, 18, 19, 20, 25, 26, 29, 30],
-    opened: false,
-  },
-  {
-    id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda', icon: '🌿',
-    chapters: [11, 12, 13, 14, 15, 21],
-    opened: false,
-  },
-  {
-    id: 5, name: 'Безпека та оборона', nameEn: 'Security & Defence', icon: '🛡️',
-    chapters: [24, 28, 31],
-    opened: false,
-  },
-  {
-    id: 6, name: 'Загальні положення', nameEn: 'General Provisions', icon: '📋',
-    chapters: [32, 34, 35],
-    opened: true, openedDate: '15.07.2026',
-  }
+  { id: 1, name: 'Основи', nameEn: 'Fundamentals', icon: '⚖️' },
+  { id: 2, name: 'Внутрішній ринок', nameEn: 'Internal Market', icon: '🏪' },
+  { id: 3, name: 'Конкурентоспроможність', nameEn: 'Competitiveness', icon: '📈' },
+  { id: 4, name: 'Зелений порядок денний', nameEn: 'Green Agenda', icon: '🌿' },
+  { id: 5, name: 'Безпека та оборона', nameEn: 'Security & Defence', icon: '🛡️' },
+  { id: 6, name: 'Загальні положення', nameEn: 'General Provisions', icon: '📋' },
 ];
 
-let euChaptersData = {};
-let euOverallData = null;
-
-const EU_DIRECTIVES = [
-  {name: 'GDPR', name_ua: 'Захист персональних даних', celex: '32016L0679', total: 35, signed: 9},
-  {name: 'Anti-corruption', name_ua: 'Антикорупція (НАБУ/САП)', total: 292, signed: 62},
-  {name: 'ProZorro', name_ua: 'Публічні закупівлі', total: 114, signed: 42},
-  {name: 'Energy', name_ua: 'Енергоефективність', total: 77, signed: 23},
-  {name: 'Victims Rights', name_ua: 'Захист жертв', total: 100, signed: 28},
-  {name: 'Food Safety', name_ua: 'Безпечність харчових продуктів', total: 16, signed: 4},
-  {name: 'Competition', name_ua: 'Конкурентна політика', total: 50, signed: 15},
-  {name: 'Transport', name_ua: 'Транспортна політика', total: 297, signed: 51},
-  {name: 'Agriculture', name_ua: 'Сільське господарство', total: 304, signed: 66},
-];
-
-function loadEUAlignment() {
-  api('/api/eu-alignment').then(data => {
-    euOverallData = data;
-    renderEUOverallScore(data.overall, data.signed, data.inProcess, data.harmonizationScore, data.totalBills, data.signedBills);
-    if (data.chapters) {
-      euChaptersData = {};
-      for (const ch of data.chapters) euChaptersData[ch.chapter_id] = ch;
-    }
-    renderEUClusters(data.harmonization || {});
-    if (data.lastUpdated) {
-      document.getElementById('eu-last-updated').textContent =
-        'Останнє оновлення: ' + new Date(data.lastUpdated).toLocaleString('uk-UA');
-    }
-  }).catch(e => {
-    document.getElementById('eu-overall-score').innerHTML =
-      '<div style="color:var(--text2);padding:20px">Дані EU Alignment поки недоступні</div>';
-  });
-
-  api('/api/eu-alignment/trend').then(data => {
-    renderEUTrend(data.trend);
-  }).catch(() => {});
-
-  renderEUDirectives();
+function fmtEuDate(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}.${m[2]}.${m[1]}`;
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
-function renderEUDirectives() {
-  let html = '<div style="padding:8px 16px">';
-  for (const dir of EU_DIRECTIVES) {
-    const pct = dir.total > 0 ? Math.round(dir.signed / dir.total * 100) : 0;
-    let color = 'var(--red)';
-    if (pct > 30) color = 'var(--green)';
-    else if (pct > 20) color = 'var(--orange)';
-    const status = pct > 30 ? '🟢' : pct > 20 ? '🟠' : '🔴';
-
-    html += `
-      <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-        <div style="width:12px;margin-right:8px">${status}</div>
-        <div style="flex:1">
-          <div style="font-weight:500">${dir.name_ua}</div>
-          <div style="font-size:11px;color:var(--text2)">${dir.signed} з ${dir.total} законів</div>
-        </div>
-        <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-right:12px">
-          <div style="width:${pct}%;height:100%;background:${color};border-radius:4px"></div>
-        </div>
-        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${pct}%</div>
+function euComponentBar(label, pct, color) {
+  pct = Math.max(0, Math.min(100, Number(pct) || 0));
+  return `
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:5px">
+        <span>${label}</span><strong style="font-size:14px">${pct.toFixed(1)}%</strong>
       </div>
-    `;
-  }
-  html += '</div>';
-  document.getElementById('eu-directives').innerHTML = html;
-}
-
-function renderEUOverallScore(overall, signed, inProcess, harmonizationScore, totalBills, signedBills) {
-  const score = harmonizationScore || 0;
-  let color = 'var(--red)';
-  let emoji = '🔴';
-  if (score > 70) { color = 'var(--green)'; emoji = '🟢'; }
-  else if (score > 40) { color = 'var(--orange)'; emoji = '🟡'; }
-
-  document.getElementById('eu-overall-score').innerHTML = `
-    <div style="font-size:48px;margin-bottom:8px">${emoji}</div>
-    <div style="font-size:36px;font-weight:700;color:${color};margin-bottom:8px">${score.toFixed(1)}%</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:16px">Індекс гармонізації з ЄС</div>
-    <div style="width:300px;height:12px;background:var(--border);border-radius:6px;overflow:hidden;margin:0 auto 12px">
-      <div style="width:${score}%;height:100%;background:${color};border-radius:6px;transition:width 0.5s"></div>
-    </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;font-style:italic">Internal metric: % EU-related bills signed into law (not official EU benchmark)</div>
-    <div style="display:flex;justify-content:center;gap:24px;font-size:13px">
-      <div><span style="color:var(--green)">●</span> Прийнято: ${signedBills || 0} з ${totalBills || 0} законів</div>
-      <div><span style="color:var(--blue)">●</span> Аналізовано: ${overall.chapters_analyzed || 0}/35 глав</div>
+      <div class="progress" style="height:10px;border-radius:5px">
+        <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
     </div>
   `;
 }
 
-function getClusterAlignment(cluster) {
-  let total = 0, count = 0;
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    if (ch && ch.alignment > 0) { total += ch.alignment; count++; }
-  }
-  return count > 0 ? total / count : 0;
+function loadEUAlignment() {
+  api('/api/eu-alignment').then(data => {
+    renderEUIndex(data.index || {});
+    renderEUClusters(Array.isArray(data.clusters) ? data.clusters : []);
+    renderEUTimeline(Array.isArray(data.timeline) ? data.timeline : []);
+    renderEUNews(Array.isArray(data.news) ? data.news : []);
+    if (data.index && data.index.computedAt) {
+      const d = new Date(data.index.computedAt);
+      if (!isNaN(d)) {
+        document.getElementById('eu-last-updated').textContent =
+          'Оновлено: ' + d.toLocaleString('uk-UA');
+      }
+    }
+  }).catch(() => {
+    document.getElementById('eu-index-hero').innerHTML =
+      '<div style="color:var(--text2);padding:20px;text-align:center">Дані EU Alignment поки недоступні</div>';
+  });
 }
 
-function getClusterBills(cluster) {
-  let total = 0;
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    if (ch) total += ch.total_bills || 0;
-  }
-  return total;
+function renderEUIndex(index) {
+  const val = Math.max(0, Math.min(100, Number(index.value) || 0));
+  const color = val > 70 ? 'var(--green)' : val > 40 ? 'var(--orange)' : 'var(--red)';
+  const stamp = index.computedAt
+    ? `<span style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:4px 12px;border-radius:12px;font-size:12px;white-space:nowrap">станом на ${fmtEuDate(index.computedAt)}</span>`
+    : '';
+
+  document.getElementById('eu-index-hero').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="font-size:64px;font-weight:800;color:${color};line-height:1">${val.toFixed(1)}<span style="font-size:30px;font-weight:700">%</span></div>
+      ${stamp}
+    </div>
+    <div style="text-align:center;font-size:14px;color:var(--text2);margin-bottom:20px">Гіпотетичний рівень євроінтеграції України</div>
+    <div style="max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px">
+      ${euComponentBar('Перемовини з ЄС', index.negotiation, 'var(--blue)')}
+      ${euComponentBar('Гармонізація законодавства', index.legislation, 'var(--green)')}
+    </div>
+    <details style="max-width:720px;margin:18px auto 0">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px;color:var(--blue)">📖 Методологія індексу</summary>
+      <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
+        <p style="margin:0 0 8px"><strong>Індекс = 0.5 × Перемовини + 0.5 × Гармонізація.</strong> Це гіпотетична оцінка (v1), а не офіційний показник ЄС.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <thead><tr style="text-align:left;border-bottom:1px solid var(--border)">
+            <th style="padding:4px 6px">Компонента</th><th style="padding:4px 6px">Як рахується</th>
+          </tr></thead>
+          <tbody>
+            <tr><td style="padding:4px 6px"><strong>Перемовини</strong></td><td style="padding:4px 6px">середнє оцінок статусів 6 кластерів за шкалою: не відкритий = <b>0</b>, відкритий = <b>50</b>, тимчасово закритий = <b>100</b>. Джерело статусів — рішення Ради ЄС / Єврокомісії, авто-детекція через RSS-стрічку.</td></tr>
+            <tr><td style="padding:4px 6px"><strong>Гармонізація</strong></td><td style="padding:4px 6px">наша оцінка наближення законодавства до права ЄС: LLM/keyword-аналіз прийнятих законів (показник у плитках кластерів).</td></tr>
+          </tbody>
+        </table>
+        <p style="margin:8px 0 0;color:var(--text2);font-size:12px">Індекс самооновлюється при появі нових рішень ЄС або нових прийнятих законів. Версія методології: v1.</p>
+      </div>
+    </details>
+  `;
 }
 
-function renderEUClusters(harmonization) {
-  harmonization = harmonization || {};
-  let html = '<div style="padding:4px 0">';
-  for (const cluster of EU_CLUSTERS) {
-    const bills = getClusterBills(cluster);
-    const hKey = 'harmonization_cluster' + cluster.id;
-    const hPct = harmonization[hKey] || 0;
-    let color = 'var(--red)';
-    if (hPct > 70) color = 'var(--green)';
-    else if (hPct > 40) color = 'var(--orange)';
+function euClusterBadge(status, eventDate) {
+  const base = 'padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;display:inline-block';
+  if (status === 'opened') return `<span style="${base};background:var(--green);color:#fff">відкритий ${fmtEuDate(eventDate)}</span>`;
+  if (status === 'provisionally_closed') return `<span style="${base};background:var(--blue);color:#fff">тимчасово закритий</span>`;
+  return `<span style="${base};background:var(--text2);color:var(--bg)">не відкритий</span>`;
+}
 
-    let statusBadge = '';
-    if (cluster.opened) statusBadge = `<span style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Відкрито ${cluster.openedDate || ''}</span>`;
-    else statusBadge = '<span style="background:var(--text2);color:var(--bg);padding:2px 8px;border-radius:10px;font-size:11px;margin-left:8px">Не відкрито</span>';
-
+function renderEUClusters(clusters) {
+  const meta = {};
+  for (const c of EU_CLUSTERS) meta[c.id] = c;
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">';
+  for (const cl of clusters) {
+    const m = meta[cl.id] || {};
+    const harm = Math.max(0, Math.min(100, Number(cl.harm) || 0));
+    const hColor = harm > 70 ? 'var(--green)' : harm > 40 ? 'var(--orange)' : 'var(--red)';
+    const src = cl.sourceUrl
+      ? `<a href="${attr(cl.sourceUrl)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-size:12px">🔗 джерело ↗</a>`
+      : '';
     html += `
-      <div class="eu-cluster" onclick="toggleCluster(${cluster.id})" style="border:1px solid var(--border);border-radius:8px;margin:6px 0;overflow:hidden;cursor:pointer;transition:all 0.2s">
-        <div style="display:flex;align-items:center;padding:12px 16px;background:var(--bg2)">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;margin-right:12px;flex-shrink:0">${cluster.id}</div>
-          <div style="font-size:20px;margin-right:8px">${cluster.icon}</div>
-          <div style="flex:1">
-            <div style="font-weight:600;font-size:14px">${cluster.name} <span style="font-weight:400;color:var(--text2);font-size:12px">${cluster.nameEn}</span>${statusBadge}</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">${cluster.chapters.length} глав · ${bills} законів · Harmonization: ${hPct}%</div>
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">C${cl.id}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13.5px;line-height:1.3">${escHtml(m.name || 'Кластер ' + cl.id)}</div>
+            <div style="font-size:11px;color:var(--text2)">${escHtml(m.nameEn || '')}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <div style="width:120px;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
-              <div style="width:${hPct}%;height:100%;background:${color};border-radius:4px;transition:width 0.3s"></div>
-            </div>
-            <div style="font-weight:700;font-size:16px;color:${color};min-width:50px;text-align:right">${hPct.toFixed(1)}%</div>
-            <div style="font-size:18px;color:var(--text2)" id="cluster-arrow-${cluster.id}">▸</div>
-          </div>
+          <div style="font-size:18px">${m.icon || ''}</div>
         </div>
-        <div id="cluster-detail-${cluster.id}" style="display:none;border-top:1px solid var(--border)"></div>
+        <div style="margin-bottom:12px">${euClusterBadge(cl.status, cl.eventDate)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">гармонізація законодавства (наша оцінка)</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="progress" style="flex:1;height:8px;border-radius:4px">
+            <div class="progress-fill" style="width:${harm}%;background:${hColor}"></div>
+          </div>
+          <strong style="font-size:13px;color:${hColor};min-width:44px;text-align:right">${harm.toFixed(1)}%</strong>
+        </div>
+        ${src ? `<div style="margin-top:10px">${src}</div>` : ''}
       </div>
     `;
   }
@@ -2200,263 +2153,47 @@ function renderEUClusters(harmonization) {
   document.getElementById('eu-clusters').innerHTML = html;
 }
 
-function toggleCluster(clusterId) {
-  const detail = document.getElementById('cluster-detail-' + clusterId);
-  const arrow = document.getElementById('cluster-arrow-' + clusterId);
-  if (!detail) return;
-
-  if (detail.style.display === 'none') {
-    detail.style.display = 'block';
-    arrow.textContent = '▾';
-    renderClusterDetail(clusterId);
-  } else {
-    detail.style.display = 'none';
-    arrow.textContent = '▸';
+function renderEUTimeline(timeline) {
+  const el = document.getElementById('eu-timeline');
+  if (!timeline.length) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:13px">Зафіксованих подій поки немає.</div>';
+    return;
   }
-}
-
-function renderClusterDetail(clusterId) {
-  const cluster = EU_CLUSTERS.find(c => c.id === clusterId);
-  if (!cluster) return;
-
-  const detail = document.getElementById('cluster-detail-' + clusterId);
-  let html = '<div style="padding:4px 8px">';
-
-  const statusText = cluster.opened ? `Відкрито ${cluster.openedDate || ''}` : 'Не відкрито';
-  html += `<div style="padding:6px 8px;font-size:12px;color:var(--text2)">${statusText}</div>`;
-
-  // Calculate total bills and signed for this cluster
-  let clusterTotal = 0, clusterSigned = 0;
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    if (ch) {
-      clusterTotal += ch.total_bills || 0;
-      clusterSigned += (ch.total_bills || 0) * (ch.alignment || 0) / 100;
-    }
-  }
-
-  for (const chId of cluster.chapters) {
-    const ch = euChaptersData[chId];
-    const name = ch ? ch.chapter_name : `Глава ${chId}`;
-    const bills = ch ? ch.total_bills : 0;
-    const alignment = ch ? ch.alignment : 0;
-
-    let color = 'var(--red)';
-    if (alignment > 70) color = 'var(--green)';
-    else if (alignment > 40) color = 'var(--orange)';
-
+  const items = timeline.slice().sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  let html = '<div>';
+  for (const t of items) {
+    const title = t.url
+      ? `<a href="${attr(t.url)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">${escHtml(t.title)} ↗</a>`
+      : escHtml(t.title);
     html += `
-      <div style="display:flex;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);font-size:13px">
-        <div style="width:35px;font-weight:600;color:var(--blue)">Ch.${chId}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:500">${escHtml(name)}</div>
-          <div style="font-size:11px;color:var(--text2)">${bills} законів</div>
-        </div>
-        <div style="width:100px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-right:8px">
-          <div style="width:${alignment}%;height:100%;background:${color};border-radius:3px"></div>
-        </div>
-        <div style="font-weight:700;font-size:14px;color:${color};min-width:45px;text-align:right">${alignment.toFixed(1)}%</div>
+      <div style="position:relative;border-left:2px solid var(--border);padding:0 0 14px 18px">
+        <span style="position:absolute;left:-6px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--blue)"></span>
+        <div style="font-weight:700;font-size:13px;margin-bottom:2px">${fmtEuDate(t.date)}</div>
+        <div style="font-size:13px">${title}</div>
       </div>
     `;
   }
-
   html += '</div>';
-  detail.innerHTML = html;
+  el.innerHTML = html;
 }
 
-function renderEUTrend(trend) {
-  if (!trend || trend.length < 2) {
-    document.getElementById('eu-trend-chart').innerHTML =
-      '<div style="color:var(--text2);padding:16px;text-align:center">Потрібно щонайменше 2 вимірювання для тренду</div>';
+function renderEUNews(news) {
+  const el = document.getElementById('eu-news');
+  if (!news.length) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:13px">Новини поки недоступні.</div>';
     return;
   }
-
-  // Get current data from the overall alignment
-  const signedScore = euOverallData?.signed?.score || 25.7;
-  const inProcessScore = euOverallData?.inProcess?.score || 26.7;
-  const signedBills = euOverallData?.signed?.bills || 4849;
-  const inProcessBills = euOverallData?.inProcess?.bills || 4558;
-
-  const w = 700, h = 320, padL = 55, padR = 30, padT = 30, padB = 80;
-  const chartW = w - padL - padR;
-  const chartH = h - padT - padB;
-
-  // Build data points from trend (deduplicate by score)
-  let dataPoints = [];
-  let seen = new Set();
-  for (let i = trend.length - 1; i >= 0; i--) {
-    const t = trend[i];
-    const key = `${t.weighted_score?.toFixed(1)}-${t.signed_bills}-${t.in_process_bills}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
-      dataPoints.unshift({
-        totalBills,
-        signedBills: t.signed_bills || 0,
-        inProcessBills: t.in_process_bills || 0,
-        score: t.weighted_score || 0,
-        signedScore: t.signed_score || 0,
-        inProcessScore: t.in_process_score || 0
-      });
-    }
-  }
-  if (dataPoints.length < 2) {
-    dataPoints = trend.slice().reverse().map(t => {
-      const totalBills = (t.signed_bills || 0) + (t.in_process_bills || 0);
-      return {
-        totalBills,
-        signedBills: t.signed_bills || 0,
-        inProcessBills: t.in_process_bills || 0,
-        score: t.weighted_score || 0,
-        signedScore: t.signed_score || 0,
-        inProcessScore: t.in_process_score || 0
-      };
-    });
-  }
-
-  // X-axis = total bills, Y-axis = percentage
-  const maxBills = Math.max(...dataPoints.map(d => d.totalBills), signedBills + inProcessBills);
-  const minBills = Math.min(...dataPoints.map(d => d.totalBills));
-  const billsRange = maxBills - minBills || 1;
-
-  // Colors
-  const greenColor = '#22c55e';
-  const blueColor = '#3b82f6';
-  const orangeColor = '#f59e0b';
-  const redColor = '#ef4444';
-
-  // Grid lines (Y-axis = percentages)
-  let gridLines = '';
-  for (let pct = 0; pct <= 100; pct += 20) {
-    const y = padT + chartH - (pct / 100) * chartH;
-    gridLines += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4,4"/>`;
-    gridLines += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--text2)">${pct}%</text>`;
-  }
-
-  // Map data points to X positions
-  let signedPoints = [];
-  let inProcessPoints = [];
-  for (let i = 0; i < dataPoints.length; i++) {
-    const d = dataPoints[i];
-    const x = padL + ((d.totalBills - minBills) / billsRange) * chartW;
-    const ySigned = padT + chartH - (d.signedScore / 100) * chartH;
-    const yInProcess = padT + chartH - (d.inProcessScore / 100) * chartH;
-    signedPoints.push({ x, y: ySigned, score: d.signedScore, bills: d.totalBills });
-    inProcessPoints.push({ x, y: yInProcess, score: d.inProcessScore, bills: d.totalBills });
-  }
-
-  // Ensure current point is included (at maxBills)
-  const currentTotalBills = signedBills + inProcessBills;
-  const lastSigned = signedPoints[signedPoints.length - 1];
-  if (lastSigned && lastSigned.bills < currentTotalBills) {
-    const x = padL + chartW;
-    signedPoints.push({ x, y: padT + chartH - (signedScore / 100) * chartH, score: signedScore, bills: currentTotalBills });
-    inProcessPoints.push({ x, y: padT + chartH - (inProcessScore / 100) * chartH, score: inProcessScore, bills: currentTotalBills });
-  }
-
-  // Build SVG paths
-  const signedPath = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const inProcessPath = inProcessPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-
-  // Area between lines (potential zone)
-  const areaBetween = signedPoints.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') +
-    ' ' + inProcessPoints.slice().reverse().map(p => `L${p.x},${p.y}`).join(' ') + ' Z';
-
-  // Area under signed line
-  const areaUnderSigned = signedPath + ` L${signedPoints[signedPoints.length-1].x},${padT + chartH} L${signedPoints[0].x},${padT + chartH} Z`;
-
-  // Dots
-  let signedDots = '';
-  let inProcessDots = '';
-  for (let i = 0; i < signedPoints.length; i++) {
-    const sp = signedPoints[i];
-    const ip = inProcessPoints[i];
-    if (i === 0 || i === signedPoints.length - 1 || signedPoints.length <= 8) {
-      signedDots += `<circle cx="${sp.x}" cy="${sp.y}" r="5" fill="${greenColor}" stroke="var(--bg)" stroke-width="2"/>`;
-      signedDots += `<text x="${sp.x}" y="${sp.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${greenColor}">${sp.score.toFixed(1)}%</text>`;
-      inProcessDots += `<circle cx="${ip.x}" cy="${ip.y}" r="5" fill="${blueColor}" stroke="var(--bg)" stroke-width="2"/>`;
-      inProcessDots += `<text x="${ip.x}" y="${ip.y - 12}" text-anchor="middle" font-size="11" font-weight="600" fill="${blueColor}">${ip.score.toFixed(1)}%</text>`;
-    }
-  }
-
-  // X-axis bill count labels
-  let billLabels = '';
-  const numLabels = 5;
-  for (let i = 0; i <= numLabels; i++) {
-    const bills = Math.round(minBills + (billsRange * i / numLabels));
-    const x = padL + (i / numLabels) * chartW;
-    billLabels += `<text x="${x}" y="${h - padB + 20}" text-anchor="middle" font-size="9" fill="var(--text2)">${bills.toLocaleString()}</text>`;
-  }
-  billLabels += `<text x="${padL + chartW / 2}" y="${h - 8}" text-anchor="middle" font-size="10" fill="var(--text2)">Кількість законів</text>`;
-
-  // Metric cards
-  const gapPct = (inProcessScore - signedScore).toFixed(1);
-  const isPositive = inProcessScore >= signedScore;
-
-  document.getElementById('eu-trend-chart').innerHTML = `
-    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap">
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${greenColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📗 Прийняті закони</div>
-        <div style="font-size:18px;font-weight:700;color:${greenColor}">${signedScore.toFixed(1)}%</div>
-        <div style="font-size:11px;color:var(--text2)">${signedBills.toLocaleString()} законів</div>
+  const items = news.slice().sort((a, b) => (Date.parse(b.date) || 0) - (Date.parse(a.date) || 0));
+  let html = '';
+  for (const n of items) {
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <a href="${attr(n.url)}" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">${escHtml(n.title)}</a>
+        <span style="color:var(--text2);white-space:nowrap;font-size:12px">${fmtEuDate(n.date)}</span>
       </div>
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${blueColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">📘 В процесі</div>
-        <div style="font-size:18px;font-weight:700;color:${blueColor}">${inProcessScore.toFixed(1)}%</div>
-        <div style="font-size:11px;color:var(--text2)">${inProcessBills.toLocaleString()} законів</div>
-      </div>
-      <div style="flex:1;min-width:140px;background:var(--bg3);border-radius:8px;padding:10px 12px;border-left:3px solid ${isPositive ? orangeColor : redColor}">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:4px">⚡ Потенціал</div>
-        <div style="font-size:18px;font-weight:700;color:${isPositive ? orangeColor : redColor}">${isPositive ? '+' : ''}${gapPct}%</div>
-        <div style="font-size:11px;color:var(--text2)">${isPositive ? 'очікується додати' : 'втрачається'}</div>
-      </div>
-    </div>
-
-    <svg width="100%" viewBox="0 0 ${w} ${h}" style="max-width:${w}px;display:block">
-      <defs>
-        <linearGradient id="euGradGreen" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${greenColor}" stop-opacity="0.25"/>
-          <stop offset="100%" stop-color="${greenColor}" stop-opacity="0.02"/>
-        </linearGradient>
-        <linearGradient id="euGradBlue" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${blueColor}" stop-opacity="0.15"/>
-          <stop offset="100%" stop-color="${blueColor}" stop-opacity="0.02"/>
-        </linearGradient>
-        <linearGradient id="euGradPotential" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="${orangeColor}" stop-opacity="0.2"/>
-          <stop offset="100%" stop-color="${orangeColor}" stop-opacity="0.02"/>
-        </linearGradient>
-      </defs>
-
-      ${gridLines}
-
-      <!-- Potential zone -->
-      <path d="${areaBetween}" fill="url(#euGradPotential)" opacity="0.6"/>
-
-      <!-- Area under in-process -->
-      <path d="${inProcessPath} L${inProcessPoints[inProcessPoints.length-1].x},${padT + chartH} L${inProcessPoints[0].x},${padT + chartH} Z" fill="url(#euGradBlue)" opacity="0.4"/>
-
-      <!-- Area under signed -->
-      <path d="${areaUnderSigned}" fill="url(#euGradGreen)"/>
-
-      <!-- In-process line (dashed) -->
-      <polyline points="${inProcessPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${blueColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8,4" opacity="0.8"/>
-
-      <!-- Signed line (solid) -->
-      <polyline points="${signedPoints.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${greenColor}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-
-      ${signedDots}
-      ${inProcessDots}
-
-      <!-- Legend -->
-      <line x1="${padL}" y1="${h - 30}" x2="${padL + 20}" y2="${h - 30}" stroke="${greenColor}" stroke-width="3"/>
-      <text x="${padL + 25}" y="${h - 26}" font-size="10" fill="var(--text2)">Прийняті</text>
-      <line x1="${padL + 90}" y1="${h - 30}" x2="${padL + 110}" y2="${h - 30}" stroke="${blueColor}" stroke-width="2.5" stroke-dasharray="8,4"/>
-      <text x="${padL + 115}" y="${h - 26}" font-size="10" fill="var(--text2)">В процесі</text>
-
-      ${billLabels}
-    </svg>
-  `;
+    `;
+  }
+  el.innerHTML = html;
 }
 
 // === THEME ===
