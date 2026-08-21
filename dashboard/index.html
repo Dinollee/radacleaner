@@ -1853,8 +1853,8 @@ function renderUpcoming(schedule, committees) {
     <div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="min-width:96px;font-weight:700;font-size:14px">${it.date.slice(8,10)}.${it.date.slice(5,7)} <span style="font-weight:400;font-size:12px;color:var(--text2)">${schDow(it.date)}</span></div>
       <div style="flex:1;min-width:0">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${schBadge(it.type)}<span style="font-size:13px">${escHtml(it.title)}</span></div>
-        ${it.description ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${escHtml(it.description.substring(0,140))}${it.description.length > 140 ? '…' : ''}</div>` : ''}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${schBadge(it.type)}${it.title !== SCH_LABELS[it.type] ? `<span style="font-size:13px">${escHtml(it.title)}</span>` : ''}</div>
+        ${it.description && it.description !== 'Дані з календаря ВРУ' ? `<div style="font-size:12px;color:var(--text2);margin-top:3px">${escHtml(it.description.substring(0,140))}${it.description.length > 140 ? '…' : ''}</div>` : ''}
       </div>
       ${it.url ? `<a href="${attr(it.url)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue);white-space:nowrap;padding-top:2px">${it.type === 'committee' ? 'порядок денний ↗' : 'детальніше ↗'}</a>` : ''}
     </div>`).join('');
