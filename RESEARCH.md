@@ -1984,3 +1984,123 @@ The LLM prompt (`DIGEST_PROMPT`) contained the format specification with placeho
 ### What's Left
 - **Systemd timer** — need `digest-llm.timer` at 08:00 (code ready, timer setup needed)
 - **Weekly digest** (Group 5.6) — not yet started
+
+---
+
+# Session 2026-08-21: Full Project Audit + Action Plan
+
+Полный аудит проекта (4 направления: инфраструктура, БД, пайплайн+фронтенд, репозиторий+доки).
+Все факты ниже проверены запросами к живой системе, не из памяти.
+
+## Результаты аудита (сводка)
+
+**Здорово:** все 10 таймеров + 4 демона работают, 0 failed units. API <300ms, дашборд задеплоен
+(байт-идентичен локальному). Синк bills/risk_assessments/change_log/mps/EU-alignment свежий.
+FK-целостность чистая, секреты не утекли, бот жив. mp_votes: 7.5M строк, constraint mismatch
+из памяти от 16.07 давно решён (оба unique-индекса существуют). Голосования «заморожены» с
+16.07 — каникулы парламента, НЕ баг (4 новых голосования после 16.07 обработаны корректно).
+
+**Проблемы (проверено):**
+| # | Проблема | Факт |
+|---|----------|------|
+| 1 | `rada_schedule` протух с 2026-07-08 | Дайджест всегда пишет «Пленарне засідання: не заплановано» |
+| 2 | Тихие отказы | night_batch выходит 0 даже при err=275 (авария RADA 503 18.07 не замечена); sync_all timeout 600s — 6 раз за неделю в radacleaner-analyze |
+| 3 | Пустые summary/law_summary | 2 992 строки без summary, НО 2 897 (97%) — процедурные (by design). Реальных дефектов ~7 непроцедурных строк |
+| 4 | Закон 10399 потерял анализ | Повторная очередь 20.08 (дубль записи в pending_analysis — отдельный баг), анализ 30 чанков упал, старая запись удалена. Сейчас 0 строк в risk_assessments |
+| 5 | Кодовый мусор | KPI v1–v9+v11 осиротели (активен v12); sync_all.py считает v9; мёртвые таблицы deputy_requests, bill_eu_classification (0 строк); legacy SQLite 1.67 GB нетронут с 19.06 |
+| 6 | Доки отстали | ARCHITECTURE.md: digest «08:00 NEEDED» (реально 20:00 работает), в таблице юнитов ~7 из ~20; RESEARCH.md: 3.2/5.3/6.3 фактически DONE, статус OPEN |
+| 7 | Git | dev/main разошлись с дублями коммитов (8≠1); ветки deploy/night-batch-fixes, feat/kpi-backend, feat/rada-schedule-research мертвы; stash на main; мусорные файлы «Очікує», «новий],» в корне |
+| 8 | Планирование раздвоено | cron: sync_period */10 пн-пт + eu_alignment 04:00; systemd: остальные ~20 юнитов. В репо только 7 юнитов из установленных |
+| 9 | Мелочи | psycopg2 нет в requirements.txt; stats_cache: 399/437 ключей старых (harmonization_* мертвы с 09.07, ~325 eu_news_* не чистятся); bill_sponsors 6.9% без mp_id; daemon-reload просрочен у всех юнитов |
+
+---
+
+## ПЛАН ДЕЙСТВИЙ (утверждён пользователем 2026-08-21)
+
+### Фаза A — видимые пользователям исправления
+
+#### A2. Fallback summary/law_summary + бэкфилл + перезапуск ошибок (ПЕРВЫМ — боль 10399)
+
+**Дизайн fallback (требования пользователя):**
+1. Fallback срабатывает ТОЛЬКО если модель реально не заполнила поля
+   (`not llm_data.get("summary")` / `not llm_data.get("law_summary")`)
+2. Обязательная маркировка источника: `json_data.summary_source = "llm" | "fallback"`
+   — чтобы всегда можно было отличить реальный ответ LLM от склейки
+3. Дашборд: при `summary_source == "fallback"` показывать метку «(авто)» возле «📝 Суть закону»
+4. law_summary собирается из detailed_risks (кто инициирует — из title/sponsors; что меняет —
+   из текстов рисков); summary = первые 1–2 предложения law_summary
+5. Процедурные законы НЕ трогаем — отсутствие резюме for them by design (подтверждено)
+
+**Шаги:**
+1. `_build_fallback_summaries(llm_data)` в rag_engine.py + выставление `summary_source`
+2. При успешном LLM-ответе тоже писать `summary_source="llm"` (единообразие)
+3. `scripts/backfill_summaries.py` — идёт по непроцедурным строкам с пустыми полями (~7),
+   заполняет из detailed_risks, ставит source=fallback. Идемпотентный, dry-run режим
+4. Разобраться с падением 10399 (30 чанков, text_len=1.7M): лог обрывается на чанке 9/30 —
+   вероятен таймаут/лимиты. Починить, перезапустить все 10 error из pending_analysis
+5. Убрать дубль записи в pending_analysis (22415/22416 — один bill дважды)
+6. Frontend: метка «(авто)» в блоке «📝 Суть закону»
+
+**Критерий готовности:** у всех непроцедурных анализов заполнены summary/law_summary;
+в json_data у каждой строки есть summary_source; 10399 имеет анализ на дашборде.
+
+#### A1. Синк расписания Рады (rada_schedule протух с 08.07)
+
+1. Найти/создать скрипт синка rada_schedule (источник: rada.gov.ua календарь/API)
+2. Повесить на systemd timer (ежедневно утром до дайджеста 09:00/20:00)
+3. Критерий: MAX(updated_at) свежий; дайджест показывает реальный статус пленарки
+
+#### A3. Алертинг тихих отказов
+
+1. night_batch.py: при err > 10 — Telegram alert + ненулевой exit code
+2. radacleaner-analyze: расследовать sync_all timeout 600s (хроника 14–20.08),
+   увеличить таймаут или разбить шаги
+3. digest-llm.service Description: «AI-powered» → «Deterministic daily digest»
+
+### Фаза B — гигиена
+
+#### B1. Git
+1. Merge dev→main одним мерджем (устранить дубли коммитов)
+2. Удалить ветки: deploy/night-batch-fixes, feat/kpi-backend, feat/rada-schedule-research
+3. Drop stash@{0}; удалить мусор: «Очикує», «новий],\n tracked: номер»
+4. Untrack dashboard/best.html, worker/package-lock.json (уже в .gitignore)
+
+#### B2. KPI cleanup
+1. Удалить: calc_deputy_kpi.py, v2–v8, v9, v11 (активен только v12)
+2. sync_all.py: сначала выяснить роль (его зовёт radacleaner-analyze!), затем вывести
+   из эксплуатации или переписать v9→v12
+3. telegram_bot.py: отвязать от v11, если ссылается
+
+#### B3. Документация + юниты
+1. ARCHITECTURE.md: полная таблица systemd (~20 юнитов), digest 20:00, путь test_kpi_formula.py
+2. RESEARCH.md: статусы 3.2, 5.3, 6.3 → DONE
+3. Закоммитить недостающие юниты в systemd/: monitor, digest×2, analyze,
+   votesync.service, sync_active_bills
+4. `systemctl daemon-reload`; решить судьбу disabled sync_active_bills
+
+#### B4. Планирование и хранение
+1. cron → systemd timers: eu_alignment.py (04:00), sync_period.py (*/10 пн-пт)
+2. stats_cache: DELETE старых ключей (~325 eu_news_*, harmonization_* c 09.07,
+   directive_*, pulse_*, active_mps_30d)
+3. DROP deputy_requests, bill_eu_classification — ⚠️ только после подтверждения
+4. Архив/удаление legacy SQLite 1.67 GB — ⚠️ только после подтверждения
+5. requirements.txt += psycopg2-binary
+
+### Фаза C — развитие
+
+#### C1. Еженедельный дайджест (пн 08:00)
+Детерминированный (как ежедневный): новые законы за неделю, изменения стадий,
+топ-5 рисков, динамика ІЕД топ-10. Timer weekly-digest.timer.
+
+#### C2. Минимальные тесты
+pytest: формула calc_kpi_v12, STATUS_IDS в sync_votes, format_digest.
+Без CI — локальный запуск.
+
+### Отложено (вне этой серии)
+Group 4 (новости/фейки), Group 7 (UX избирателей), соцсети, jsonb-миграция json_data,
+edge-deploy API.
+
+### Правила выполнения
+- Порядок: A2 → A1 → A3 → B1 → B2 → B3 → B4 → C1 → C2
+- Коммиты в dev; merge в main — в конце фаз
+- Деструктивные операции (DROP таблиц, удаление SQLite/веток) — только после явного «да»
