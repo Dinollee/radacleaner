@@ -582,14 +582,25 @@ app.get('/api/dashboard', async (req, res) => {
 });
 
 // --- EU ALIGNMENT ---
+// EU integration index v1: cluster → acquis chapters (mirror of dashboard EU_CLUSTERS)
+const EU_CLUSTER_CHAPTERS = {
+  1: [1, 6, 27, 33],
+  2: [2, 3, 4, 5, 7, 8, 9, 22, 23],
+  3: [10, 16, 17, 18, 19, 20, 25, 26, 29, 30],
+  4: [11, 12, 13, 14, 15, 21],
+  5: [24, 28, 31],
+  6: [32, 34, 35],
+};
+
 app.get('/api/eu-alignment', async (req, res) => {
   try {
+    // Legacy data (kept for frontend compatibility)
     const overall = await q('SELECT * FROM eu_alignment_overall ORDER BY id DESC LIMIT 1');
     const chapters = await q('SELECT * FROM eu_alignment_chapters WHERE id IN (SELECT MAX(id) FROM eu_alignment_chapters GROUP BY chapter_id) ORDER BY chapter_id');
-    
+
     // Get harmonization data from stats_cache
     const harmonization = {};
-    const hKeys = ['harmonization_cluster1', 'harmonization_cluster2', 'harmonization_cluster3', 
+    const hKeys = ['harmonization_cluster1', 'harmonization_cluster2', 'harmonization_cluster3',
                     'harmonization_cluster4', 'harmonization_cluster5', 'harmonization_cluster6'];
     const hRows = await q(`SELECT key, value FROM stats_cache WHERE key IN (${hKeys.map((_, i) => `$${i+1}`).join(',')})`, hKeys);
     for (const r of hRows) {
@@ -616,7 +627,67 @@ app.get('/api/eu-alignment', async (req, res) => {
     const totalBills = totals[0] ? Number(totals[0].total_bills) : 0;
     const signedBills = totals[0] ? Number(totals[0].signed_bills) : 0;
 
+    // --- v1: integration index from stats_cache ---
+    const idxRows = await q(`SELECT value FROM stats_cache WHERE key = 'eu_integration_v1'`).catch(() => []);
+    let index = null;
+    if (idxRows[0]) {
+      try {
+        const raw = JSON.parse(idxRows[0].value);
+        index = { value: raw.index, negotiation: raw.negotiation, legislation: raw.legislation, computedAt: raw.computed_at };
+      } catch { /* malformed cache value */ }
+    }
+
+    // --- v1: cluster statuses + per-cluster harm (avg harmonization_ch over cluster chapters) ---
+    const csRows = await q('SELECT cluster_id, status, event_date, source_url FROM eu_cluster_status ORDER BY cluster_id').catch(() => []);
+    const chRows = await q(`SELECT key, value FROM stats_cache WHERE key LIKE 'harmonization_ch%'`).catch(() => []);
+    const chHarm = {};
+    for (const r of chRows) {
+      const num = parseInt(r.key.replace('harmonization_ch', ''), 10);
+      const v = parseFloat(String(r.value).split(':')[0]);
+      if (!isNaN(num) && !isNaN(v)) chHarm[num] = v;
+    }
+    // node-pg parses DATE as local-midnight Date → read local Y/M/D to avoid UTC shift
+    const fmtDate = d => {
+      if (!d) return null;
+      if (d instanceof Date) return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return String(d).slice(0, 10);
+    };
+    const clusters = csRows.map(c => {
+      const chs = EU_CLUSTER_CHAPTERS[c.cluster_id] || [];
+      const vals = chs.map(ch => chHarm[ch]).filter(v => v !== undefined);
+      return {
+        id: c.cluster_id,
+        status: c.status,
+        eventDate: fmtDate(c.event_date),
+        sourceUrl: c.source_url,
+        harm: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0,
+      };
+    });
+
+    // --- v1: timeline of opened/closed clusters ---
+    const timeline = csRows
+      .filter(c => c.status !== 'not_opened')
+      .map(c => ({ date: fmtDate(c.event_date), title: `Cluster ${c.cluster_id}: ${c.status}`, url: c.source_url }))
+      .sort((a, b) => ((a.date || '') < (b.date || '') ? -1 : 1));
+
+    // --- v1: latest EU news (eu_news_* keys written by sync_eu_tracker.py) ---
+    const newsRows = await q(`SELECT value FROM stats_cache WHERE key LIKE 'eu_news_%' ORDER BY updated_at DESC LIMIT 8`).catch(() => []);
+    const news = newsRows.map(r => {
+      try { const n = JSON.parse(r.value); return { title: n.title, date: n.date, url: n.url }; }
+      catch { return null; }
+    }).filter(Boolean);
+
+    // --- trend (same shape as /api/eu-alignment/trend) ---
+    const trend = await q('SELECT calculated_at, weighted_score, overall_score, signed_score, in_process_score, signed_bills, in_process_bills FROM eu_alignment_overall ORDER BY calculated_at DESC LIMIT 30').catch(() => []);
+
     json(res, {
+      // v1 shape
+      index,
+      clusters,
+      timeline,
+      news,
+      trend,
+      // backward-compatible fields
       overall: overall[0] || null,
       chapters,
       harmonization,
