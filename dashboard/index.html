@@ -1912,13 +1912,16 @@ function renderCalendar(events, activity) {
         }).join('');
         const more = extra > 0 ? `<span style="font-size:10px;font-weight:600;color:var(--text2)" title="${attr(types.slice(MAX_DOTS).map(k => SCH_LABELS[k]).join(', '))}">+${extra}</span>` : '';
 
-        const tipParts = types.map(k => SCH_LABELS[k]);
-        if ((Number(act.new) || 0) > 0) tipParts.push('+' + act.new + ' нових');
-        if ((Number(act.changed) || 0) > 0) tipParts.push('~' + act.changed + ' змін');
+        // Видимі лічильники активності законопроєктів (+N нових / ~N змін)
+        const cnts = [];
+        if ((Number(act.new) || 0) > 0) cnts.push(`<span style="font-size:10px;font-weight:700;color:var(--green)" title="${attr('+' + act.new + ' нових')}">+${act.new}</span>`);
+        if ((Number(act.changed) || 0) > 0) cnts.push(`<span style="font-size:10px;font-weight:700;color:var(--orange)" title="${attr('~' + act.changed + ' змін')}">~${act.changed}</span>`);
+        const cntHtml = cnts.length ? `<div style="display:flex;gap:3px;justify-content:center;align-items:center;margin-top:2px">${cnts.join('')}</div>` : '';
 
-        html += `<td onclick="showActivityDay('${dateStr}')" style="padding:4px;height:56px;vertical-align:top;border:1px solid var(--border);cursor:pointer" title="${attr(tipParts.join(', '))}">
+        html += `<td onclick="showActivityDay('${dateStr}')" style="padding:4px;height:64px;vertical-align:top;border:1px solid var(--border);cursor:pointer" title="${attr(types.map(k => SCH_LABELS[k]).join(', '))}">
           <div style="font-size:13px;${todayStyle}">${day}</div>
-          ${(shown.length || more) ? `<div style="display:flex;gap:2px;justify-content:center;align-items:center;margin-top:5px;flex-wrap:wrap">${dots}${more}</div>` : ''}
+          ${(shown.length || more) ? `<div style="display:flex;gap:2px;justify-content:center;align-items:center;margin-top:4px;flex-wrap:wrap">${dots}${more}</div>` : ''}
+          ${cntHtml}
         </td>`;
         day++;
       }
