@@ -115,7 +115,7 @@ Harmonization = signed_bills / total_bills × 100
 | sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → EU scores → requests (ІЕД v12 рахує окремо mpstats) |
 | bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**, isUrgent, isEuro) |
 | sync_bill_passings.py | Bill passings from bulk JSON (1x/day) |
-| sync_bill_passings_html.py | **Bill passings from HTML (every 4h, real-time)** |
+| sync_bill_passings_html.py | **Bill passings from HTML (every 4h): АКТИВНІ закони (остання подія ≤7 днів) першими, потім ніколи не синхронізовані, потім ротация застарілих (500/запуск)** |
 | sync_votes.py / sync_votes_bulk.py | Fetch voting records |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
@@ -256,5 +256,7 @@ Current status: **ІЕД (v12) ACTIVE**, Dashboard with hexagon + activity calen
 - created_at is text in UTC — convert to Kyiv timezone in API queries
 - Gemini rate limit: 12 req/min, 1400 req/day (enforced in llm_client.py)
 - PDF downloads: retry 3 times with backoff on 503/429/500
+- `bills.act_number` — official law number in IX-convocation register (e.g. «4931-ІХ»), 100% заповнений для stage 4. Дашборд показує бейдж із посиланням на zakon.rada.gov.ua/laws/show/{номер} (кирилиця ІХ → латиниця IX для URL)
+- `json_data.has_risks` — обов'язковий ключ: фронтенд фільтрує рендеринг ризиків за ним. rag_engine гарантує його для непроцедурних аналізів (модель nemotron іноді пропускає; міграція 017 бекфіллила 246 старих рядків)
 - One session = one logical step = one commit
 - Before finishing: self-reflection — did I add dependencies/tables/scripts/APIs not in ARCHITECTURE.md?
