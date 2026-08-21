@@ -785,7 +785,8 @@ async function toggleBillExpand(row, id) {
     if (risks?.json_data) {
       try {
         const parsed = JSON.parse(risks.json_data);
-        if (Object.hasOwn(parsed, 'has_risks')) {
+        // has_risks може бути відсутнім у старих аналізах nemotron — орієнтуємось і на detailed_risks
+        if (Object.hasOwn(parsed, 'has_risks') || Array.isArray(parsed.detailed_risks)) {
           riskLevel = parsed.risk_level || 'low';
           risksList = parsed.detailed_risks || [];
           analyzedChunks = parsed.analyzed_chunks || [];

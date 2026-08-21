@@ -800,6 +800,9 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
         tox = llm_data.get("toxicity", 0)
         log.info("  Classification: НЕПРОЦЕДУРНИЙ — risk_level=%s risks=%d sig=%d imp=%d risk=%d tox=%.2f",
                  risk_level, len(llm_data.get("detailed_risks", [])), sig, imp, rsk, tox)
+        # Модель іноді пропускає has_risks у JSON — фронтенд фільтрує аналіз за цим ключем
+        if "has_risks" not in llm_data:
+            llm_data["has_risks"] = bool(llm_data.get("detailed_risks")) or risk_level is not None
 
     # Post-verification: fix discretion hallucination
     _fix_discretion_hallucination(llm_data)
