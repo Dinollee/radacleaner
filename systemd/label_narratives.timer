@@ -1,0 +1,10 @@
+[Unit]
+Description=Radacleaner info digest timer (daily 07:15)
+
+[Timer]
+OnCalendar=*-*-* 07:15:00
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
