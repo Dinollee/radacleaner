@@ -426,6 +426,83 @@ tr.former-deputy:hover td { opacity: 0.75; }
         </div>
       </div>
     </div>
+
+  </div>
+
+  <!-- DEPUTY DETAIL -->
+  <div id="sec-deputy-detail" class="section">
+    <button class="back-btn" data-section="deputies">← Назад до списку</button>
+    <div id="deputy-detail-content"></div>
+  </div>
+
+  <!-- SCHEDULE -->
+  <div id="sec-schedule" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Графік роботи Верховної Ради</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="back-btn" onclick="scheduleMonth(-1)">← Назад</button>
+          <span id="schedule-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
+          <button class="back-btn" onclick="scheduleMonth(1)">Далі →</button>
+        </div>
+      </div>
+      <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
+        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарні</span>
+        <span><span class="sch-dot" style="background:#9b59b6"></span> Погоджувальні ради</span>
+        <span><span class="sch-dot" style="background:#27ae60"></span> Комітети</span>
+        <span><span class="sch-dot" style="background:#3498db"></span> Робота з виборцями</span>
+        <span><span class="sch-dot" style="background:#e67e22"></span> Позачергові</span>
+        <span><span class="sch-dot" style="background:#e74c3c"></span> Запитання до Уряду</span>
+        <span><span class="sch-dot" style="background:#95a5a6"></span> Свята</span>
+      </div>
+      <div id="schedule-calendar" style="padding:8px 16px"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Засідання комітетів (тижневий графік)</div></div>
+      <div id="schedule-committees"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Закони на голосування</div></div>
+      <div id="upcoming-bills"></div>
+    </div>
+  </div>
+
+  <!-- EU Alignment Section -->
+  <div id="sec-eu-alignment" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🇪🇺 Відповідність нормам ЄС (EU Alignment Score)</div>
+        <div id="eu-last-updated" style="font-size:12px;color:var(--text2)"></div>
+      </div>
+      <div id="eu-overall-score" style="text-align:center;padding:20px">
+        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Кластери переговорів</div>
+        <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
+      </div>
+      <div id="eu-clusters"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🇪🇺 Harmonization по ключових директивах ЄС</div>
+        <div style="font-size:11px;color:var(--muted);font-style:italic">Internal metric: порівняння наших законів з EU директивами</div>
+      </div>
+      <div id="eu-directives"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📈 Динаміка Alignment Score</div>
+      </div>
+      <div id="eu-trend-chart" style="padding:16px"></div>
+    </div>
+  </div>
+
     <div class="card">
       <details>
         <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Методологія ІЕД — відкриті коефіцієнти</summary>
@@ -660,81 +737,6 @@ tr.former-deputy:hover td { opacity: 0.75; }
         </div>
       </details>
     </div>
-  </div>
-
-  <!-- DEPUTY DETAIL -->
-  <div id="sec-deputy-detail" class="section">
-    <button class="back-btn" data-section="deputies">← Назад до списку</button>
-    <div id="deputy-detail-content"></div>
-  </div>
-
-  <!-- SCHEDULE -->
-  <div id="sec-schedule" class="section">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Графік роботи Верховної Ради</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <button class="back-btn" onclick="scheduleMonth(-1)">← Назад</button>
-          <span id="schedule-month-label" style="font-weight:600;min-width:140px;text-align:center"></span>
-          <button class="back-btn" onclick="scheduleMonth(1)">Далі →</button>
-        </div>
-      </div>
-      <div id="schedule-legend" style="padding:8px 16px;display:flex;gap:16px;flex-wrap:wrap;font-size:13px">
-        <span><span class="sch-dot" style="background:#f1c40f"></span> Пленарні</span>
-        <span><span class="sch-dot" style="background:#9b59b6"></span> Погоджувальні ради</span>
-        <span><span class="sch-dot" style="background:#27ae60"></span> Комітети</span>
-        <span><span class="sch-dot" style="background:#3498db"></span> Робота з виборцями</span>
-        <span><span class="sch-dot" style="background:#e67e22"></span> Позачергові</span>
-        <span><span class="sch-dot" style="background:#e74c3c"></span> Запитання до Уряду</span>
-        <span><span class="sch-dot" style="background:#95a5a6"></span> Свята</span>
-      </div>
-      <div id="schedule-calendar" style="padding:8px 16px"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Засідання комітетів (тижневий графік)</div></div>
-      <div id="schedule-committees"></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Закони на голосування</div></div>
-      <div id="upcoming-bills"></div>
-    </div>
-  </div>
-
-  <!-- EU Alignment Section -->
-  <div id="sec-eu-alignment" class="section">
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">🇪🇺 Відповідність нормам ЄС (EU Alignment Score)</div>
-        <div id="eu-last-updated" style="font-size:12px;color:var(--text2)"></div>
-      </div>
-      <div id="eu-overall-score" style="text-align:center;padding:20px">
-        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Кластери переговорів</div>
-        <div style="font-size:12px;color:var(--text2)">Клікніть для перегляду глав</div>
-      </div>
-      <div id="eu-clusters"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">🇪🇺 Harmonization по ключових директивах ЄС</div>
-        <div style="font-size:11px;color:var(--muted);font-style:italic">Internal metric: порівняння наших законів з EU директивами</div>
-      </div>
-      <div id="eu-directives"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">📈 Динаміка Alignment Score</div>
-      </div>
-      <div id="eu-trend-chart" style="padding:16px"></div>
-    </div>
-  </div>
 
 </div>
 
