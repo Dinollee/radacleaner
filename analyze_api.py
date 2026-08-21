@@ -16,6 +16,8 @@ SYNC_SCRIPT = "/home/radamon/radacleaner/sync_all.py"
 VENV_PYTHON = "/home/radamon/radacleaner/venv/bin/python"
 POLL_INTERVAL = 30
 SYNC_AFTER_ANALYZES = 10  # Run sync_all after N analyses
+ANALYZE_TIMEOUT = 3600  # Великі закони (30+ чанків) аналізуються 20-30 хв
+SYNC_TIMEOUT = 1800
 
 
 def run_sync():
@@ -24,7 +26,7 @@ def run_sync():
     try:
         result = subprocess.run(
             [VENV_PYTHON, SYNC_SCRIPT],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=SYNC_TIMEOUT,
             cwd="/home/radamon/radacleaner",
         )
         if result.returncode == 0:
@@ -66,23 +68,34 @@ def poll_and_analyze():
                 try:
                     result = subprocess.run(
                         [VENV_PYTHON, ANALYZE_SCRIPT, bill_number],
-                        capture_output=True, text=True, timeout=600,
+                        capture_output=True, text=True, timeout=ANALYZE_TIMEOUT,
                         cwd="/home/radamon/radacleaner",
                     )
                     output = result.stdout + result.stderr
 
+                    # 'done' лише якщо скрипт завершився успішно; інакше 'error'
+                    status = 'done' if result.returncode == 0 else 'error'
                     d1_exec("raw_sql", {
-                        "sql": "UPDATE pending_analysis SET status='done', finished_at=(now() AT TIME ZONE 'utc'), output=%s WHERE id=%s",
-                        "params": [output[:5000], req_id],
+                        "sql": "UPDATE pending_analysis SET status=%s, finished_at=(now() AT TIME ZONE 'utc'), output=%s WHERE id=%s",
+                        "params": [status, output[:5000], req_id],
                     })
-                    log.info("Analysis done for #%s", bill_number)
+                    log.info("Analysis %s for #%s (rc=%d)", status, bill_number, result.returncode)
                     analyses_since_sync += 1
-                    
+
                     # Run sync after batch of analyses
                     if analyses_since_sync >= SYNC_AFTER_ANALYZES:
                         run_sync()
                         analyses_since_sync = 0
-                        
+
+                except subprocess.TimeoutExpired as e:
+                    tail = ((e.stdout or b"") + (e.stderr or b""))
+                    if isinstance(tail, bytes):
+                        tail = tail.decode("utf-8", errors="replace")
+                    d1_exec("raw_sql", {
+                        "sql": "UPDATE pending_analysis SET status='error', finished_at=(now() AT TIME ZONE 'utc'), output=%s WHERE id=%s",
+                        "params": [f"TIMEOUT after {ANALYZE_TIMEOUT}s. Tail: {tail[-2000:]}", req_id],
+                    })
+                    log.error("Analysis TIMEOUT for #%s after %ds", bill_number, ANALYZE_TIMEOUT)
                 except Exception as e:
                     d1_exec("raw_sql", {
                         "sql": "UPDATE pending_analysis SET status='error', finished_at=(now() AT TIME ZONE 'utc'), output=%s WHERE id=%s",

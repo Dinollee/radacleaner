@@ -574,6 +574,35 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
     return final_result
 
 
+def _build_fallback_summaries(data: dict, bill_number: str = "") -> None:
+    """Заповнює summary/law_summary з detailed_risks, ЛИШЕ якщо модель їх пропустила.
+
+    Ставить data["summary_source"]: "llm" | "fallback" | "none".
+    "none" — немає ні відповіді моделі, ні матеріалу для склейки (процедурні).
+    """
+    import re
+
+    has_summary = bool(data.get("summary", "").strip())
+    has_law_summary = bool(data.get("law_summary", "").strip())
+    if has_summary and has_law_summary:
+        data["summary_source"] = "llm"
+        return
+
+    risks = [r.strip() for r in data.get("detailed_risks", []) or [] if isinstance(r, str) and r.strip()]
+    if not risks:
+        data["summary_source"] = "llm" if (has_summary or has_law_summary) else "none"
+        return
+
+    risks_text = " ".join(risks[:3])
+    if not has_law_summary:
+        intro = f"Проєкт закону №{bill_number}. " if bill_number else ""
+        data["law_summary"] = f"{intro}{risks_text}"[:3000]
+    if not has_summary:
+        sentences = re.split(r"(?<=[.!?])\s+", risks_text)
+        data["summary"] = " ".join(sentences[:2])[:2000]
+    data["summary_source"] = "fallback"
+
+
 def _fix_discretion_hallucination(data: dict):
     """Post-verification: catch 'discretion' hallucination when law actually grants selective preferences.
 
@@ -794,6 +823,9 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
                 log.warning("  Language retry FAILED again — keeping original")
         except Exception as e:
             log.error("  Language retry error: %s", str(e)[:200])
+
+    # Fallback: заповнити summary/law_summary, якщо модель їх пропустила (з маркером summary_source)
+    _build_fallback_summaries(llm_data, bill_number)
 
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)

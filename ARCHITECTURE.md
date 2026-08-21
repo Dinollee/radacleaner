@@ -75,6 +75,7 @@ Three categories:
 
 ### Auto-recalculation
 - `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats (with adoption_rate) → calc_kpi_v12
+- `sync_eu_tracker.timer` (daily 09:00): EU cluster news monitoring + Telegram alerts
 
 ## EU Harmonization Index (REVERSE ENGINEERING)
 
@@ -131,7 +132,7 @@ Harmonization = signed_bills / total_bills × 100
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
 | monitor.py | Telegram monitor: NEW bills + status change posts |
-| daily_digest_llm.py | Daily digest: LLM-powered summary + fallback |
+| daily_digest_llm.py | **Daily digest: deterministic format (no LLM)** — fixed template, data from DB + rada.gov.ua scraping |
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
@@ -231,10 +232,11 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_bill_passings_html` | every 4h | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
 | `radacleaner-votesync` | every 6h | Voting records sync |
+| `digest-llm` | daily 08:00 (NEEDED) | Daily Telegram digest (deterministic, no LLM) |
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: ІЕД (v12) implemented, Dashboard with hexagon + activity calendar + clickable sort + modals, Telegram bot with ІЕД + daily digest + rate limiting, EU Score done.
+Current status: **ІЕД (v12) ACTIVE**, Dashboard with hexagon + activity calendar + clickable sort + modals, Telegram bot with ІЕД + daily digest + rate limiting, EU Score done, EU tracker deployed.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name

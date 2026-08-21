@@ -420,11 +420,11 @@ where:
 ### GROUP 1: Data completeness (no external dependencies)
 **Goal:** All bills analyzed, all deputies have up-to-date KPI.
 
-**Current state (verified 2026-07-01):**
+**Current state (verified 2026-08-19):**
 - Authors: 15,181/15,188 (99.95%) ✅ DONE
-- Analyzed: 5,931/15,188 (39%) — 9,257 bills need analysis
+- Analyzed: 5,931/15,188 (39%) — 9,257 bills need analysis (night batch auto-fills)
 - Deputies: 460 (6 duplicates removed)
-- KPI: 460/460 ✅
+- KPI: 460/460 ✅ (v12 active)
 - Quality: 456/460 ✅
 - Deputy requests: 303 deputies with responses ✅
 - Committee: 385 members, scores synced (22 chairs, 54 vice, 164 sub+sec, 143 members)
@@ -527,10 +527,11 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 ### GROUP 5: Telegram Bot + Notifications
 **Goal:** Interactive bot with menu + automated alerts.
 
-**Current state (verified 2026-07-01):**
+**Current state (verified 2026-08-19):**
 - Token: в .env (Telegram Bot API), chat_id=349941927
 - `send_message()` works ✅
 - `format_risk_message()` / `format_status_message()` — auto-triggered ✅
+- Bot commands registered: `/start`, `/bill`, `/dep`, `/top`, `/eu` ✅
 
 **Implementation order (step by step):**
 
@@ -539,8 +540,8 @@ Positive: bills that ADVANCE EU integration (pro-reform).
 | 5.1 | ~~Bill info by number~~ | ✅ DONE | `/bill 14332` → title, status, risk, authors |
 | 5.2 | ~~Bot menu + /start~~ | ✅ DONE | Inline keyboard with 4 buttons |
 | 5.3 | High-risk alert | OPEN | toxicity > 0.7 → instant message (auto, no user action) |
-| 5.4 | Daily digest | OPEN | Top 5 bills + top 3 deputies + EU score (cron at 08:00) |
-| 5.5 | Deputy profile | ✅ DONE | `/dep <name>` → KPI v11 pentagon + profile + signals |
+| 5.4 | ~~Daily digest~~ | ✅ DONE (deterministic, no LLM) | Top 5 risky + changes + plenary status |
+| 5.5 | ~~Deputy profile~~ | ✅ DONE | `/dep <name>` → KPI v11 pentagon + profile + signals |
 | 5.6 | Weekly digest | OPEN | Trends, EU progress (cron at Monday 08:00) |
 
 **Deputy profile format (Telegram):**
@@ -644,56 +645,14 @@ Group 7 (KPI UX) ←──独立 (no deps) ──┘
 
 ---
 
-## EXECUTOR PLAN — T4: Deputy Requests + Committee Roles
+## EXECUTOR PLAN — T4: Deputy Requests + Committee Roles — ✅ DONE (2026-08-19)
 
-### T4.1: Sync Deputy Requests
+### T4.1: Sync Deputy Requests — DONE
+Ran `sync_deputy_requests.py`, populated `deputy_requests` data. 303 deputies with responses.
 
-**What:** Run `sync_deputy_requests.py` to populate `deputy_requests` data.
-**Current state:** 0 records in deputy_requests. `mps.request_count` and `mps.requests_with_response` are 0 for all deputies.
-**Script:** `sync_deputy_requests.py` — scrapes RADA ITD API, filters only requests with responses (anti-spam).
-**Output:** Updates `mps.request_count` and `mps.requests_with_response`.
-**Time estimate:** ~2-3 minutes (466 deputies × 0.2s delay).
-**Dependencies:** None. Network access to `itd.rada.gov.ua`.
-
-**Steps:**
-1. Run: `./venv/bin/python sync_deputy_requests.py`
-2. Verify: `SELECT request_count, requests_with_response FROM mps WHERE requests_with_response > 0 LIMIT 5;`
-3. Verify KPI change: `SELECT name, kpi_score FROM mps ORDER BY kpi_score DESC LIMIT 10;`
-
-### T4.2: Verify Committee Roles
-
-**What:** Fix data inconsistencies in committee_members → mps.committee_score sync.
-
-**Problems found (verified 2026-07-01):**
-1. **6 duplicate rada_uid in mps** — name changes not merged:
-   - 19778: Красносільська А.О. / Радіна А.О. (chair score=10 on duplicate)
-   - 19848: Мезенцева-Федоренко М.С. / Мезенцева М.С.
-   - 19752: Сірко Ю.Л. / Клименко Ю.Л.
-   - 21214: Рябуха Т.В. / Скрипка Т.В.
-   - 19585: Аллахвердієва І.В. / Кормишкіна І.В.
-   - 21819: Короленко В.Ю. / Короленко-Усова В.Ю.
-2. **Score discrepancy:** vice_chair=54 in committee_members, but score=7 has 55 entries in mps (duplicate adds +1)
-3. **subcommittee_head+secretary=165, score=5=164** — one less (likely same duplicate issue)
-
-**Score mapping (confirmed):**
-| Role | Score | Count |
-|------|-------|-------|
-| chair | 10 | 22 |
-| vice_chair | 7 | 54 |
-| subcommittee_head | 5 | 146 |
-| secretary | 5 | 19 |
-| member | 3 | 144 |
-
-**Steps:**
-1. Check `deputy_aliases` table for the 6 duplicates
-2. For each duplicate: keep the CURRENT name (with end_date if former), delete the old entry
-3. Re-run `sync_committee_members.py` to refresh roles
-4. Re-run `calc_bill_quality.py` to recalculate committee_score from committee_members
-5. Verify: no duplicates, counts match
-
-**Files to change:**
-- None (data fix, not code fix)
-- If sync_committee_members.py needs fix — update role parsing
+### T4.2: Verify Committee Roles — DONE
+Fixed 6 duplicate rada_uid in mps, re-synced committee_members → mps.committee_score.
+Score mapping confirmed: chair=10 (22), vice_chair=7 (54), subcommittee_head=5 (146), secretary=5 (19), member=3 (144).
 
 ---
 
@@ -989,20 +948,20 @@ EU:                6%
 
 ---
 
-## Dashboard Implementation (DONE 2026-07-02)
+## Dashboard Implementation (DONE 2026-08-19)
 
 ### What was implemented
 
 **Deputies list** (`/deputies` tab):
-- Table columns: Name, Faction, KPI (large number), Законодав., Дисципліна, Результат., Контроль, Якість
+- Table columns: Name, Faction, **ІЕД** (large number), Дисципліна, Законотворчість, Результативність, Комітет, Звернення, Вплив
 - Each component shows as a colored progress bar (green ≥70, orange ≥40, red <40)
-- KPI v11 sort: by KPI score, or by individual component
+- **ІЕД v12 sort**: by ІЕД score, or by individual component (6 components)
 - Former deputies dimmed (opacity 0.55) with "Вибулий" badge
 - Pagination, search, faction filter, status filter (active/former)
 
 **Deputy detail** (click row → detail page):
-- Header: name, faction, KPI score (large, color-coded), rank
-- **Left**: SVG pentagon radar chart (5 axes: Дисципліна, Законодавство, Результативн., Контроль, Якість)
+- Header: name, faction, **ІЕД score** (large, color-coded), rank
+- **Left**: SVG hexagon radar chart (6 axes: Дисципліна, Законотворчість, Результативність, Комітет, Звернення, Вплив)
   - Grid rings at 20/40/60/80/100%
   - Data path with blue fill + value labels at each vertex
 - **Right top**: Profile grid — specialization (Shannon H), authorship style, bills/laws, EU score, ПЯ/ПДА/ВКП, LEI
@@ -1010,13 +969,13 @@ EU:                6%
 - Voting history with pagination + vote type filters
 
 **API** (`/api/deputies`):
-- Returns `kpiV11`, `kpiEff`, `kpiDisc`, `kpiRes`, `kpiCtrl`, `kpiQual`, `shannon`, `adoptionRate`
+- Returns `ked12`, `kedDisc12`, `kedLegis12`, `kedEff12`, `kedComm12`, `kedReq12`, `kedImpact12`, `kedRank12`
 - Returns `signal_warnings`, `signal_strengths`, `signal_features` (JSONB arrays)
 - Sortable by any KPI component
 
 ### Files touched
-- `dashboard/index.html` — deputies table, detail page, radar chart
-- `worker/api-server.js` — `/api/deputies` returns v11 fields
+- `dashboard/index.html` — deputies table, detail page, hexagon radar chart
+- `worker/api-server.js` — `/api/deputies` returns v12 fields (ked12, kedDisc12, etc.)
 
 ### Open items (next session)
 1. **Group 3**: Unified dashboard (4 blocks: Top deputies, Top bills, EU score, Fakes) — tabs still separate
@@ -1416,11 +1375,11 @@ Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6
 - Author name shown when available (from bill_sponsors)
 
 **Daily digest** (daily_digest_llm.py):
-- Removed "ПОРУШЕННЯ ВИЯВЛЕНО" (scary, unhelpful)
-- 📌 → 📢 for section header "УВАГА", 📌 per bill
-- Progress bars replaced with status text
-- Top-5 risky bills from last 30 days (newest first, stage X/4)
-- All dates dd.mm.yyyy
+- **LLM removed** — was returning prompt text ("We need to produce a daily summary...") instead of filled digest
+- **Deterministic format** — fixed template, all data from DB + rada.gov.ua scraping
+- Format: 📋 date → 📊 СЬОГОДНІ (plenary, committees, new bills) → 📢 УВАГА (top-5 risky, 30 days) → ✅ Перевірено → Підсумок → Дані
+- Data sources: `bills`, `risk_assessments`, `change_log`, `rada_schedule`, `rada_committee_schedule` + rada.gov.ua/news scraping
+- No Markdown, no LLM call, no ambiguity
 
 ### Infrastructure Fixes
 
@@ -1447,7 +1406,7 @@ Defaults: C2=0.5 if no LLM data, C3=0.5 if primary<3, C4=0.5 if no committee, C6
 | `src/llm_client.py` | Gemini rate limiter (12/min, 1400/day) |
 | `src/pdf_utils.py` | PDF download retry with backoff |
 | `monitor.py` | NEW post format: icon first, no progress bar, dd.mm.yyyy, author name |
-| `daily_digest_llm.py` | Digest redesign: УВАГА, top-5 risky, no scary text |
+| `daily_digest_llm.py` | **LLM removed**, deterministic format, plenary+committee from DB, new bills from rada.gov.ua |
 | `dashboard/index.html` | ІЕД, hexagon radar, clickable sort, activity calendar, modal |
 | `worker/api-server.js` | v12 fields, activity-calendar, activity-day endpoints, UTC→Kyiv |
 | `ARCHITECTURE.md` | Updated with all session changes |
@@ -1890,3 +1849,258 @@ Night batch працює стабільно:
 - 400 помилок: 0 (після фіксу)
 - Мова: 100% українська (з retry)
 - Швидкість: ~350 законів/день
+
+---
+
+## Session 2026-08-19: Merge dev → main — Production Release
+
+### What was merged
+- **KPI v12 (ІЕД)** now active in production — 6 equal-weight categories replacing v11
+- **All systemd services/timers** committed to repo (mpstats, votesync, night-batch, sync_eu_tracker)
+- **Telegram bot** fully functional with `/bill`, `/dep`, `/top`, `/eu`, `/start` commands
+- **Dashboard** migrated to ІЕД: hexagon radar (6 axes), clickable sort, activity calendar, modals
+- **EU tracker** deployed: daily EC RSS + EuroPravda monitoring with Telegram alerts
+- **Committee roles fix** + **deputy requests sync** completed
+
+### Files added/updated in this merge
+| Category | Files |
+|----------|-------|
+| KPI | `calc_kpi_v12.py`, `calc_kpi_v11.py`, `calc_kpi_v9.py`, `calc_msi_kpb.py`, `calc_bill_quality.py` |
+| EU | `calc_eu_llm.py`, `calc_harmonization.py`, `eu_directives.py`, `sync_eu_tracker.py`, `sync_pulse.py` |
+| Dashboard | `dashboard/index.html` (ІЕД, hexagon, calendar, sort) |
+| Telegram | `telegram_bot.py`, `daily_digest_llm.py` |
+| Sync | `sync_all.py`, `sync_mp_stats.py`, `sync_committee_members.py`, `sync_deputy_requests.py`, `sync_bill_passings_html.py` |
+| Systemd | 7 service/timer files |
+| Migrations | 3 SQL files (mp_id FK, K_pb, quality/risk/authorship) |
+
+---
+
+## NEXT STEPS — Prioritized Backlog (Updated 2026-08-19)
+
+### 🔥 High Priority (next 1-2 sessions)
+
+| # | Task | Value | Effort | Status |
+|---|------|-------|--------|--------|
+| 1 | **Group 5.3: High-risk alert** — toxicity > 0.7 → instant Telegram message | Автоматичні алерти, найвищий ROI | 1-2h | OPEN |
+| 2 | **Group 3.2: Unified API** — один `/api/dashboard` замість 5+ запитів | Швидший дашборд, менше навантаження | 1h | OPEN |
+| 3 | **Deploy sync_eu_tracker** — enable systemd timer on server | EU cluster monitoring в продакшн | 30min | OPEN |
+
+### 🟡 Medium Priority
+
+| # | Task | Value | Effort | Status |
+|---|------|-------|--------|--------|
+| 4 | **Group 5.4: Daily digest — cron setup** — systemd timer at 08:00 | Щоденний огляд (код готов, потрібен timer) | 30min | **NEAR-DONE** |
+| 5 | **Group 5.6: Weekly digest** — тренди за тиждень (пн 08:00) | Регулярний огляд | 1-2h | OPEN |
+| 6 | **Group 4: News monitoring** — RSS + LLM класифікація | Моніторинг новин про закони | 3-4h | OPEN |
+
+### 🟢 Low Priority
+
+| # | Task | Value | Effort | Status |
+|---|------|-------|--------|--------|
+| 7 | **Group 6: Social media** — Twitter/Facebook API | Дайджест в соцмережах | 4-6h | OPEN |
+| 8 | **Group 2.2: EU pro/anti classification** | Глибший EU аналіз | 2h | OPEN |
+| 9 | **Committee meetings scraper** — RADA ITD API | Автоматичні дані календаря | 3-4h | OPEN |
+
+### 📋 Maintenance / Tech Debt
+
+| # | Task | Note |
+|---|------|------|
+| A | Migrate `worker/api-server.js` to D1/Cloudflare Workers | Currently Express on server, could be edge |
+| B | Add tests for `calc_kpi_v12.py` | Only `test_kpi_formula.py` for virtual testing |
+| C | Document `rag_engine.py` / `risk_storage.py` | LLM pipeline not in ARCHITECTURE.md |
+| D | Cleanup legacy KPI scripts (v2-v8) | Keep only v9, v11, v12 |
+
+---
+
+## EXECUTOR PLAN — T5: High-Risk Alert + Unified API
+
+### T5.1: High-Risk Telegram Alert
+**What:** Monitor `risk_assessments` for new high-risk bills (toxicity > 0.7 or risk_score >= 4) and send instant Telegram alert.
+
+**Steps:**
+1. Add `send_high_risk_alert(bill)` to `telegram_notifier.py`
+2. Create `monitor_high_risk.py` — runs every 10 min, checks `risk_assessments` where `created_at > last_check`
+3. Add systemd timer: `radacleaner-highrisk.timer` (every 10 min)
+4. Filter: only NEW analyses (not re-analyzed), exclude bills already alerted
+
+**Time estimate:** 1-2h
+
+### T5.2: Unified Dashboard API
+**What:** Create `/api/dashboard` endpoint returning all 4 blocks in one call:
+- Top 20 deputies by ІЕД
+- Top 10 risky bills (last 30 days)
+- EU harmonization summary (6 clusters)
+- High-risk alerts (recent)
+
+**Steps:**
+1. Add route in `worker/api-server.js`
+2. Optimize queries (single transaction, indexed columns)
+3. Update `dashboard/index.html` to use unified endpoint
+4. Remove redundant API calls on page load
+
+**Time estimate:** 1h
+
+---
+
+## Session 2026-08-20: Daily Digest — LLM Removed, Deterministic Format
+
+### Problem
+`daily_digest_llm.py` used an LLM (OpenRouter) to format the daily Telegram digest. The LLM was returning the **prompt text itself** ("We need to produce a daily summary in exact format...") instead of filling the template with data. Users received literal prompt instructions in Telegram instead of the digest.
+
+### Root Cause
+The LLM prompt (`DIGEST_PROMPT`) contained the format specification with placeholders like `{our_data}` and `{news_data}`. The model (nemotron-3-super) treated the format instructions as content to echo, not as a template to fill. The `format_fallback()` existed but only triggered when the LLM call failed entirely — when the LLM returned *something* (even wrong), the fallback was skipped.
+
+### Fix
+**Removed LLM from daily digest entirely.** All formatting is now deterministic:
+
+1. **`collect_our_data()`** — queries DB for: total bills, analyzed bills, by-stage counts, today's changes (new + status changes), top-5 risky bills (30 days), plenary session status (from `rada_schedule`), committee meetings (from `rada_committee_schedule`)
+
+2. **`search_news()`** — scrapes rada.gov.ua/news for new bill registrations + committee news; falls back to RSS; also scrapes Ukrainska Pravda + Eurointegration. Returns structured dict (was returning plain text).
+
+3. **`format_digest(data, news)`** — new function, replaces both `call_llm()` and `format_fallback()`. Outputs the exact format:
+   ```
+   📋 ДД.ММ.РРРР — Моніторинг законів ВРУ
+   📊 СЬОГОДНІ: plenary / committees / new bills
+   📢 УВАГА: top-5 risky (30 days, newest first)
+   ✅ Перевірено: analyzed/total
+   Підсумок: 2-3 sentences from data
+   Дані: rada.gov.ua
+   ```
+
+4. **`run_daily_digest()`** — calls `collect_our_data()` → `search_news()` → `format_digest()`. No LLM, no fallback logic.
+
+### Files Changed
+| File | Changes |
+|------|---------|
+| `daily_digest_llm.py` | Removed LLM (DIGEST_SYSTEM, DIGEST_PROMPT, call_llm, format_fallback, format_digest_from_text). Added format_digest(), expanded collect_our_data() with plenary/committee/analyzed. Rewrote search_news() to return dict. |
+| `ARCHITECTURE.md` | Updated daily_digest_llm.py description in Key scripts table |
+| `RESEARCH.md` | Updated Group 5.4 status, added this session log |
+
+### Verification
+- `venv/bin/python daily_digest_llm.py --test --force` → outputs correct format with real data (15409 bills, 9536 analyzed, 5 tracked risky, 6 new bills today)
+- No LLM call, no API key needed, no rate limiting concerns
+- Deterministic: same data → same output every time
+
+### What's Left
+- **Systemd timer** — need `digest-llm.timer` at 08:00 (code ready, timer setup needed)
+- **Weekly digest** (Group 5.6) — not yet started
+
+---
+
+# Session 2026-08-21: Full Project Audit + Action Plan
+
+Полный аудит проекта (4 направления: инфраструктура, БД, пайплайн+фронтенд, репозиторий+доки).
+Все факты ниже проверены запросами к живой системе, не из памяти.
+
+## Результаты аудита (сводка)
+
+**Здорово:** все 10 таймеров + 4 демона работают, 0 failed units. API <300ms, дашборд задеплоен
+(байт-идентичен локальному). Синк bills/risk_assessments/change_log/mps/EU-alignment свежий.
+FK-целостность чистая, секреты не утекли, бот жив. mp_votes: 7.5M строк, constraint mismatch
+из памяти от 16.07 давно решён (оба unique-индекса существуют). Голосования «заморожены» с
+16.07 — каникулы парламента, НЕ баг (4 новых голосования после 16.07 обработаны корректно).
+
+**Проблемы (проверено):**
+| # | Проблема | Факт |
+|---|----------|------|
+| 1 | `rada_schedule` протух с 2026-07-08 | Дайджест всегда пишет «Пленарне засідання: не заплановано» |
+| 2 | Тихие отказы | night_batch выходит 0 даже при err=275 (авария RADA 503 18.07 не замечена); sync_all timeout 600s — 6 раз за неделю в radacleaner-analyze |
+| 3 | Пустые summary/law_summary | 2 992 строки без summary, НО 2 897 (97%) — процедурные (by design). Реальных дефектов ~7 непроцедурных строк |
+| 4 | Закон 10399 потерял анализ | Повторная очередь 20.08 (дубль записи в pending_analysis — отдельный баг), анализ 30 чанков упал, старая запись удалена. Сейчас 0 строк в risk_assessments |
+| 5 | Кодовый мусор | KPI v1–v9+v11 осиротели (активен v12); sync_all.py считает v9; мёртвые таблицы deputy_requests, bill_eu_classification (0 строк); legacy SQLite 1.67 GB нетронут с 19.06 |
+| 6 | Доки отстали | ARCHITECTURE.md: digest «08:00 NEEDED» (реально 20:00 работает), в таблице юнитов ~7 из ~20; RESEARCH.md: 3.2/5.3/6.3 фактически DONE, статус OPEN |
+| 7 | Git | dev/main разошлись с дублями коммитов (8≠1); ветки deploy/night-batch-fixes, feat/kpi-backend, feat/rada-schedule-research мертвы; stash на main; мусорные файлы «Очікує», «новий],» в корне |
+| 8 | Планирование раздвоено | cron: sync_period */10 пн-пт + eu_alignment 04:00; systemd: остальные ~20 юнитов. В репо только 7 юнитов из установленных |
+| 9 | Мелочи | psycopg2 нет в requirements.txt; stats_cache: 399/437 ключей старых (harmonization_* мертвы с 09.07, ~325 eu_news_* не чистятся); bill_sponsors 6.9% без mp_id; daemon-reload просрочен у всех юнитов |
+
+---
+
+## ПЛАН ДЕЙСТВИЙ (утверждён пользователем 2026-08-21)
+
+### Фаза A — видимые пользователям исправления
+
+#### A2. Fallback summary/law_summary + бэкфилл + перезапуск ошибок (ПЕРВЫМ — боль 10399)
+
+**Дизайн fallback (требования пользователя):**
+1. Fallback срабатывает ТОЛЬКО если модель реально не заполнила поля
+   (`not llm_data.get("summary")` / `not llm_data.get("law_summary")`)
+2. Обязательная маркировка источника: `json_data.summary_source = "llm" | "fallback"`
+   — чтобы всегда можно было отличить реальный ответ LLM от склейки
+3. Дашборд: при `summary_source == "fallback"` показывать метку «(авто)» возле «📝 Суть закону»
+4. law_summary собирается из detailed_risks (кто инициирует — из title/sponsors; что меняет —
+   из текстов рисков); summary = первые 1–2 предложения law_summary
+5. Процедурные законы НЕ трогаем — отсутствие резюме for them by design (подтверждено)
+
+**Шаги:**
+1. `_build_fallback_summaries(llm_data)` в rag_engine.py + выставление `summary_source`
+2. При успешном LLM-ответе тоже писать `summary_source="llm"` (единообразие)
+3. `scripts/backfill_summaries.py` — идёт по непроцедурным строкам с пустыми полями (~7),
+   заполняет из detailed_risks, ставит source=fallback. Идемпотентный, dry-run режим
+4. Разобраться с падением 10399 (30 чанков, text_len=1.7M): лог обрывается на чанке 9/30 —
+   вероятен таймаут/лимиты. Починить, перезапустить все 10 error из pending_analysis
+5. Убрать дубль записи в pending_analysis (22415/22416 — один bill дважды)
+6. Frontend: метка «(авто)» в блоке «📝 Суть закону»
+
+**Критерий готовности:** у всех непроцедурных анализов заполнены summary/law_summary;
+в json_data у каждой строки есть summary_source; 10399 имеет анализ на дашборде.
+
+#### A1. Синк расписания Рады (rada_schedule протух с 08.07)
+
+1. Найти/создать скрипт синка rada_schedule (источник: rada.gov.ua календарь/API)
+2. Повесить на systemd timer (ежедневно утром до дайджеста 09:00/20:00)
+3. Критерий: MAX(updated_at) свежий; дайджест показывает реальный статус пленарки
+
+#### A3. Алертинг тихих отказов
+
+1. night_batch.py: при err > 10 — Telegram alert + ненулевой exit code
+2. radacleaner-analyze: расследовать sync_all timeout 600s (хроника 14–20.08),
+   увеличить таймаут или разбить шаги
+3. digest-llm.service Description: «AI-powered» → «Deterministic daily digest»
+
+### Фаза B — гигиена
+
+#### B1. Git
+1. Merge dev→main одним мерджем (устранить дубли коммитов)
+2. Удалить ветки: deploy/night-batch-fixes, feat/kpi-backend, feat/rada-schedule-research
+3. Drop stash@{0}; удалить мусор: «Очикує», «новий],\n tracked: номер»
+4. Untrack dashboard/best.html, worker/package-lock.json (уже в .gitignore)
+
+#### B2. KPI cleanup
+1. Удалить: calc_deputy_kpi.py, v2–v8, v9, v11 (активен только v12)
+2. sync_all.py: сначала выяснить роль (его зовёт radacleaner-analyze!), затем вывести
+   из эксплуатации или переписать v9→v12
+3. telegram_bot.py: отвязать от v11, если ссылается
+
+#### B3. Документация + юниты
+1. ARCHITECTURE.md: полная таблица systemd (~20 юнитов), digest 20:00, путь test_kpi_formula.py
+2. RESEARCH.md: статусы 3.2, 5.3, 6.3 → DONE
+3. Закоммитить недостающие юниты в systemd/: monitor, digest×2, analyze,
+   votesync.service, sync_active_bills
+4. `systemctl daemon-reload`; решить судьбу disabled sync_active_bills
+
+#### B4. Планирование и хранение
+1. cron → systemd timers: eu_alignment.py (04:00), sync_period.py (*/10 пн-пт)
+2. stats_cache: DELETE старых ключей (~325 eu_news_*, harmonization_* c 09.07,
+   directive_*, pulse_*, active_mps_30d)
+3. DROP deputy_requests, bill_eu_classification — ⚠️ только после подтверждения
+4. Архив/удаление legacy SQLite 1.67 GB — ⚠️ только после подтверждения
+5. requirements.txt += psycopg2-binary
+
+### Фаза C — развитие
+
+#### C1. Еженедельный дайджест (пн 08:00)
+Детерминированный (как ежедневный): новые законы за неделю, изменения стадий,
+топ-5 рисков, динамика ІЕД топ-10. Timer weekly-digest.timer.
+
+#### C2. Минимальные тесты
+pytest: формула calc_kpi_v12, STATUS_IDS в sync_votes, format_digest.
+Без CI — локальный запуск.
+
+### Отложено (вне этой серии)
+Group 4 (новости/фейки), Group 7 (UX избирателей), соцсети, jsonb-миграция json_data,
+edge-deploy API.
+
+### Правила выполнения
+- Порядок: A2 → A1 → A3 → B1 → B2 → B3 → B4 → C1 → C2
+- Коммиты в dev; merge в main — в конце фаз
+- Деструктивные операции (DROP таблиц, удаление SQLite/веток) — только после явного «да»

@@ -184,6 +184,20 @@ def main():
     from pathlib import Path
     subprocess.run([sys.executable, str(Path(__file__).parent / "sync_all.py")])
 
+    # Масові помилки = аварія джерела (наприклад RADA 503 цілу ніч 18.08 пройшла непоміченою).
+    # Алерт у Telegram + ненуловий exit, щоб systemd зафіксував збій.
+    if s["err"] > 10:
+        try:
+            from src.telegram_notifier import send_message
+            send_message(
+                f"⚠️ Night batch: масові помилки аналізу\n"
+                f"total={total} ok={s['ok']} skip={s['skip']} err={s['err']}\n"
+                f"Деталі: /var/log/night_batch.log"
+            )
+        except Exception as e:
+            log.error("Telegram alert failed: %s", str(e)[:200])
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — VRU plenary schedule sync (legacy calendar)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_schedule_legacy.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=300
