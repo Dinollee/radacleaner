@@ -74,17 +74,17 @@ async def cmd_bill(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_top(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     rows = db_query(
-        "SELECT name, faction, kpi_score, lei, eu_integration_score "
-        "FROM mps WHERE (end_date IS NULL OR end_date = '') AND kpi_score > 0 "
-        "ORDER BY kpi_score DESC LIMIT 10"
+        "SELECT name, faction, kpi_v12_score, eu_integration_score "
+        "FROM mps WHERE (end_date IS NULL OR end_date = '') AND kpi_v12_score > 0 "
+        "ORDER BY kpi_v12_score DESC LIMIT 10"
     )
     if not rows:
         await update.message.reply_text("Дані відсутні.")
         return
-    lines = ["🏆 <b>Топ-10 депутатів за KPI:</b>\n"]
+    lines = ["🏆 <b>Топ-10 депутатів за ІЕД:</b>\n"]
     for i, r in enumerate(rows, 1):
         eu = f"🇪🇺 {r['eu_integration_score']:.0f}" if r.get("eu_integration_score", 0) > 0 else ""
-        lines.append(f"{i}. <b>{r['name']}</b> ({r['faction']}) — KPI {r['kpi_score']:.1f} {eu}")
+        lines.append(f"{i}. <b>{r['name']}</b> ({r['faction']}) — ІЕД {r['kpi_v12_score']:.1f} {eu}")
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 
@@ -304,13 +304,13 @@ async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "top_deputies":
         rows = db_query(
-            "SELECT name, faction, kpi_score FROM mps "
-            "WHERE (end_date IS NULL OR end_date = '') AND kpi_score > 0 "
-            "ORDER BY kpi_score DESC LIMIT 10"
+            "SELECT name, faction, kpi_v12_score FROM mps "
+            "WHERE (end_date IS NULL OR end_date = '') AND kpi_v12_score > 0 "
+            "ORDER BY kpi_v12_score DESC LIMIT 10"
         )
-        lines = ["🏆 <b>Топ-10 за KPI:</b>\n"]
+        lines = ["🏆 <b>Топ-10 за ІЕД:</b>\n"]
         for i, r in enumerate(rows, 1):
-            lines.append(f"{i}. <b>{r['name']}</b> ({r['faction']}) — {r['kpi_score']:.1f}")
+            lines.append(f"{i}. <b>{r['name']}</b> ({r['faction']}) — {r['kpi_v12_score']:.1f}")
         await query.edit_message_text("\n".join(lines), parse_mode="HTML")
         return
 

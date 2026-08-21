@@ -8,8 +8,9 @@
   3. Комітети (sync_committee_members.py)
   4. MSI та K_pb (calc_msi_kpb.py)
   5. Quality, Risk, Authorship (calc_bill_quality.py)
-  6. KPI Score v9 (calc_deputy_kpi_v9.py)
-  7. Депутатські запити (sync_deputy_requests.py)
+  6. Депутатські запити (sync_deputy_requests.py)
+
+  ІЕД (KPI v12) рахується окремо: systemd radacleaner-mpstats.service → calc_kpi_v12.py
 """
 import subprocess
 import sys
@@ -33,7 +34,7 @@ def run_script(name, script):
     return result.returncode
 
 def main():
-    print("Повна синхронізація KPI даних (v9)")
+    print("Повна синхронізація даних (ІЕД v12 рахує окремо radacleaner-mpstats)")
     print("=" * 60)
 
     steps = [
@@ -44,7 +45,6 @@ def main():
         ("Calculate Quality, Risk, Authorship", "calc_bill_quality.py"),
         ("Recalculate EU Deputy Scores", "calc_eu_llm.py"),
         ("Recalculate EU Alignment", "eu_alignment.py"),
-        ("Calculate KPI Score v9", "calc_deputy_kpi_v9.py"),
         ("Sync deputy requests", "sync_deputy_requests.py"),
     ]
 
