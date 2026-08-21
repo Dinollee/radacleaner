@@ -16,7 +16,7 @@ worker/           — Express API server (api-server.js)
 dashboard/        — Cloudflare Pages frontend (index.html)
 data/             — SQLite backup (superseded by PG)
 migrations/       — SQL migration files
-scripts/          — utility scripts (test_llm_providers.py, test_kpi_formula.py)
+scripts/          — utility scripts (test_llm_providers.py, backfill_summaries.py; test_kpi_formula.py — в корні)
 systemd/          — .service unit files
 tests/            — tests
 kpi_weights.json  — KPI v11 component weights (legacy, configurable)
@@ -112,7 +112,7 @@ Harmonization = signed_bills / total_bills × 100
 ## Key scripts
 | Script | Purpose |
 |---|---|
-| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → KPI → requests |
+| sync_all.py | Master pipeline: factions → stats → committees → MSI/K_pb → Quality/Risk → EU scores → requests (ІЕД v12 рахує окремо mpstats) |
 | bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**, isUrgent, isEuro) |
 | sync_bill_passings.py | Bill passings from bulk JSON (1x/day) |
 | sync_bill_passings_html.py | **Bill passings from HTML (every 4h, real-time)** |
@@ -223,16 +223,23 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 ## Systemd Services
 | Service | Timer | Purpose |
 |---------|-------|---------|
-| `radacleaner-api` | — | Express API (port 8788) |
-| `radacleaner-tunnel` | — | Cloudflare Tunnel |
-| `telegram-bot` | — | Telegram bot polling |
-| `radacleaner-mpstats` | every 6h | factions + stats (with adoption_rate) + **ІЕД recalc** |
-| `night-batch` | 21:00-08:00 | LLM analysis (nemotron-super) |
-| `sync_bills` | every hour | Bill sync from RADA (bulk JSON) |
-| `sync_bill_passings_html` | every 4h | Bill passings sync (HTML parsing, real-time) |
+| `radacleaner-api` | — (daemon) | Express API (port 8788) |
+| `radacleaner-tunnel` | — (daemon) | Cloudflare Tunnel → api.dino.pp.ua |
+| `telegram-bot` | — (daemon) | Telegram bot polling (@RadaCleaner_bot) |
+| `radacleaner-analyze` | — (daemon) | pending_analysis worker (poll 30s, timeout 3600s/bill) |
+| `monitor` | :05 и :35 | Telegram monitor: new bills, status changes, high-risk alerts |
+| `digest` | daily 09:00 | Daily digest #1 (`monitor.py --daily`) |
+| `digest-llm` | daily 20:00 | Daily digest #2 (`daily_digest_llm.py`, deterministic, no LLM) |
+| `sync_schedule` | daily 07:30 | VRU plenary calendar sync (legacy HTML calendar) |
+| `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
+| `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
-| `radacleaner-votesync` | every 6h | Voting records sync |
-| `digest-llm` | daily 08:00 (NEEDED) | Daily Telegram digest (deterministic, no LLM) |
+| `radacleaner-votesync` | every 6h :00 | Voting records sync (`sync_votes_bulk.py --resume`) |
+| `radacleaner-mpstats` | every 6h | factions + stats + **ІЕД recalc** (calc_kpi_v12.py) |
+| `night-batch` | 21:00 (+stop 08:00) | LLM analysis, 3 workers, alert on err>10 |
+
+Cron (план переходу в systemd): `sync_period.py --all` */10 пн-пт; `eu_alignment.py` daily 04:00.
+Всі unit-файли зберігаються в `systemd/`. Після редагування: `sudo systemctl daemon-reload`.
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.

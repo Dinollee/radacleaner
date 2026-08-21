@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Sync Bills every hour at :55
+
+[Timer]
+OnCalendar=*-*-* *:55:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

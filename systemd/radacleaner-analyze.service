@@ -1,0 +1,14 @@
+[Unit]
+Description=Radacleaner LLM Analysis Worker
+After=network.target
+
+[Service]
+Type=simple
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python analyze_api.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

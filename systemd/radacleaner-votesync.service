@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — vote sync from RADA (periodic)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_votes_bulk.py --resume
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=1800

@@ -1,0 +1,10 @@
+[Unit]
+Description=Radacleaner Monitor timer (every 30 min)
+
+[Timer]
+OnCalendar=*-*-* *:05:00
+OnCalendar=*-*-* *:35:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

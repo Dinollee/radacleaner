@@ -1881,15 +1881,15 @@ Night batch працює стабільно:
 
 | # | Task | Value | Effort | Status |
 |---|------|-------|--------|--------|
-| 1 | **Group 5.3: High-risk alert** — toxicity > 0.7 → instant Telegram message | Автоматичні алерти, найвищий ROI | 1-2h | OPEN |
-| 2 | **Group 3.2: Unified API** — один `/api/dashboard` замість 5+ запитів | Швидший дашборд, менше навантаження | 1h | OPEN |
+| 1 | **Group 5.3: High-risk alert** — toxicity > 0.7 → instant Telegram message | Автоматичні алерти, найвищий ROI | 1-2h | **DONE** (monitor.py:221, monitor.timer :05/:35) |
+| 2 | **Group 3.2: Unified API** — один `/api/dashboard` замість 5+ запитів | Швидший дашборд, менше навантаження | 1h | **DONE** (e6ed5d8, d7b5c8d) |
 | 3 | **Deploy sync_eu_tracker** — enable systemd timer on server | EU cluster monitoring в продакшн | 30min | OPEN |
 
 ### 🟡 Medium Priority
 
 | # | Task | Value | Effort | Status |
 |---|------|-------|--------|--------|
-| 4 | **Group 5.4: Daily digest — cron setup** — systemd timer at 08:00 | Щоденний огляд (код готов, потрібен timer) | 30min | **NEAR-DONE** |
+| 4 | **Group 5.4: Daily digest — cron setup** — systemd timers | Щоденний огляд | 30min | **DONE** (digest 09:00 + digest-llm 20:00) |
 | 5 | **Group 5.6: Weekly digest** — тренди за тиждень (пн 08:00) | Регулярний огляд | 1-2h | OPEN |
 | 6 | **Group 4: News monitoring** — RSS + LLM класифікація | Моніторинг новин про закони | 3-4h | OPEN |
 

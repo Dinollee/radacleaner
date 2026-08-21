@@ -1,0 +1,13 @@
+[Unit]
+Description=HTML Sync Bill Passings (every 4 hours)
+After=postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+EnvironmentFile=/home/radamon/radacleaner/.env
+ExecStart=/home/radamon/radacleaner/venv/bin/python3 /home/radamon/radacleaner/sync_bill_passings_html.py --days 7
+StandardOutput=append:/var/log/sync_bills.log
+StandardError=append:/var/log/sync_bills.log

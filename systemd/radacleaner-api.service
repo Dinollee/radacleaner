@@ -1,0 +1,15 @@
+[Unit]
+Description=Radacleaner API Server (Express + PostgreSQL)
+After=network.target
+
+[Service]
+Type=simple
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner/worker
+EnvironmentFile=/home/radamon/radacleaner/worker/.env
+ExecStart=/usr/bin/node api-server.js
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
