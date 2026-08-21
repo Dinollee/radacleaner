@@ -14,7 +14,7 @@
 src/              — shared Python modules (db, llm_client, helpers, telegram_notifier, prompts)
 worker/           — Express API server (api-server.js)
 dashboard/        — Cloudflare Pages frontend (index.html)
-data/             — SQLite backup (superseded by PG)
+data/             — конфіги (disinfo_channels.json — канали моніторингу детектора атак)
 migrations/       — SQL migration files
 scripts/          — utility scripts (test_llm_providers.py, backfill_summaries.py; test_kpi_formula.py — в корні)
 systemd/          — .service unit files
@@ -83,32 +83,15 @@ Three categories:
 - `radacleaner-mpstats.timer` (every 6h): sync factions → sync stats (with adoption_rate) → calc_kpi_v12
 - `sync_eu_tracker.timer` (daily 09:00): EU cluster news monitoring + Telegram alerts
 
-## EU Harmonization Index (REVERSE ENGINEERING)
+## Гармонізація законодавства (вхід EU Integration Index)
 
-**Метод:** Reverse engineering — беремо публічні EU директиви, порівнюємо з нашими законами.
-
-### Формула
-```
-Harmonization = signed_bills / total_bills × 100
-```
-
-### По кластерах (verified 2026-07-08)
-
-| # | Кластер | Гармонізація | Закони |
-|---|---------|-------------|--------|
-| 1 | Fundamentals | 26.0% | 689 |
-| 2 | Internal Market | 28.4% | 571 |
-| 3 | Competitiveness | 22.1% | 1,216 |
-| 4 | Green Agenda | 29.0% | 731 |
-| 5 | Security | 31.5% | 482 |
-| 6 | General | 21.6% | 648 |
-
-**Загальний:** 26.5% (4,792 прийнятих з 15,217 EU-релевантних)
+**Метод:** частка прийнятих законів (stage 4) серед EU-релевантних по главах.
 
 ### Дані
-- `stats_cache`: harmonization_cluster1-6
-- `eu_alignment_chapters`: keyword alignment (legacy)
-- `eu_alignment_overall`: overall alignment score (legacy)
+- `stats_cache`: `harmonization_ch1..32` (значення `"процент:всього:прийнято"`, пише calc_harmonization.py щоночі) + overall **31.1%**
+- ⚠️ Старі ключі `harmonization_cluster1-6` МЕРТВІ з 2026-07-09 (пись/читання розійшлися — виправлено 2026-08-21 агрегацією ch→cluster на стороні API)
+- `eu_alignment_chapters` / `eu_alignment_overall` — keyword alignment (legacy, історія тренду)
+- Агрегація по кластерах для дашборда: `EU_CLUSTER_CHAPTERS` в api-server.js (harm = середнє harmonization_ch глав кластера)
 
 ### Джерела для трекінгу кластерів
 1. EC RSS: `enlargement.ec.europa.eu/node/2/rss_en`
@@ -152,6 +135,13 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | calc_eu_llm.py | EU Score from LLM aggregation (raw_analysis) |
 | sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) + авто-детекція відкриттів кластерів → eu_cluster_status |
+| sync_schedule_legacy.py | Plenary calendar from w1.c1.rada.gov.ua (daily 07:30) |
+| sync_committee_schedule.py | Committee meetings from committees.rada.gov.ua (daily 07:40) |
+| sync_holidays.py | Holidays → rada_schedule |
+| sync_info_monitor.py | **Info attack collector** (every 30 min): factcheck RSS + t.me/s disinfo channels → info_items (simhash dedup) |
+| detect_attacks.py | **Burst detector**: union-find кластеризація 48ч вікна, правило ≥4 TG-каналів/≥8 постів, debunk lookup, bill linking, TG-алерт з cooldown+ескалацією |
+| label_narratives.py | **Nightly LLM labeling** (07:15): 2 nemotron виклики → stats_cache `info_digest` (нарративи дня + ТОП фактчеків) |
+| sync_disinfo_channels.py | **Daily watchlist refresh** (06:50): список СБУ → новые каналы авто (SearXNG `site:t.me` + og:title fuzzy-match UA/RU нормализация), liveness всех, prune dead_streak≥3 |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
@@ -160,8 +150,8 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /start |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
-| worker/api-server.js | Express API (port 8788) — bills, deputies, EU alignment, schedule |
-| dashboard/index.html | Cloudflare Pages frontend — single-page app (ІЕД, hexagon radar, clickable sort) |
+| worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Бот (підключення до @RadaCleaner_bot) |
 
 ## Night Batch (UPDATED 2026-07-15)
 
@@ -211,13 +201,17 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
 - **risk_assessments** — LLM analysis results
 - **committee_members** — 385 members, 24 committees
-- **eu_alignment_overall / eu_alignment_chapters** — EU alignment scores
+- **eu_alignment_overall / eu_alignment_chapters** — EU alignment scores (trend history)
+- **eu_cluster_status** — переговорні кластери: status CHECK(not_opened|opened|provisionally_closed), event_date, source_url (migration 023)
+- **rada_schedule** — пленарні/день запитань/свята (uniq date+event_type); **rada_committee_schedule** — засідання комітетів (uniq_rcs_meeting)
+- **info_items** — сырий інфопотік детектора атак: factcheck RSS + t.me/s канали, url UNIQUE, simhash BIGINT, cluster_id (migration 024)
+- **attack_alerts** — зафіксовані синхронні хвилі: label, channels/posts count, debunk_url, related_bill_number, alert_sent
 - **deputy_aliases** — name change history (6 entries)
 
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
-- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (harmonization), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar`, `/api/activity-day`, `/api/dashboard` (unified)
+- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (EU integration index v1 + clusters/timeline/news + legacy compat), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar` (bills activity + votes/committee/eu), `/api/activity-day`, `/api/info-digest` (нарративи дня + атаки), `/api/dashboard` (unified)
 - Timezone: all date queries convert UTC→Europe/Kyiv
 - Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
@@ -257,6 +251,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_schedule` | daily 07:30 | VRU plenary calendar sync (legacy HTML calendar) |
 | `sync_committee_schedule` | daily 07:40 | Committee meetings sync (committees.rada.gov.ua weekly pages) |
 | `sync_info_monitor` | every 30 min | Info attack collector: factcheck RSS (ЦПД/VoxCheck/StopFake/Детектор/SPRAVDI) + t.me/s disinfo channels → info_items; другим ExecStart — `detect_attacks.py` (Phase 2 burst detector: union-find кластеризация simham/Jaccard, бьорст ≥4 TG-каналов и ≥8 постов за ≤24ч, спростування фактчекеров, cooldown кампаний, TG-алерт) |
+| `sync_disinfo_channels` | daily 06:50 | Watchlist refresh: парсинг списка СБУ (5.ua), резолвинг новых каналов через SearXNG site:t.me + og:title, liveness-проверка всех, prune мёртвых ≥3 дней, TG-отчёт при изменениях |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
@@ -264,12 +259,12 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `radacleaner-mpstats` | every 6h | factions + stats + **ІЕД recalc** (calc_kpi_v12.py) |
 | `night-batch` | 21:00 (+stop 08:00) | LLM analysis, 3 workers, alert on err>10 |
 
-Cron (план переходу в systemd): `sync_period.py --all` */10 пн-пт; `eu_alignment.py` daily 04:00.
-Всі unit-файли зберігаються в `systemd/`. Після редагування: `sudo systemctl daemon-reload`.
+Cron ліквідовано (2026-08-21): все планування — systemd timers (17 активних). sync_period */10 пн-пт; eu_alignment daily 04:00.
+Всі unit-файли зберігаються в `systemd/`. Після редагування: `sudo cp systemd/<unit> /etc/systemd/system/ && sudo systemctl daemon-reload` (в /etc — КОПІЇ, не symlink).
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: **ІЕД (v12) ACTIVE**, Dashboard with hexagon + activity calendar + clickable sort + modals, Telegram bot with ІЕД + daily digest + rate limiting, EU Score done, EU tracker deployed.
+Current status: **ІЕД (v12) ACTIVE**, Dashboard: ІЕД radar + Графік (календар активностей) + EU Integration Index 23.9% + Інфоатаки (детектор синхронних хвиль), Telegram bot + digest + attack alerts, EU tracker + cluster auto-detection.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
