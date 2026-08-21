@@ -845,18 +845,20 @@ async function toggleBillExpand(row, id) {
       let j = {};
       try { j = typeof risks.json_data === 'string' ? JSON.parse(risks.json_data) : risks.json_data; } catch(e) {}
       const lawText = j.law_summary || j.summary || '';
+      const autoMark = j.summary_source === 'fallback' ? ' <span style="color:var(--text2);font-weight:400">(авто)</span>' : '';
       if (lawText) {
         html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
-          <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
+          <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону${autoMark}</div>
           <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(lawText)}</p>
           <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
         </div>`;
       }
     } else if (risks?.raw_analysis) {
       let summaryText = risks.raw_analysis;
-      try { const j = JSON.parse(risks.raw_analysis); summaryText = j.law_summary || j.summary || risks.raw_analysis; } catch(e) {}
+      let autoMark2 = '';
+      try { const j2 = JSON.parse(risks.raw_analysis); summaryText = j2.law_summary || j2.summary || risks.raw_analysis; if (j2.summary_source === 'fallback') autoMark2 = ' <span style="color:var(--text2);font-weight:400">(авто)</span>'; } catch(e) {}
       html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--blue);border-radius:4px;margin-bottom:12px">
-        <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону</div>
+        <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:4px">📝 Суть закону${autoMark2}</div>
         <p style="font-size:13px;line-height:1.6;margin:0">${escHtml(summaryText)}</p>
         <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
       </div>`;
