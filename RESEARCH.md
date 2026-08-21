@@ -2432,3 +2432,23 @@ digest-llm о 20:00, але в приватний чат підписника).
 
 Не робити: довільні LLM-відповіді користувачу у приваті (вартість лімітів +
 ризик галюцинацій від імені проєкту).
+
+## Меню бота v2 — ВНЕДРЕНО (2026-08-22, P1+P2+P3)
+
+**P1**: /attacks (attack_alerts, останні 5, з debunk-лінками), /fakes (ТОП-10
+фактчеків з stats_cache `info_digest`), кнопки «🚨 Інфоатаки» / «🧪 Фейкі дня»
+та «👤 Депутат» (введення імені через стан awaiting_dep_name → send_dep_profile)
+в /start. Форматери format_attacks/format_fakes — чисті, 5 тестів.
+
+**P2**: таблиця bot_subscribers (migration 025: chat_id PK, attacks, digest).
+Кнопка «🔔 Підписки» → інлайн-тогли (INSERT..ON CONFLICT DO UPDATE SET x = NOT x,
+перевірено SQL). /off — повне видалення запису. Розсилка:
+detect_attacks.broadcast_subscribers() після кожного алерта (attacks=true),
+daily_digest_llm.broadcast_digest() після дайджесту (digest=true); помилка
+одного чата не ламає розсилку; Bot API ліміт ~30 msg/s — запас великий.
+
+**P3**: персональний дайджест = той самий deterministic текст digest-llm,
+розісланий підписникам одразу після службового каналу (20:00).
+
+Відомий борг (окремо): cmd_dep досі показує KPI v11 (заморожені legacy-
+колонки), тоді як /top — v12. Треба міграція /dep на v12 компоненти.
