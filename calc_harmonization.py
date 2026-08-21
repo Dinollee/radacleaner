@@ -3,7 +3,9 @@
 
 Формат виводу: "X з Y прийнято (Z%)" — зрозуміло для людей.
 """
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import psycopg2
@@ -111,6 +113,25 @@ CHAPTERS = {
 }
 
 
+# EU integration index v1: negotiation cluster statuses → score
+STATUS_SCORES = {"not_opened": 0, "opened": 50, "provisionally_closed": 100}
+
+
+def compute_index(statuses, legislation):
+    """Чистая функция: статусы 6 кластеров + overall гармонизация → индекс v1.
+
+    NEGOTIATION = среднее по кластерам (not_opened=0, opened=50, provisionally_closed=100)
+    INDEX = round(0.5 * NEGOTIATION + 0.5 * LEGISLATION, 1)
+    """
+    negotiation = round(sum(STATUS_SCORES[s] for s in statuses) / len(statuses), 1) if statuses else 0
+    legislation = round(legislation, 1)
+    return {
+        "negotiation": negotiation,
+        "legislation": legislation,
+        "index": round(0.5 * negotiation + 0.5 * legislation, 1),
+    }
+
+
 def calc_harmonization():
     conn = psycopg2.connect(DB_DSN)
     cur = conn.cursor()
@@ -169,6 +190,31 @@ def calc_harmonization():
             VALUES (%s, %s, now() AT TIME ZONE 'utc')
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
         """, (f"harmonization_ch{r['id']}", f"{r['harmonization']}:{r['total']}:{r['signed']}"))
+
+    # EU integration index v1 → stats_cache 'eu_integration_v1'
+    try:
+        cur.execute("SELECT cluster_id, status, event_date FROM eu_cluster_status ORDER BY cluster_id")
+        clusters = [
+            {"id": cid, "status": st, "event_date": ed.isoformat() if ed else None}
+            for cid, st, ed in cur.fetchall()
+        ]
+        if clusters:
+            idx = compute_index([c["status"] for c in clusters], overall)
+            value = json.dumps({
+                "v": 1,
+                "index": idx["index"],
+                "negotiation": idx["negotiation"],
+                "legislation": idx["legislation"],
+                "clusters": clusters,
+                "computed_at": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False)
+            cur.execute("""
+                INSERT INTO stats_cache (key, value, updated_at)
+                VALUES ('eu_integration_v1', %s, now() AT TIME ZONE 'utc')
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+            """, (value,))
+    except Exception as e:
+        print(f"eu_integration_v1 skipped: {e}")
 
     conn.commit()
     cur.close()
