@@ -19,9 +19,7 @@ migrations/       — SQL migration files
 scripts/          — utility scripts (test_llm_providers.py, backfill_summaries.py; test_kpi_formula.py — в корні)
 systemd/          — .service unit files
 tests/            — tests
-kpi_weights.json  — KPI v11 component weights (legacy, configurable)
 telegram_bot.py   — Telegram bot (interactive commands)
-calc_kpi_v11.py   — KPI v11 calculation (legacy, three-level system)
 calc_kpi_v12.py   — ІЕД calculation (active, 6 equal-weight categories)
 ```
 
@@ -133,8 +131,6 @@ Harmonization = signed_bills / total_bills × 100
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | calc_eu_llm.py | EU Score from LLM aggregation (raw_analysis) |
-| calc_eu_deputy.py | EU Score from bills.is_euro (legacy) |
-| sync_pulse.py | Pulse.kmu.gov.ua sync (24 EU agreement areas) |
 | sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |

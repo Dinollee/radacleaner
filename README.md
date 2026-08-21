@@ -85,15 +85,14 @@ radacleaner/
 │   ├── risk_storage.py         # Збереження оцінок ризиків
 │   ├── pdf_utils.py            # PDF → текст (PyMuPDF)
 │   ├── groq_client.py          # OpenRouter API клієнт
-│   ├── d1_client.py            # HTTP клієнт до Worker (D1)
+│   ├── d1_client.py            # PostgreSQL клієнт (auto ? → %s)
 │   └── telegram_notifier.py    # Telegram бот
 ├── worker/
-│   └── src/index.js            # Cloudflare Worker (REST API + FTS5)
+│   └── api-server.js           # Express API (порт 8788, PostgreSQL)
 ├── dashboard/
-│   └── index.html              # Дашборд (SPA, 4 секції)
-├── migrations/                 # D1 SQL міграції (001-013)
+│   └── index.html              # Дашборд (SPA, 5 секцій)
+├── migrations/                 # PostgreSQL міграції
 ├── sync_bills.py               # Entry: синхронізація законів
-├── sync_active_bills.py        # Live VRU HTML перевірка (30-денні bills)
 ├── sync_bill_passings.py       # Хронологія проходження законів
 ├── sync_votes_bulk.py          # Пакетна синхронізація голосувань
 ├── sync_votes.py               # Синхронізація голосувань (окремі)
@@ -103,9 +102,9 @@ radacleaner/
 ├── analyze_api.py              # Сервіс LLM аналізу (черга pending_analysis)
 ├── analyze_bill.py             # CLI: аналіз окремого закону
 ├── daily_digest_llm.py         # Щоденний Telegram дайджест
+├── weekly_digest.py            # Щотижневий Telegram дайджест (пн 08:00)
 ├── monitor.py                  # Telegram сповіщення з change_log
-├── rag_monitor.py              # Моніторинг законопроектів з LLM
-└── wrangler.jsonc              # Конфігурація Cloudflare
+└── night_batch.py              # Нічний LLM-аналіз (3 воркери)
 ```
 
 ---
