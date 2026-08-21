@@ -2104,3 +2104,33 @@ edge-deploy API.
 - Порядок: A2 → A1 → A3 → B1 → B2 → B3 → B4 → C1 → C2
 - Коммиты в dev; merge в main — в конце фаз
 - Деструктивные операции (DROP таблиц, удаление SQLite/веток) — только после явного «да»
+
+---
+
+## Session 2026-08-21: Action Plan Execution — A/B/C Complete
+
+Виконано повний план (див. вище). Комміти в dev: 7546352..d46e74a.
+
+### Фаза A
+| Задача | Результат |
+|--------|-----------|
+| A1 rada_schedule | sync_schedule_legacy.py працює (48 дат), timer 07:30; дайджест показує реальний статус пленарки |
+| A2 fallback+бекфіл | `_build_fallback_summaries()` з маркером `summary_source` (llm/fallback/none); метка «(авто)» на дашборді; timeout 600s→3600s; статус 'done' лише при rc=0; бекфіл 6 рядків; дедуп-індекс черги; 4 закони переаналізовано (10399 — 53 хв, 30 чанків, source=llm); черга 360 done / 0 error |
+| A3 алертинг | night_batch: Telegram alert + exit(1) при err>10; sync timeout 1800s |
+
+### Фаза B
+| Задача | Результат |
+|--------|-----------|
+| B1 git | гілки/stash/сміття видалено, main злитий з dev без конфліктів |
+| B2 KPI | 9 легасі-скриптів видалено (-1783 рядки), бот → kpi_v12_score, sync_all без v9 |
+| B3 доки+юнити | 26 unit-файлів у репо, ARCHITECTURE.md таблиця повна, daemon-reload |
+| B4 планування | cron→systemd (eu_alignment 04:00, sync_period */10 пн-пт, перший запуск перевірено); stats_cache 437→110; DROP deputy_requests + bill_eu_classification (+мертвий роут і UI); SQLite 1.6GB заархівовано в ~/backups (md5-звірено) і видалено |
+
+### Фаза C
+| Задача | Результат |
+|--------|-----------|
+| C1 тижневий дайджест | weekly_digest.py (детермінований), timer пн 08:00; фікс «Стадія 5/4» у обох дайджестах |
+| C2 тести | pytest: 37 тестів (формула ІЕД v12 C1-C6, STATUS_IDS регресія 16.07, формат дайджестів) |
+
+### Відкладено
+Group 4 (новини/фейки), Group 7 (UX виборців), соцмережі, jsonb-міграція, edge-deploy API.
