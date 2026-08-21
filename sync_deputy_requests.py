@@ -79,35 +79,48 @@ def get_mprequests_id(opener, full_name):
 
 
 def search_requests_with_responses(opener, mp_req_id):
-    """Пошук запитів з відповіддю."""
+    """Пошук запитів з відповіддю — з пагінацією (API віддає 30 рядків/сторінку).
+
+    Без пагінації with_response рахувався лише по першій сторінці:
+    Яценко А.В. мав 150 відповідей з 222, а в БД потрапляло 22.
+    """
     url = 'https://itd.rada.gov.ua/mprequests/api/DeputyRequest/SearchResults'
-    params = {"ConvocationId": 10, "AuthorId": mp_req_id, "Take": 500}
     try:
-        resp = opener.open(urllib.request.Request(url,
-            data=json.dumps(params).encode('utf-8'),
-            headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}))
-        data = json.loads(resp.read().decode('utf-8'))
-        html_content = data.get('view', '')
-
-        # Count total requests
-        total_match = re.search(r'Знайдено[^:]*:\s*(\d+)', html_content)
-        total = int(total_match.group(1)) if total_match else 0
-
-        # Parse rows to find responses
-        rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html_content, re.DOTALL | re.IGNORECASE)
-        data_rows = [r for r in rows if '<td' in r]
-
+        total = None
         with_response = 0
-        for row in data_rows:
-            cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
-            if len(cells) >= 5:
-                status_raw = html_mod.unescape(re.sub(r'<[^>]+>', '', cells[4]).strip())
-                if 'Відповідь' in status_raw or 'відповідь' in status_raw.lower():
-                    with_response += 1
+        seen_rows = 0
+        for page in range(1, 40):  # 40 сторінок x 30 = 1200 запитів — з запасом
+            params = {"ConvocationId": 10, "AuthorId": mp_req_id, "Take": 500, "Page": page}
+            resp = opener.open(urllib.request.Request(url,
+                data=json.dumps(params).encode('utf-8'),
+                headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0', 'Accept': 'application/json'}))
+            data = json.loads(resp.read().decode('utf-8'))
+            html_content = data.get('view', '')
 
-        return total, with_response
+            if total is None:
+                total_match = re.search(r'Знайдено[^:]*:\s*(\d+)', html_content)
+                total = int(total_match.group(1)) if total_match else 0
+
+            rows = re.findall(r'<tr[^>]*>(.*?)</tr>', html_content, re.DOTALL | re.IGNORECASE)
+            data_rows = [r for r in rows if '<td' in r]
+            if not data_rows:
+                break
+            seen_rows += len(data_rows)
+
+            for row in data_rows:
+                cells = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+                if len(cells) >= 5:
+                    status_raw = html_mod.unescape(re.sub(r'<[^>]+>', '', cells[4]).strip())
+                    if 'відповід' in status_raw.lower():
+                        with_response += 1
+            time.sleep(0.2)
+
+        # Захист від розсинхрону пагінації: якщо обійшли менше ніж total — не довіряємо
+        if total and seen_rows < total:
+            return None
+        return total or 0, with_response
     except Exception:
-        return 0, 0
+        return None
 
 
 def sync_requests():
@@ -134,7 +147,12 @@ def sync_requests():
             if not mp_req_id:
                 continue
             
-            total, with_response = search_requests_with_responses(opener, mp_req_id)
+            result = search_requests_with_responses(opener, mp_req_id)
+            if result is None:
+                # Збій/розсинхрон — НЕ обнуляємо, лишаємо старі значення в БД
+                errors += 1
+                continue
+            total, with_response = result
             results.append((mps_id, name, total, with_response))
             
             if with_response > 0:
