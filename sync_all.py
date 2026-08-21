@@ -8,7 +8,8 @@
   3. Комітети (sync_committee_members.py)
   4. MSI та K_pb (calc_msi_kpb.py)
   5. Quality, Risk, Authorship (calc_bill_quality.py)
-  6. Депутатські запити (sync_deputy_requests.py)
+  6. EU Harmonization (calc_harmonization.py)
+  7. Депутатські запити (sync_deputy_requests.py)
 
   ІЕД (KPI v12) рахується окремо: systemd radacleaner-mpstats.service → calc_kpi_v12.py
 """
@@ -45,6 +46,7 @@ def main():
         ("Calculate Quality, Risk, Authorship", "calc_bill_quality.py"),
         ("Recalculate EU Deputy Scores", "calc_eu_llm.py"),
         ("Recalculate EU Alignment", "eu_alignment.py"),
+        ("Calculate EU Harmonization", "calc_harmonization.py"),
         ("Sync deputy requests", "sync_deputy_requests.py"),
     ]
 

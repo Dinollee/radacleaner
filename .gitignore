@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
 worker/node_modules/
 worker/package-lock.json
 .wrangler/
@@ -14,12 +15,10 @@ cloudflared.deb
 data/*.db
 data/*.sqlite
 *.deb
-test_gemini_5.py
 /tmp/
 venv/
 *.log
 *.egg-info/
 dist/
 build/
-=
-.env
+.mimocode/
