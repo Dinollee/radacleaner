@@ -60,11 +60,20 @@ def calc_c3(adoption, total_primary):
     return adoption_norm * 0.7 + volume_norm * 0.3
 
 
+# Публічна шкала C4 «Комітет» (див. розділ «Методологія» на дашборді).
+# Строго монотонна: будь-яка роль >= відсутність ролі. Крок 15 — м'який.
+C4_LADDER = {
+    0: 0.40,   # немає ролі в комітеті
+    3: 0.55,   # член комітету
+    5: 0.70,   # секретар / голова підкомітету
+    7: 0.85,   # заступник голови
+    10: 1.00,  # голова комітету / спікер
+}
+
+
 def calc_c4(committee_score):
-    """Committee: role-based score normalized to 0-1."""
-    if committee_score == 0:
-        return 0.5
-    return committee_score / 10
+    """Committee: published monotonic ladder (see C4_LADDER)."""
+    return C4_LADDER.get(committee_score, C4_LADDER[0])
 
 
 def calc_c5(requests_with_response, request_count):

@@ -50,11 +50,19 @@ calc_kpi_v12.py → mps (kpi_v12_score, kpi_v12_* — ІЕД)
 | C1 | Дисципліна | `py×0.5 + pda×0.3 + vkp×0.2` | mp_votes |
 | C2 | Законотворчість | `quality/5×0.3 + (1-risk/5)×0.3 + docs/2000×0.2 + authorship/0.5×0.2` | risk_assessments |
 | C3 | Результативність | `adoption/100×0.7 + min(primary/10)×0.3` | bill_sponsors + bills |
-| C4 | Комітет | `score/10` | committee_members |
-| C5 | Звернення | `min(req_resp/20) × (0.7 + 0.3 × response_rate)` | deputy_requests |
+| C4 | Комітет | публічна монотонна шкала `C4_LADDER`: немає ролі **40** · член **55** · секретар/голова підком. **70** · заступник **85** · голова/спікер **100** | committee_members |
+| C5 | Звернення | `min(req_resp/20) × (0.7 + 0.3 × response_rate)` | itd.rada.gov.ua mprequests API (з пагінацією) |
 | C6 | Вплив | `(1-risk/5)×0.6 + eu/35×0.4` | risk_assessments + eu_alignment |
 
-Defaults: C2=0.5 (no LLM data), C3=0.5 (primary<3), C4=0.5 (no committee), C6=0.5 (no data). C1=0 if py<10%.
+Defaults: C2=0.5 (no LLM data), C3=0.5 (primary<3), C6=0.5 (no data). C1=0 if py<10%.
+C4 — єдина опублікована шкала для всіх (v2.1): будь-яка роль ≥ відсутність ролі, крок 15.
+
+### Методологія — публічна (v2.1, 2026-08-21)
+
+Дашборд, футер на КОЖНІЙ сторінці: карточка «📖 Методологія ІЕД» (всі компоненти,
+ваги, шкали, правила нейтралей) + «🤖 Промпт ШІ-аналізу законопроєктів» (дослівний
+текст system+main промпта з `src/prompts.py`, нотатки про чанкинг і пост-перевірки).
+⚠️ При зміні формул ІЕД або промптів — оновити розділ на дашборді і bump версії.
 
 ### Signals (Level 3 — auto-generated insights)
 
