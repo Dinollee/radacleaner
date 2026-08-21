@@ -54,7 +54,8 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📖 <b>Команди бота:</b>\n\n"
         "/bill <i>номер</i> — інформація про закон\n"
-        "/top — топ депутатів за KPI\n"
+        "/dep <i>ім'я</i> — профіль депутата (ІЕД)\n"
+        "/top — топ депутатів за ІЕД\n"
         "/eu — топ за євроінтеграцією\n"
         "/help — це повідомлення\n\n"
         "Або скористайтесь кнопками нижче.",
@@ -381,7 +382,7 @@ def main():
         BotCommand("start", "Запустити бота"),
         BotCommand("bill", "Інформація про закон"),
         BotCommand("dep", "Профіль депутата"),
-        BotCommand("top", "Топ депутатів за KPI"),
+        BotCommand("top", "Топ депутатів за ІЕД"),
         BotCommand("eu", "Топ за євроінтеграцією"),
         BotCommand("help", "Довідка"),
     ]))

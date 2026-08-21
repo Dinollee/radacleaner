@@ -151,7 +151,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest |
-| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Бот (підключення до @RadaCleaner_bot) |
 
 ## Night Batch (UPDATED 2026-07-15)
 

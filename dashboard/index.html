@@ -320,6 +320,7 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <button data-section="schedule">Графік</button>
     <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
     <button data-section="info-attacks">🛡 Інфоатаки</button>
+    <button data-section="bot">🤖 Бот</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
   <div class="theme-toggle" id="theme-toggle" title="Переключити тему"></div>
@@ -563,6 +564,78 @@ tr.former-deputy:hover td { opacity: 0.75; }
           <p style="margin:0"><strong>Список каналів моніторингу</strong> — офіційний перелік телеграм-каналів розповсюджувачів дезінформації, оприлюднений СБУ.</p>
         </div>
       </details>
+    </div>
+  </div>
+
+  <!-- TELEGRAM BOT -->
+  <div id="sec-bot" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🤖 Telegram-бот @RadaCleaner_bot</div>
+        <div style="font-size:12px;color:var(--text2)">інтерактивний доступ до моніторингу з телефона</div>
+      </div>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:6px 0 14px">
+        <div style="font-size:40px">🤖</div>
+        <div style="flex:1;min-width:240px">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px">Страж Демократії — у твоєму Telegram</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.5">Інформація про закони Верховної Ради, профілі депутатів за ІЕД, рейтинги євроінтеграції — без реєстрації, просто натисни Start.</div>
+        </div>
+        <a href="https://t.me/RadaCleaner_bot" target="_blank" rel="noopener" style="background:var(--blue);color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:700;font-size:14px;white-space:nowrap">Відкрити бота ↗</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Як підключитися</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+          <div style="font-size:24px;margin-bottom:8px">1️⃣</div>
+          <div style="font-weight:600;font-size:13.5px;margin-bottom:4px">Відкрий бота</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Перейди за посиланням <a href="https://t.me/RadaCleaner_bot" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none">t.me/RadaCleaner_bot ↗</a> або знайди @RadaCleaner_bot у пошуку Telegram.</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+          <div style="font-size:24px;margin-bottom:8px">2️⃣</div>
+          <div style="font-weight:600;font-size:13.5px;margin-bottom:4px">Натисни «Старт»</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Бот покаже меню з кнопками — жодних даних чи реєстрації не потрібно.</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+          <div style="font-size:24px;margin-bottom:8px">3️⃣</div>
+          <div style="font-weight:600;font-size:13.5px;margin-bottom:4px">Користуйся</div>
+          <div style="font-size:12.5px;color:var(--text2);line-height:1.5">Обери закон, депутата чи рейтинг — або введи команду вручну (список нижче).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Команди бота</div>
+        <div style="font-size:12px;color:var(--text2)">доступні всім після /start</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--border);color:var(--text2)">
+          <th style="padding:8px 6px">Команда</th><th style="padding:8px 6px">Що робить</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:7px 6px"><code>/start</code></td><td style="padding:7px 6px">головне меню з кнопками</td></tr>
+          <tr><td style="padding:7px 6px"><code>/bill 14332</code></td><td style="padding:7px 6px">картка закону: назва, стадія, ризики ШІ, суть, автори</td></tr>
+          <tr><td style="padding:7px 6px"><code>/dep Гетманцев</code></td><td style="padding:7px 6px">профіль депутата: ІЕД, 6 компонентів, сигнали</td></tr>
+          <tr><td style="padding:7px 6px"><code>/top</code></td><td style="padding:7px 6px">топ депутатів за ІЕД</td></tr>
+          <tr><td style="padding:7px 6px"><code>/eu</code></td><td style="padding:7px 6px">рейтинг депутатів за євроінтеграцією</td></tr>
+          <tr><td style="padding:7px 6px"><code>/help</code></td><td style="padding:7px 6px">довідка</td></tr>
+        </tbody>
+      </table>
+      <p style="margin:10px 0 0;font-size:12.5px;color:var(--text2)">💡 Після кнопки «📜 Закон за номером» можна просто надіслати номер (наприклад <code>14332</code>) — бот сам зрозуміє.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔔 Сповіщення від бота</div>
+      </div>
+      <div style="font-size:13px;line-height:1.8;color:var(--text)">
+        <p style="margin:0 0 8px"><strong>Зараз працює:</strong> усі команди вище — для кожного, хто натиснув Start. Автоматичні сповіщення проєкту (🚨 синхронні інфохвилі, щоденні дайджести, високоризикові закони) надходять у службовий канал моніторингу.</p>
+        <p style="margin:0"><strong>У планах:</strong> персональні підписки — кожен охочий зможе отримувати 🚨 сповіщення про інфоатаки та ранкові дайджести у власний чат (кнопка «Підписатися» в меню бота). Пропозиція архітектури — у RESEARCH.md, розділ «Меню бота v2».</p>
+      </div>
     </div>
   </div>
 
