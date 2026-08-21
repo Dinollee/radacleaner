@@ -256,6 +256,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `digest-llm` | daily 20:00 | Daily digest #2 (`daily_digest_llm.py`, deterministic, no LLM) |
 | `sync_schedule` | daily 07:30 | VRU plenary calendar sync (legacy HTML calendar) |
 | `sync_committee_schedule` | daily 07:40 | Committee meetings sync (committees.rada.gov.ua weekly pages) |
+| `sync_info_monitor` | every 30 min | Info attack collector: factcheck RSS (ЦПД/VoxCheck/StopFake/Детектор/SPRAVDI) + t.me/s disinfo channels → info_items |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |

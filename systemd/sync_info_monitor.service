@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — info attack monitor collector (factcheck RSS + disinfo telegram channels)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_info_monitor.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=900
