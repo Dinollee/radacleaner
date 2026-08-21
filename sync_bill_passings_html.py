@@ -5,10 +5,10 @@
 цей скрипт парсить HTML карточки законів для отримання актуальних даних.
 
 Використання:
-    ./venv/bin/python sync_bill_passings_html.py           — перевірити "гарячі" закони (7 днів)
+    ./venv/bin/python sync_bill_passings_html.py           — активні закони (події за 7 днів) + хвіст застарілих
     ./venv/bin/python sync_bill_passings_html.py --all     — перевірити всі stage 2,3,4
     ./venv/bin/python sync_bill_passings_html.py --bill 15294 — один закон
-    ./venv/bin/python sync_bill_passings_html.py --days 3  — passings старіші за 3 дні
+    ./venv/bin/python sync_bill_passings_html.py --days 3  — вікно активності 3 дні
 """
 import argparse
 import re
@@ -86,12 +86,14 @@ def parse_passings_from_html(html: str) -> list[dict]:
 
 
 def get_hot_bills(days: int = 7) -> list[dict]:
-    """Отримує 'гарячі' закони: stage 2,3,4 з застарілими passings.
+    """Отримує 'гарячі' закони для перевірки хронології.
 
     Пріоритет:
-    1. Закони без passings
-    2. Закони де passings старіші за N днів
-    3. Закони зі зміненим stage за останній тиждень
+    1. АКТИВНІ — останнє проходження в межах N днів (саме вони отримують
+       нові події щодня; JSON-булк оновлюється 1x/добу, тому внутрішньоденні
+       події активних законів інакше провалюються у щілину)
+    2. Закони без passings (ніколи не синхронізовані)
+    3. Закони де passings старіші за N днів (ротация хвоста)
     """
     cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
@@ -103,16 +105,20 @@ def get_hot_bills(days: int = 7) -> list[dict]:
         WHERE b.stage IN (2, 3, 4)
           AND b.url IS NOT NULL
         GROUP BY b.id, b.bill_number, b.url, b.stage
-        HAVING MAX(bp.pass_date::date) < '{cutoff}'
-           OR MAX(bp.pass_date::date) IS NULL
         ORDER BY
-            CASE WHEN MAX(bp.pass_date::date) IS NULL THEN 0 ELSE 1 END,
+            CASE
+                WHEN MAX(bp.pass_date::date) >= '{cutoff}' THEN 0
+                WHEN MAX(bp.pass_date::date) IS NULL THEN 1
+                ELSE 2
+            END,
+            MAX(bp.pass_date::date) DESC NULLS LAST,
             b.stage,
             b.registration_date DESC
         LIMIT {MAX_BILLS}
     """)
 
-    log.info("Hot bills (passings older than %d days): %d", days, len(rows))
+    active = sum(1 for r in rows if r['last_passing'] and str(r['last_passing']) >= cutoff)
+    log.info("Hot bills: %d (active<=%dd: %d, stale/never: %d)", len(rows), days, active, len(rows) - active)
     return rows
 
 

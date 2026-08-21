@@ -816,6 +816,11 @@ async function toggleBillExpand(row, id) {
       <div><span style="color:var(--text2)">Остання зміна:</span> ${formatDate(b.updated_at||b.updated_at)}</div>
       ${risks?.model_used ? `<div><span style="color:var(--text2)">Модель:</span> <span style="color:var(--purple)">${escHtml(risks.model_used)}</span> · ${formatDate(risks.assessed_at)}</div>` : ''}
       ${b.url && b.url.startsWith('http') ? `<div><a href="${escHtml(b.url)}" target="_blank" style="color:var(--blue);font-size:12px">📋 Сайт ВРУ →</a></div>` : ''}
+      ${b.act_number ? (() => {
+        // URL реєстру — латиницею: 4931-ІХ (кирилиця) -> 4931-IX
+        const latin = String(b.act_number).replace(/[\u0406\u0456]/g,'I').replace(/[\u0425\u0445]/g,'X');
+        return `<div><span style="color:var(--text2)">Закон:</span> <a href="https://zakon.rada.gov.ua/laws/show/${encodeURIComponent(latin)}" target="_blank" style="color:var(--green);font-weight:600">№${escHtml(b.act_number)} →</a></div>`;
+      })() : ''}
     </div>`;
 
     // Re-analyze button
