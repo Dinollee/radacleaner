@@ -8,6 +8,8 @@ Type=oneshot
 User=radamon
 WorkingDirectory=/home/radamon/radacleaner
 ExecStart=/home/radamon/radacleaner/venv/bin/python sync_info_monitor.py
+# Phase 2 burst detector — сразу после collector'а, тот же timer
+ExecStart=/home/radamon/radacleaner/venv/bin/python detect_attacks.py
 StandardOutput=journal
 StandardError=journal
 TimeoutStartSec=900
