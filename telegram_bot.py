@@ -208,8 +208,8 @@ async def cmd_dep(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def send_dep_profile(update, name_query):
     rows = db_query(
-        "SELECT id, name, faction, kpi_v11_score, kpi_v11_effectiveness, kpi_v11_discipline, "
-        "kpi_v11_efficiency, kpi_v11_control, kpi_v11_quality, "
+        "SELECT id, name, faction, kpi_v12_score, kpi_v12_discipline, kpi_v12_legislation, "
+        "kpi_v12_efficiency, kpi_v12_committee, kpi_v12_requests, kpi_v12_impact, "
         "committee_score, shannon_diversity, eu_integration_score, eu_euro_bills, "
         "authorship_ratio, total_bills, total_laws, bill_quality_score, "
         "signal_warnings, signal_strengths, signal_features, "
@@ -226,14 +226,15 @@ async def send_dep_profile(update, name_query):
     lines = []
     lines.append(f"═══ <b>{d['name']}</b> ({d['faction']}) ═══")
 
-    # KPI v11
-    lines.append("\n📊 <b>KPI</b>")
-    lines.append(f"  Законодавство  {progress_bar(d['kpi_v11_effectiveness'])} {d['kpi_v11_effectiveness']:.0f}")
-    lines.append(f"  Дисципліна     {progress_bar(d['kpi_v11_discipline'])} {d['kpi_v11_discipline']:.0f}")
-    lines.append(f"  Результативн.  {progress_bar(d['kpi_v11_efficiency'])} {d['kpi_v11_efficiency']:.0f}")
-    lines.append(f"  Контроль       {progress_bar(d['kpi_v11_control'])} {d['kpi_v11_control']:.0f}")
-    lines.append(f"  Якість         {progress_bar(d['kpi_v11_quality'])} {d['kpi_v11_quality']:.0f}")
-    lines.append(f"  <b>Загальний    {progress_bar(d['kpi_v11_score'])} {d['kpi_v11_score']:.1f}</b>")
+    # ІЕД v12 — 6 рівних категорій
+    lines.append("\n📊 <b>ІЕД</b> (v12, 6 рівних компонент)")
+    lines.append(f"  C1 Дисципліна       {progress_bar(d['kpi_v12_discipline'])} {d['kpi_v12_discipline']:.0f}")
+    lines.append(f"  C2 Законотворчість  {progress_bar(d['kpi_v12_legislation'])} {d['kpi_v12_legislation']:.0f}")
+    lines.append(f"  C3 Результативність {progress_bar(d['kpi_v12_efficiency'])} {d['kpi_v12_efficiency']:.0f}")
+    lines.append(f"  C4 Комітет          {progress_bar(d['kpi_v12_committee'])} {d['kpi_v12_committee']:.0f}")
+    lines.append(f"  C5 Звернення        {progress_bar(d['kpi_v12_requests'])} {d['kpi_v12_requests']:.0f}")
+    lines.append(f"  C6 Вплив            {progress_bar(d['kpi_v12_impact'])} {d['kpi_v12_impact']:.0f}")
+    lines.append(f"  <b>ІЕД  {progress_bar(d['kpi_v12_score'])} {d['kpi_v12_score']:.1f}</b>")
 
     # Profile
     lines.append("\n📋 <b>Профіль</b>")
