@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — night info-attack narrative labeling (digest to stats_cache)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python label_narratives.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=900

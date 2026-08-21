@@ -772,6 +772,29 @@ app.get('/api/eu-alignment/chapter/:id', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+// --- INFO ATTACKS (Phase 3 digest + Phase 2 alerts) ---
+app.get('/api/info-digest', async (req, res) => {
+  try {
+    const [digestRows, alerts, statsRows] = await Promise.all([
+      q(`SELECT value FROM stats_cache WHERE key = 'info_digest'`).catch(() => []),
+      q(`SELECT a.id, a.label, a.posts_count, a.channels_count, a.window_hours,
+                a.debunk_url, a.detected_at, i.title AS sample
+         FROM attack_alerts a
+         LEFT JOIN info_items i ON i.id = a.first_item_id
+         ORDER BY a.detected_at DESC LIMIT 10`).catch(() => []),
+      q(`SELECT (SELECT count(*) FROM info_items
+                 WHERE posted_at >= now() - interval '24 hours') AS items_24h,
+                (SELECT count(DISTINCT source_name) FROM info_items
+                 WHERE source_type = 'telegram'
+                   AND posted_at >= now() - interval '24 hours') AS tg_channels_active,
+                (SELECT count(*) FROM attack_alerts) AS attacks_total`),
+    ]);
+    let digest = null;
+    if (digestRows[0]) { try { digest = JSON.parse(digestRows[0].value); } catch { /* malformed cache */ } }
+    json(res, { digest, alerts, stats: statsRows[0] || {} }, 200, 300);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
 // --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 

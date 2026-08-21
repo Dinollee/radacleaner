@@ -319,6 +319,7 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <button data-section="deputies">Депутати</button>
     <button data-section="schedule">Графік</button>
     <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
+    <button data-section="info-attacks">🛡 Інфоатаки</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
   <div class="theme-toggle" id="theme-toggle" title="Переключити тему"></div>
@@ -514,6 +515,54 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <div style="font-size:12px;color:var(--text2)">RSS Єврокомісії (DG ENLARGEMENT)</div>
       </div>
       <div id="eu-news"></div>
+    </div>
+  </div>
+
+  <!-- INFO ATTACKS -->
+  <div id="sec-info-attacks" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🛡 Моніторинг інфоатак</div>
+        <span id="ia-updated"></span>
+      </div>
+      <div id="ia-hero">
+        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Зафіксовані атаки</div>
+        <div style="font-size:12px;color:var(--text2)">синхронні хвилі публікацій (авто-детекція)</div>
+      </div>
+      <div id="ia-alerts"><div style="color:var(--text2);font-size:13px">Завантаження...</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Наративи доби</div>
+        <div style="font-size:12px;color:var(--text2)">найбільші кластери публікацій за 24 години</div>
+      </div>
+      <div id="ia-clusters"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">ТОП перевірок фактчекерів</div>
+        <div style="font-size:12px;color:var(--text2)">фейки дня, які спростували ЦПД / VoxCheck / StopFake</div>
+      </div>
+      <div id="ia-fakes"></div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Що це таке — методологія розділу</summary>
+        <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
+          <p style="margin:0 0 8px"><strong>Ми фіксуємо синхронність публікацій автоматично.</strong> Схожі за змістом пости в багатьох телеграм-каналах протягом короткого вікна — ознака скоординованої хвилі. Це <em>сигнал для уваги</em>, а не висновок про брехню.</p>
+          <p style="margin:0 0 8px"><strong>Вердикти «фейк/правда» — лише людські фактчекери:</strong> Центр протидії дезінформації (ЦПД), VoxCheck, StopFake, «Детектор медіа», SPRAVDI. Ми агрегуємо їхні публікації та посилаємось на першоджерела — власних вердиктів не виносимо.</p>
+          <p style="margin:0"><strong>Список каналів моніторингу</strong> — офіційний перелік телеграм-каналів розповсюджувачів дезінформації, оприлюднений СБУ.</p>
+        </div>
+      </details>
     </div>
   </div>
 
@@ -808,6 +857,7 @@ function showSection(name) {
   if (name === 'deputies') loadDeputies();
   if (name === 'schedule') loadSchedule();
   if (name === 'eu-alignment') loadEUAlignment();
+  if (name === 'info-attacks') loadInfoAttacks();
 }
 
 // === API helpers ===
@@ -2352,6 +2402,127 @@ function renderEUNews(news) {
       </div>
     `;
   }
+  el.innerHTML = html;
+}
+
+// === INFO ATTACKS ===
+const IA_CATEGORY_COLORS = {
+  'закони': 'var(--blue)',
+  'вибори': 'var(--orange)',
+  'мобілізація': 'var(--red)',
+  'інше': 'var(--text2)',
+};
+
+function fmtIaDateTime(s) {
+  const d = new Date(s);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getDate())}.${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function iaStamp(generatedAt) {
+  if (!generatedAt) return '';
+  const d = new Date(generatedAt);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `<span style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:4px 12px;border-radius:12px;font-size:12px;white-space:nowrap">дані оновлено ${p(d.getHours())}:${p(d.getMinutes())}</span>`;
+}
+
+function loadInfoAttacks() {
+  api('/api/info-digest').then(data => {
+    renderInfoStats(data.digest, data.stats || {});
+    renderAlerts(Array.isArray(data.alerts) ? data.alerts : []);
+    renderClusters((data.digest && Array.isArray(data.digest.clusters)) ? data.digest.clusters : []);
+    renderFakes((data.digest && Array.isArray(data.digest.fakes)) ? data.digest.fakes : []);
+  }).catch(() => {
+    document.getElementById('ia-hero').innerHTML =
+      '<div style="color:var(--text2);padding:20px;text-align:center">Дані моніторингу поки недоступні</div>';
+    document.getElementById('ia-updated').textContent = '';
+  });
+}
+
+function renderInfoStats(digest, stats) {
+  const counters = [
+    { label: 'Постів за 24 години', value: Number(stats.items_24h) || 0, color: 'var(--blue)' },
+    { label: 'Активних каналів', value: Number(stats.tg_channels_active) || 0, color: 'var(--green)' },
+    { label: 'Атак зафіксовано', value: Number(stats.attacks_total) || 0, color: 'var(--red)' },
+  ];
+  document.getElementById('ia-updated').innerHTML = iaStamp(digest && digest.generated_at);
+  document.getElementById('ia-hero').innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;text-align:center">
+      ${counters.map(c => `
+        <div style="border:1px solid var(--border);border-radius:8px;padding:18px;background:var(--bg2)">
+          <div style="font-size:38px;font-weight:800;color:${c.color};line-height:1">${c.value}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">${c.label}</div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderAlerts(alerts) {
+  const el = document.getElementById('ia-alerts');
+  if (!alerts.length) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:6px 0">Синхронних хвиль за останній період не зафіксовано — це добре ✅</div>';
+    return;
+  }
+  let html = '';
+  for (const a of alerts) {
+    const debunk = a.debunk_url
+      ? ` · <a href="${attr(a.debunk_url)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-size:12px">спростування ↗</a>`
+      : '';
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <div>🚨 <strong>${escHtml(a.label || 'Наратив без назви')}</strong>
+          <span style="color:var(--text2)">— ${Number(a.posts_count) || 0} постів × ${Number(a.channels_count) || 0} каналів за ${Number(a.window_hours) || 0} год${debunk}</span>
+        </div>
+        <span style="color:var(--text2);white-space:nowrap;font-size:12px">${fmtIaDateTime(a.detected_at)}</span>
+      </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderClusters(clusters) {
+  const el = document.getElementById('ia-clusters');
+  if (!clusters.length) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:13px">Кластери за добу поки не сформовано.</div>';
+    return;
+  }
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px">';
+  for (const c of clusters) {
+    const color = IA_CATEGORY_COLORS[c.category] || 'var(--text2)';
+    const sample = String(c.sample || '');
+    html += `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+        <div style="font-weight:700;font-size:13.5px;line-height:1.35;margin-bottom:8px">${escHtml(c.label)}</div>
+        <div style="margin-bottom:8px"><span style="background:${color};color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;display:inline-block">${escHtml(c.category || 'інше')}</span></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${Number(c.size) || 0} постів × ${Number(c.channels) || 0} кан.</div>
+        <div style="font-style:italic;font-size:12.5px;color:var(--text2)">${escHtml(sample.slice(0, 120))}${sample.length > 120 ? '…' : ''}</div>
+      </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+function renderFakes(fakes) {
+  const el = document.getElementById('ia-fakes');
+  const top = fakes.filter(f => f.significance > 0)
+    .sort((a, b) => b.significance - a.significance).slice(0, 10);
+  if (!top.length) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:13px">Перевірок фактчекерів за добу поки немає.</div>';
+    return;
+  }
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  for (const f of top) {
+    const essence = f.one_line || f.title;
+    html += `
+      <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--bg2)">
+        <div style="font-size:13.5px;line-height:1.45;margin-bottom:8px">${escHtml(essence)}</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="background:rgba(37,99,235,.12);color:var(--blue);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${escHtml(f.source || '')}</span>
+          ${f.url ? `<a href="${attr(f.url)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-size:12px">повний розбір ↗</a>` : ''}
+        </div>
+      </div>`;
+  }
+  html += '</div>';
   el.innerHTML = html;
 }
 
