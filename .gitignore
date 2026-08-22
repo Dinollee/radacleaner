@@ -22,3 +22,4 @@ venv/
 dist/
 build/
 .mimocode/
+data/.disinfo_unresolved.json
