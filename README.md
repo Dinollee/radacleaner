@@ -1,10 +1,11 @@
 <p align="center">
   <h1 align="center">🏛️ Страж Демократії</h1>
-  <p align="center"><em>Автоматизований моніторинг законопроектів Верховної Ради України IX скликання</em></p>
+  <p align="center"><em>Моніторинг законів Верховної Ради України IX скликання · ІЕД депутатів · рівень євроінтеграції · детектор синхронних інфоатак</em></p>
 </p>
 
 <p align="center">
   <a href="https://radacleaner-dashboard.pages.dev">🌐 Дашборд</a> •
+  <a href="https://t.me/RadaCleaner_bot">🤖 Telegram-бот</a> •
   <a href="https://github.com/Dinollee/radacleaner">GitHub</a>
 </p>
 
@@ -12,50 +13,59 @@
 
 ## Що це робить
 
-**Страж Демократії** — це система, яка автоматично збирає всі законопроєкти ВРУ, аналізує їх на ризики за допомогою ШІ та сповіщає громадян через Telegram.
+**Страж Демократії** автоматично збирає всі законопроєкти ВРУ (15,000+), аналізує
+їх на ризики за допомогою ШІ, рахує Індекс ефективної діяльності (ІЕД) депутатів,
+відстежує рівень євроінтеграції України та **виявляє скоординовані інформаційні
+атаки** в telegram-каналах — і одразу повідомляє про них у Telegram.
 
 ### Можливості
 
 | Компонент | Опис |
 |-----------|------|
-| 🔄 **Синхронізація** | Автоматичний збір 15,000+ законопроектів з RADA API |
-| 🧠 **LLM-аналіз** | Chain of Thought аналіз на ризики з розділенням критичних та абстрактних |
-| 📱 **Telegram** | Сповіщення про нові закони, зміни статусів, ризики та щоденний дайджест |
-| 📊 **Дашборд** | Веб-інтерфейс з FTS5 пошуком, фільтрами, диффом версій |
-| 👥 **Депутати** | ПЯ, ПДА, ВКП — три метрики ефективності, паттерни голосувань |
-| 📅 **Голосування** | 8,000+ голосувань, 440+ депутатів, детальна статистика |
+| 🔄 **Синхронізація** | 15,000+ законопроєктів з RADA API: статуси, хронологія, документи, автори, голосування (19,600+) |
+| 🧠 **LLM-аналіз** | Двоетапний Chain-of-Thought аналіз ризиків (процедурний/непроцедурний → ризики), українською, з пост-перевірками |
+| 📊 **ІЕД депутатів** | 6 рівних категорій (C1–C6) з опублікованою методологією v2.1 — жодних прихованих ваг |
+| 🇪🇺 **Євроінтеграція** | Гіпотетичний індекс 0–100: переговорний трек (статуси кластерів, авто-детекція відкриттів з RSS ЄК) + гармонізація законодавства |
+| 🛡 **Детектор інфоатак** | Кластеризація постів ~20 деструктивних каналів (список СБУ) + фактчекерів; бьорст-детекція синхронних хвиль → пуш з посиланням на спростування |
+| 📱 **Telegram** | Бот з командами (/bill, /dep, /top, /eu, /attacks, /fakes), персональні підписки на атаки та дайджести, щоденні зведення |
+| 📅 **Графік** | Календар усіх активностей ВРУ: пленарні, комітети, голосування, свята, події ЄС |
 
 ---
 
 ## Архітектура
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     VPS (Python)                            │
-│                                                             │
-│  sync_bills.py ────→ RADA JSON API ────→ закони → D1       │
-│  sync_active_bills.py → VRU HTML → live статуси → D1       │
-│  sync_bill_passings.py → хронологія → D1                   │
-│  rag_engine.py ────→ PDF → LLM → ризики → D1              │
-│  analyze_api.py ───→ pending_analysis → LLM → risks        │
-│  sync_mp_factions.py → фракції + дати (RADA HTML) → D1     │
-│  sync_mp_stats.py ──→ ПЯ/ПДА/ВКП депутатів → D1           │
-│  sync_votes_bulk.py → голосування → D1                     │
-│  monitor.py ────→ change_log → Telegram                    │
-│  daily_digest_llm.py → щоденний дайджест → Telegram        │
-│                          │                                  │
-│                    POST /api/sync                           │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  CLOUDFLARE                                  │
-│                                                             │
-│  🌐 Pages    — дашборд (Vanilla JS, SPA)                   │
-│  ⚡ Worker   — REST API + FTS5 search                       │
-│  🗄 D1       — SQLite (15K+ bills, 7.5M mp_votes)          │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────── VPS (Python + Node) ──────────────────────┐
+│                                                                 │
+│  СИНХРОНІЗАЦІЯ (17 systemd timers)                              │
+│    sync_bills / sync_bill_passings_html → bills, passings       │
+│    sync_votes_bulk → votes, mp_votes (7.5M)                     │
+│    sync_mp_factions/stats → mps (460 депутатів)                 │
+│    sync_schedule_legacy / sync_committee_schedule → графік      │
+│    sync_eu_tracker → статуси кластерів ЄС (авто з RSS ЄК)       │
+│    sync_info_monitor → інфопотік (RSS фактчекерів + t.me/s)     │
+│    sync_disinfo_channels → щоденне оновлення списку каналів     │
+│                                                                 │
+│  АНАЛІЗ                                                         │
+│    night_batch (21:00–08:00, 3 воркери) → LLM ризики            │
+│    calc_kpi_v12 → ІЕД · calc_harmonization → EU index           │
+│    detect_attacks (кожні 30 хв) → бьорст-детектор + TG-пуш      │
+│    label_narratives (07:15) → LLM-розмітка нарративів дня       │
+│                                                                 │
+│  API: Express (порт 8788) ── Cloudflare Tunnel ──► api.dino.pp.ua│
+└──────────────────────────────┬──────────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  PostgreSQL 18.4 (192.168.1.244/radacleaner)                    │
+│    bills · risk_assessments · mps · mp_votes · eu_cluster_status│
+│    info_items · attack_alerts · bot_subscribers · rada_schedule │
+└──────────────────────────────┬──────────────────────────────────┘
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  CLOUDFLARE PAGES — дашборд (Vanilla JS SPA)                    │
+│    Дашборд · Закони · Депутати · Графік · EU Alignment ·        │
+│    🛡 Інфоатаки · 🤖 Бот                                        │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -64,208 +74,95 @@
 
 | Шар | Технологія |
 |-----|-----------|
-| **Бекенд** | Python 3 + PyMuPDF + OpenRouter LLM |
-| **API** | Cloudflare Worker (JavaScript) |
-| **База** | Cloudflare D1 (SQLite) + FTS5 |
+| **Бекенд** | Python 3 (syncs/аналіз) + Express/Node.js (API) |
+| **База** | PostgreSQL 18.4 |
 | **Фронтенд** | Vanilla HTML/CSS/JS (Cloudflare Pages) |
+| **LLM** | `nvidia/nemotron-3-super-120b-a12b:free` через OpenRouter (+ NVIDIA, Gemini fallback) |
 | **Сповіщення** | Telegram Bot API |
-| **LLM** | OpenRouter `owl-alpha` (1M context, безкоштовно) |
+| **Тести** | pytest, 80 тестів (`venv/bin/python -m pytest tests/ -q`) |
 
 ---
 
-## Структура проекту
+## ІЕД — Індекс ефективної діяльності (v12)
+
+6 рівних категорій, без ваг: `ІЕД = (C1+C2+C3+C4+C5+C6) / 6 × 100`
+
+| # | Категорія | Джерело |
+|---|-----------|---------|
+| C1 | Дисципліна (явка, голосування, дисципліна фракції) | mp_votes |
+| C2 | Законотворчість (якість, ризик, документи, авторство) | risk_assessments |
+| C3 | Результативність (прийняття своїх законів) | bill_sponsors |
+| C4 | Комітет (публічна монотонна шкала ролей 40–100) | committee_members |
+| C5 | Звернення (депутатські запити + відповіді) | itd.rada.gov.ua |
+| C6 | Вплив (низький ризик + євроінтеграційний слід) | risk_assessments + EU |
+
+Методологія v2.1 повністю опублікована на дашборді (футер кожної сторінки) —
+разом із дослівним промптом ШІ-аналізу. При зміні формул — bump версії.
+
+## 🇪🇺 EU Integration Index v1 (гіпотетичний)
+
+```
+INDEX = 0.5 × Перемовини + 0.5 × Гармонізація
+Перемовини  = статуси 6 кластерів (не відкритий=0, відкритий=50, закритий=100)
+              — авто-детекція відкриттів з RSS Єврокомісії
+Гармонізація = частка прийнятих законів серед EU-релевантних
+```
+
+Станом на серпень 2026: **23.9%** (відкриті кластери 1 «Основи» 15.06.2026
+та 6 «Зовнішні відносини» 14.07.2026). Методологія опублікована на дашборді.
+
+## 🛡 Детектор синхронних інфоатак
+
+Ключова фішка проєкту: **швидкість** — хвилини замість денного циклу фактчекерів.
+
+1. **Збір** (кожні 30 хв): 5 RSS фактчекерів (ЦПД, VoxCheck, StopFake,
+   Детектор медіа, SPRAVDI) + ~20 каналів зі списку СБУ через публічний
+   `t.me/s` (MTProto не використовуємо — ToS Telegram)
+2. **Кластеризація**: simhash + token-Jaccard (union-find, чистий Python)
+3. **Бьорст-правило**: ≥4 різних TG-каналів, ≥8 постів, вікно ≤24 год → алерт
+4. **Пуш**: наратив + масштаб + приклад + посилання на спростування
+   фактчекерів + номер закону з нашої БД. Дисклеймер: *вердикт — за фактчекерами*
+5. **Щодня 07:15**: LLM-розмітка нарративів дня + ТОП перевірок → вкладка
+   «🛡 Інфоатаки»
+
+Список каналів оновлюється щодня автоматично (джерело СБУ через 5.ua,
+резолвинг нових каналів через власний SearXNG, prune мертвих).
+
+---
+
+## Структура проєкту (ключове)
 
 ```
 radacleaner/
-├── src/                        # Python package
-│   ├── config.py               # Конфігурація + імпорти промтів
-│   ├── prompts.py              # LLM промти (аналіз ризиків)
-│   ├── bill_sync.py            # Синхронізація законів: RADA JSON → D1
-│   ├── rag_engine.py           # LLM аналіз ризиків (Chain of Thought)
-│   ├── risk_storage.py         # Збереження оцінок ризиків
-│   ├── pdf_utils.py            # PDF → текст (PyMuPDF)
-│   ├── groq_client.py          # OpenRouter API клієнт
-│   ├── d1_client.py            # PostgreSQL клієнт (auto ? → %s)
-│   └── telegram_notifier.py    # Telegram бот
-├── worker/
-│   └── api-server.js           # Express API (порт 8788, PostgreSQL)
-├── dashboard/
-│   └── index.html              # Дашборд (SPA, 5 секцій)
-├── migrations/                 # PostgreSQL міграції
-├── sync_bills.py               # Entry: синхронізація законів
-├── sync_bill_passings.py       # Хронологія проходження законів
-├── sync_votes_bulk.py          # Пакетна синхронізація голосувань
-├── sync_votes.py               # Синхронізація голосувань (окремі)
-├── sync_mp_stats.py            # Перерахунок статистики депутатів
-├── sync_mp_factions.py         # Синхронізація фракцій + дат
-├── sync_mp_bills.py            # Активність депутатів у законотворчості
-├── analyze_api.py              # Сервіс LLM аналізу (черга pending_analysis)
-├── analyze_bill.py             # CLI: аналіз окремого закону
-├── daily_digest_llm.py         # Щоденний Telegram дайджест
-├── weekly_digest.py            # Щотижневий Telegram дайджест (пн 08:00)
-├── monitor.py                  # Telegram сповіщення з change_log
-└── night_batch.py              # Нічний LLM-аналіз (3 воркери)
+├── src/                        # llm_client, d1_client, prompts, telegram_notifier
+├── worker/api-server.js        # Express API (порт 8788, PostgreSQL)
+├── dashboard/index.html        # Дашборд (SPA, 7 вкладок)
+├── systemd/                    # усі unit-файли (17 таймерів + 4 демони)
+├── migrations/                 # PostgreSQL міграції (025)
+├── tests/                      # pytest (80 тестів)
+├── data/disinfo_channels.json  # канали моніторингу детектора
+├── sync_*.py                   # синхронізації (bills, votes, mps, schedule, EU, info)
+├── calc_kpi_v12.py             # ІЕД
+├── calc_harmonization.py       # гармонізація + EU Integration Index
+├── detect_attacks.py           # бьорст-детектор інфоатак
+├── label_narratives.py         # нічна LLM-розмітка нарративів
+├── night_batch.py              # нічний LLM-аналіз (3 воркери)
+├── daily_digest_llm.py         # щоденний дайджест (детермінований, без LLM)
+├── weekly_digest.py            # щотижневий дайджест (пн 08:00)
+├── monitor.py                  # Telegram-сповіщення з change_log
+└── telegram_bot.py             # інтерактивний бот + персональні підписки
 ```
 
----
+## API (ключові ендпоінти)
 
-## Міграції D1
-
-| Міграція | Опис |
+| Ендпоінт | Опис |
 |----------|------|
-| 001 | Базова схема bills |
-| 002 | D1 схема (bills, risk_assessments, change_log) |
-| 003 | Додавання act_number |
-| 004 | Додавання start_date для депутатів |
-| 005 | Таблиця mp_bills (закони депутатів) |
-| 006 | FTS5 повнотекстовий пошук (bills_fts) |
-| 007 | Таблиця mp_stats (метрики депутатів) |
-| 008 | Виправлення bill_documents |
-| 009 | Виправлення FTS5 indexed |
-| 010 | Додавання is_procedural |
-| 011 | Таблиця pending_analysis (черга LLM) |
-| 012 | Таблиця stats_cache + стовпчик risk_level |
-| 013 | Додавання vote_date до mp_votes + індекс |
-
----
-
-## API Endpoints
-
-| Метод | Ендпоінт | Опис |
-|-------|----------|------|
-| GET | `/api/stats` | Загальна статистика (з cache) |
-| GET | `/api/bills` | Список законів (FTS5 пошук, фільтри, пагінація) |
-| GET | `/api/bills/:id` | Деталі: ризики, хронологія, документи, голосування |
-| GET | `/api/bills/:id/versions` | Версії закону (для диффу) |
-| GET | `/api/bills/:id/risks` | Оцінка ризиків LLM |
-| GET | `/api/bills/:id/votes` | Голосування по закону |
-| GET | `/api/deputies` | Список депутатів (ПЯ, ПДА, ВКП з D1) |
-| GET | `/api/deputies/:name` | Профіль депутата + історія голосувань (пагінація) |
-| GET | `/api/votes` | Список голосувань |
-| GET | `/api/factions` | Список фракцій |
-| GET | `/api/plenary-sessions` | Календар засідань |
-| POST | `/api/sync` | Прийом даних від Python-сервера |
-
----
-
-## Автоматизація (systemd)
-
-```bash
-# Перевірка статусу
-systemctl list-timers | grep -E 'sync|monitor|radacleaner|digest'
-
-# Логи
-journalctl -u sync_bills.service -f
-journalctl -u radacleaner-mpstats.service -f
-journalctl -u radacleaner-votesync.service -f
-journalctl -u digest.service -f
-journalctl -u radacleaner-analyze.service -f
-```
-
-| Сервіс | Інтервал | Що робить |
-|--------|----------|-----------|
-| `sync_bills.timer` | щогодини | Bill sync: list + full JSON + passings |
-| `sync_active_bills.timer` | кожні 30 хв | Live VRU HTML check (30-денні bills) |
-| `monitor.timer` | кожні 30 хв | Telegram notifications з change_log |
-| `radacleaner-mpstats.timer` | щодня ~01:00 | Фракції + дати + ПЯ/ПДА/ВКП депутатів |
-| `radacleaner-votesync.timer` | кожні 6 год | Синхронізація голосувань |
-| `digest.timer` | щодня 09:00 | Щоденний Telegram дайджест (fallback) |
-| `digest-llm.timer` | щодня 20:00 | Щоденний дайджест з LLM |
-
----
-
-## LLM-аналіз (Chain of Thought)
-
-Система використовує двоетапний аналіз:
-
-1. **Етап 1 — Класифікація**: визначення чи є закон процедурним чи непроцедурним
-2. **Етап 2 — Аналіз ризиків**: глибокий аналіз тільки для непроцедурних законів
-
-**Формат відповіді LLM:**
-```json
-{
-  "is_procedural": false,
-  "has_risks": true,
-  "risk_level": "high",
-  "summary": "Стислий опис суті змін",
-  "law_summary": "Повний опис суті закону (3-5 речень)",
-  "detailed_risks": ["Ризик 1: опис..."],
-  "insufficient_text": false
-}
-```
-
-**Автоматична черга**: `process_full_data()` додає bills в `pending_analysis` після індексації документів (тільки для законів, які вже мали документи в БД). `analyze_api.py` (безперервний сервіс) опитує чергу і запускає аналіз.
-
-### Правила аналізу ризиків
-
-1. **Розділення ризиків на критичні та абстрактні:**
-   - **Критичні** — конкретні, вимірювані наслідки: порушення міжнародних зобов'язань (МВФ, ЄС, OECD), діра в бюджеті, корупція з конкретними сумами або механізмом
-   - **Абстрактні/надумані** — загальні твердження без конкретики: «порушення прав громадян», «дискримінація платників» — НЕ включаються до detailed_risks
-
-2. **Фактор форс-мажору / критичної інфраструктури:**
-   - Закони про енергетику, оборону, безпеку, воєнний стан — знижуємо «токсичність» оцінки
-   - Тимчасові пільги для критичної інфраструктури = обґрунтована необхідність, а не «дискримінація»
-
-### Метрики депутатів
-
-- **ПЯ** (Індекс явки) = (yes + no + abstain) / total
-- **ПДА** (Діяльне участь) = (yes + no) / (yes + no + abstain)
-- **ВКП** (Зважений КПД) = Σ(weight × action) / Σ(weight)
-
-Метрики кешуються в таблиці `mps` і оновлюються щодня разом з фракціями.
-
----
-
-## Оптимізація D1 Free Tier
-
-| Ресурс | Використання | Ліміт | Стратегія |
-|--------|-------------|-------|-----------|
-| Reads | ~417K/день | 5M | Кеш `stats_cache`, мінімізація JOIN |
-| Writes | ~51K/день | 100K | Пакетні оновлення, batch INSERT |
-| Storage | ~1.4GB | 5GB | Індекси, стиснення тексту |
-
-**Ключові оптимізації:**
-- `/api/stats` читає 1 рядок з `stats_cache` замість 10+ запитів
-- Депутати використовують кешовані py/pda/vkp з `mps` замість перерахунку з mp_votes
-- `vote_date` денормалізовано в `mp_votes` — не потрібен JOIN з `votes` для сортування
-- Пагінація депутатів: limit/offset з мінімальним часом відповіді
-
----
-
-## Щоденний дайджест
-
-`daily_digest_llm.py` генерує Telegram-дайджест з:
-
-1. **Даних з нашої БД:** кількість законів, зміни за день, високоризикові закони
-2. **Новин з RADA:** нові законопроєкти (з номерами), новини комітетів/фракцій
-3. **Новин з ЗМІ:** Українська правда, Європейська правда
-
-**Джерела новин ВРУ:**
-- `/news` — основна сторінка (нові законопроєкти з посиланнями на itd.rada.gov.ua)
-- `/news/news_kom/` — новини комітетів
-- `/news/news_fr/` — новини фракцій
-- `/rss` — RSS-фід (запасне джерело)
-
----
-
-## Деплой
-
-```bash
-# Зміни в Worker (index.js)
-cd worker && CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler deploy
-
-# Зміни в дашборді
-CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN npx wrangler pages deploy dashboard --project-name radacleaner-dashboard
-
-# Зміни в Python — просто git push (авто-синхронізація через systemd)
-```
-
-### Деплой міграцій D1
-
-```bash
-CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID \
-  npx wrangler d1 execute radacleaner-db --remote --file=migrations/0XX_name.sql
-```
+| `GET /api/bills`, `/api/bills/:id` | Закони: пошук, деталі, ризики, хронологія |
+| `GET /api/deputies`, `/api/deputies/:name` | Депутати + ІЕД v12 |
+| `GET /api/eu-alignment` | EU Integration Index + кластери + таймлайн + новини |
+| `GET /api/schedule`, `/api/activity-calendar` | Графік ВРУ + активності |
+| `GET /api/info-digest` | Нарративи дня, атаки, ТОП фактчеків |
+| `GET /api/dashboard` | Уніфікований блок головної |
 
 ---
 
@@ -277,28 +174,11 @@ cd radacleaner
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env   # заповніть свої дані
+cp .env.example .env   # DB_HOST, TG_BOT_TOKEN, OPENROUTER_API_KEY...
+venv/bin/python -m pytest tests/ -q
 ```
 
----
-
-## Технічні деталі
-
-### FTS5 повнотекстовий пошук
-
-Віртуальна таблиця `bills_fts` з токенізатором `unicode61 remove_diacritics 2`. Тригери автоматично синхронізують дані при INSERT/UPDATE/DELETE. Префіксний пошук для часткових збігів.
-
-### Рекурсивний чанкинг
-
-Ієрархія роздільників: `\n\n` → `\n` → ` ` → `""`. Параметри: max_size=600, overlap=100. Ідеально для юридичних текстів зі структурованими статтями.
-
-### Денормалізація vote_date
-
-Стовпчик `vote_date` в `mp_votes` дозволяє сортування без JOIN з таблицею `votes`. Індекс `idx_mv_mp_name_date` прискорює запити за депутатом + датою.
-
-### Кешування статистики
-
-Таблиця `stats_cache` зберігає попередньо обчислену статистику. Оновлюється після кожної синхронізації голосувань або депутатів. `/api/stats` читає 1 рядок замість виконання 10+ запитів.
+Деплой дашборда: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
 ---
 
