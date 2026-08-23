@@ -904,6 +904,23 @@ app.get('/api/lobbying', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+app.get('/api/declarations', async (req, res) => {
+  try {
+    const mp = parseInt(req.query.mp, 10);
+    if (!mp) return error(res, 'mp parameter required', 400);
+    const rows = await q(`SELECT uuid, submitted_at, declaration_year, companies
+                          FROM deputy_declarations WHERE mp_id = $1`, [mp]);
+    const d = rows[0];
+    json(res, d ? {
+      uuid: d.uuid, submittedAt: d.submitted_at, year: d.declaration_year,
+      companies: (d.companies || []).map(c => ({
+        name: c.name || '', edrpou: c.edrpou || '', legalForm: c.legalForm || '',
+        sharePct: c.share_pct ?? null,
+      })),
+    } : { companies: [] }, 200, 600);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
 // --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner - daily NAZK declarations sync (deputy companies)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python sync_nazk_declarations.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3600

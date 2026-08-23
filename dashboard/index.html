@@ -1843,8 +1843,15 @@ async function showDeputy(name, votesOffset) {
               </div>
             </div>
 
-            <!-- Signals -->
-            ${(warnings.length||strengths.length||features.length) ? `
+            <!-- Портрет депутата (LLM з даних моніторингу); старі сигнали — fallback -->
+            ${d.portrait ? `
+            <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:8px">🧭 Портрет депутата</div>
+              <div style="font-size:13px;line-height:1.55">${escHtml(d.portrait)}</div>
+              ${Array.isArray(d.portrait_signals) && d.portrait_signals.length ? `<div style="margin-top:10px">${d.portrait_signals.map(s=>`<div style="font-size:12.5px;line-height:1.5;margin-bottom:4px"><span style="color:var(--blue)">▸</span> ${escHtml(s)}</div>`).join('')}</div>` : ''}
+              <div style="font-size:11px;color:var(--text2);margin-top:8px">авто-узагальнення даних моніторингу (ІЕД, голосування, однодумці, інтереси) · оновлюється щотижня</div>
+            </div>`
+            : (warnings.length || strengths.length || features.length) ? `
             <div style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
               <div style="font-size:13px;font-weight:600;margin-bottom:10px">Аналітичні сигнали</div>
               ${warnings.length ? `<div style="margin-bottom:8px">${warnings.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(231,76,60,0.12);color:var(--red);border:1px solid rgba(231,76,60,0.2)">⚠ ${escHtml(s)}</div>`).join('')}</div>` : ''}
@@ -1858,6 +1865,10 @@ async function showDeputy(name, votesOffset) {
             </div>
             <div id="dep-interests" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
               <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
+              <div style="color:var(--text2);font-size:12px">Завантаження...</div>
+            </div>
+            <div id="dep-declaration" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Бізнес за декларацією</div>
               <div style="color:var(--text2);font-size:12px">Завантаження...</div>
             </div>` : ''}
           </div>
@@ -1951,6 +1962,24 @@ async function showDeputy(name, votesOffset) {
             </div>
           </div>`).join('') +
           `<div style="font-size:11px;color:var(--text2);margin-top:4px">автор. — законів у автора/співавтора; «за» — голосів за такі закони (2 роки). Кореляція, не доказ лобіювання.</div>`;
+      }).catch(() => {});
+      api(`/api/declarations?mp=${d.id}`).then(r => {
+        const box = document.getElementById('dep-declaration');
+        if (!box) return;
+        const comps = r.companies || [];
+        if (!comps.length) {
+          box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Бізнес за декларацією</div>
+            <div style="color:var(--text2);font-size:12px">${r.uuid ? 'Корпоративних прав у декларації не задекларовано' : 'Декларацію в реєстрі НАЗК не знайдено'}</div>`;
+          return;
+        }
+        box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Бізнес за декларацією <span style="font-weight:400;color:var(--text2)">· ${escHtml(r.year ? String(r.year) : '')}${r.submittedAt ? ' · подано ' + escHtml(r.submittedAt) : ''}</span></div>` +
+          comps.slice(0, 8).map(c => `
+          <div style="padding:6px 0;border-bottom:1px solid var(--border)">
+            <div style="font-size:12.5px;font-weight:600">${escHtml(c.name || '(без назви)')}</div>
+            <div style="font-size:11.5px;color:var(--text2)">${c.edrpou ? 'ЄДРПОУ ' + escHtml(c.edrpou) : ''}${c.legalForm ? ' · ' + escHtml(c.legalForm.trim()) : ''}${c.sharePct != null && c.sharePct !== '' ? ' · частка ' + escHtml(String(c.sharePct)) + '%' : ''}</div>
+          </div>`).join('') +
+          (comps.length > 8 ? `<div style="font-size:11.5px;color:var(--text2);margin-top:4px">…та ще ${comps.length - 8}</div>` : '') +
+          `<div style="font-size:11px;color:var(--text2);margin-top:6px">джерело: Реєстр декларацій НАЗК (дані самих депутатів)</div>`;
       }).catch(() => {});
     }
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }

@@ -144,6 +144,8 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | sync_disinfo_channels.py | **Daily watchlist refresh** (06:50): список СБУ → новые каналы авто (SearXNG `site:t.me` + og:title fuzzy-match UA/RU нормализация), liveness всех, prune dead_streak≥3 |
 | calc_voting_clubs.py | **Клуби голосування** (щотижня пн 05:00): numpy-матриця голосувань активних депутатів, попарна узгодженість у СПІРНИХ голосуваннях (були і «за», і «проти»), пари ≥400 спільних і ≥70% → voting_allies + stats_cache `voting_clubs_meta` |
 | backfill_interest_sectors.py | **Бекфілл interest_sectors** (щодня 08:30): процедурним — [] без LLM, непроцедурним — LLM-екстракція 0-3 галузей з raw_analysis (300/запуск, пріоритет risk_score DESC) |
+| calc_deputy_portraits.py | **Портрет депутата** (щодня 04:30, свіжі <6д пропускаються): факт-лист з наших даних (ІЕД+ранги, однодумці, інтереси) → LLM пише характеристику + персональні сигнали → mps.portrait/portrait_signals |
+| sync_nazk_declarations.py | **Декларації НАЗК** (щодня 06:00): пошук за прізвищем public.nazk.gov.ua/documents/list → фільтр «народний депутат» + ПІБ → v2 JSON API → корпоративні права (компанії, ЄДРПОУ) → deputy_declarations |
 | calc_interest_profiles.py | **Профіль інтересів** (щодня 08:30, після бекфілу): авторство + голосування «за»/«проти» за галузями → deputy_interests |
 | sync_lobbying_registry.py | **Реєстр лобіювання НАЗК** (щодня 07:00): transparency.nazk.gov.ua/api/v1/public (allsubjects + report?id={guid}, подвійне JSON-кодування відповідей!) → lobbying_subjects/lobbying_objects; №NNNN з предмета лобіювання валідується EXISTS bills.bill_number |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
@@ -215,6 +217,8 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **voting_allies** — попарна узгодженість голосувань активних депутатів: mp_a<mp_b, common/agree (по спірних голосуваннях), pct, cross_faction (migration 026); пише calc_voting_clubs.py, читає /api/voting-clubs
 - **deputy_interests** — профіль інтересів депутата: mp_id+sector PK, authored/voted_for/voted_against (migration 027); джерело = risk_assessments.json_data.interest_sectors (словник INTEREST_SECTORS у src/prompts.py); пишуть backfill_interest_sectors.py + calc_interest_profiles.py, читає /api/interests
 - **lobbying_subjects / lobbying_objects** — Реєстр прозорості НАЗК (закон №3606-20): суб'єкти лобіювання та їх декларації (акт, відомство, представник, дати контактів), bill_number витягнутий з тексту і валідований по bills (migration 028); пише sync_lobbying_registry.py, читає /api/lobbying
+- **deputy_declarations** — остання декларація депутата в НАЗК: uuid, submitted_at, declaration_year, companies jsonb (назва/ЄДРПОУ/частка) (migration 030); пише sync_nazk_declarations.py, читає /api/declarations
+- mps.portrait / portrait_signals — LLM-портрет депутата з даних моніторингу (migration 029); пише calc_deputy_portraits.py; дашборд показує portrait, старі signal_* — fallback
 - **deputy_aliases** — name change history (6 entries)
 
 ## API
@@ -265,6 +269,8 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `voting-clubs` | Mon 05:00 weekly | Клуби голосування: попарна узгодженість депутатів у спірних голосуваннях → voting_allies (вкладка «🤝 Клуби» + блок «Однодумці» в профілі) |
 | `interest-profiles` | daily 08:30 | Бекфілл interest_sectors (LLM-екстракція 300/день з raw_analysis) + профіль інтересів депутатів → deputy_interests (блок «Профіль інтересів» в профілі депутата) |
 | `lobbying-registry` | daily 07:00 | Синхронізація Реєстру прозорості НАЗК → lobbying_subjects/lobbying_objects (вкладка «🏛 Лобіювання» в картці закону + блок на вкладці Клуби) |
+| `deputy-portraits` | daily 04:30 | Портрети депутатів: LLM-узагальнення даних моніторингу → mps.portrait (блок «🧭 Портрет депутата») |
+| `nazk-declarations` | daily 06:00 | Декларації НАЗК: компанії депутатів (корпоративні права) → deputy_declarations (блок «Бізнес за декларацією») |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
