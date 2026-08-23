@@ -846,6 +846,44 @@ app.get('/api/interests', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+app.get('/api/lobbying', async (req, res) => {
+  try {
+    const bill = (req.query.bill || '').toString().replace(/[^\d]/g, '');
+    if (bill) {
+      const rows = await q(`SELECT ls.name AS subject_name, lo.sphere, lo.subject_of_lobbying,
+                                   lo.government_agency, lo.agency_representative, lo.last_interaction
+                            FROM lobbying_objects lo JOIN lobbying_subjects ls ON ls.guid = lo.subject_guid
+                            WHERE lo.bill_number = $1
+                            ORDER BY lo.last_interaction DESC NULLS LAST`, [bill]);
+      return json(res, { count: rows.length, objects: rows }, 200, 600);
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const [metaRows, topRows, recentRows] = await Promise.all([
+      q(`SELECT value FROM stats_cache WHERE key = 'lobbying_registry_meta'`).catch(() => []),
+      q(`SELECT ls.name, count(*) AS objects, count(lo.bill_number) AS bills_linked
+         FROM lobbying_objects lo JOIN lobbying_subjects ls ON ls.guid = lo.subject_guid
+         GROUP BY 1 ORDER BY objects DESC LIMIT 8`),
+      q(`SELECT ls.name AS subject_name, lo.sphere, lo.subject_of_lobbying,
+                lo.government_agency, lo.bill_number, lo.last_interaction, bb.id AS bill_id
+         FROM lobbying_objects lo JOIN lobbying_subjects ls ON ls.guid = lo.subject_guid
+         LEFT JOIN bills bb ON bb.bill_number = lo.bill_number
+         WHERE lo.bill_number IS NOT NULL
+         ORDER BY lo.last_interaction DESC NULLS LAST LIMIT ${limit}`),
+    ]);
+    let meta = null;
+    if (metaRows[0]) { try { meta = JSON.parse(metaRows[0].value); } catch { /* malformed cache */ } }
+    json(res, {
+      meta,
+      topSubjects: topRows.map(r => ({ name: r.name, objects: Number(r.objects), billsLinked: Number(r.bills_linked) })),
+      recent: recentRows.map(r => ({
+        subjectName: r.subject_name, sphere: r.sphere, text: r.subject_of_lobbying,
+        agency: r.government_agency, billNumber: r.bill_number, lastInteraction: r.last_interaction,
+        billId: r.bill_id,
+      })),
+    }, 200, 600);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
 // --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 

@@ -589,6 +589,14 @@ tr.former-deputy:hover td { opacity: 0.75; }
     </div>
 
     <div class="card">
+      <div class="card-header">
+        <div class="card-title">🏛 Реєстр лобіювання НАЗК</div>
+        <div style="font-size:12px;color:var(--text2)">суб'єкти лобіювання та акти, які вони просувають (закон №3606-20)</div>
+      </div>
+      <div id="vc-lobbying"><div style="color:var(--text2);font-size:13px">Завантаження...</div></div>
+    </div>
+
+    <div class="card">
       <details>
         <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Що це таке — методологія розділу</summary>
         <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
@@ -1255,6 +1263,7 @@ async function toggleBillExpand(row, id) {
       <button data-tab="documents">📄 Документи (${docs.length})</button>
       <button data-tab="versions">🔄 Версії (${versions.length})</button>
       <button data-tab="votes">🗳 Голосування (${votes.length})</button>
+      <button data-tab="lobbying">🏛 Лобіювання</button>
     </div>`;
 
     // === TAB: Аналіз ===
@@ -1512,8 +1521,40 @@ async function toggleBillExpand(row, id) {
     }
     html += '</div>';
 
+    // === TAB: Лобіювання (Реєстр прозорості НАЗК) ===
+    html += `<div id="bill-tab-${id}-lobbying" class="bill-expand-tab" style="display:none">
+      <div id="bill-lobbying-body-${id}" style="padding:10px;color:var(--text2);font-size:13px">Завантаження...</div>
+    </div>`;
+
     expandRow.querySelector('.bill-expand-content').innerHTML = html;
     if (versions.length >= 2) setTimeout(() => showInlineDiff(id), 100);
+
+    if (b.bill_number) {
+      api(`/api/lobbying?bill=${encodeURIComponent(b.bill_number)}`).then(r => {
+        const box = document.getElementById(`bill-lobbying-body-${id}`);
+        if (!box) return;
+        const objs = r.objects || [];
+        if (!objs.length) {
+          box.innerHTML = '<span style="color:var(--text2)">Зареєстрованого лобіювання цього закону в Реєстрі прозорості НАЗК не знайдено.</span>';
+          return;
+        }
+        box.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Суб'єкти лобіювання, які в деклараціях НАЗК вказали цей акт (закон №3606-20). Це зареєстровані факти, а не оцінки.</div>` +
+          objs.map(o => `
+          <div style="border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--bg2);margin-bottom:8px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">🏛 ${escHtml(o.subject_name)}</div>
+            <div style="font-size:12px;color:var(--text2);margin-bottom:4px">
+              ${o.agency ? `відомство: <strong style="color:var(--text)">${escHtml(o.agency)}</strong>` : ''}
+              ${o.agency_representative ? ` · представник: ${escHtml(o.agency_representative)}` : ''}
+              ${o.last_interaction ? ` · контакт до ${escHtml(o.last_interaction)}` : ''}
+            </div>
+            <div style="font-size:12.5px;line-height:1.45">${escHtml((o.text || '').slice(0, 220))}${(o.text || '').length > 220 ? '…' : ''}</div>
+            ${o.sphere ? `<div style="font-size:11.5px;color:var(--text2);margin-top:3px">сфера: ${escHtml(o.sphere)}</div>` : ''}
+          </div>`).join('');
+      }).catch(() => {
+        const box = document.getElementById(`bill-lobbying-body-${id}`);
+        if (box) box.innerHTML = '<span style="color:var(--text2)">Дані реєстру лобіювання поки недоступні</span>';
+      });
+    }
   } catch(e) {
     expandRow.querySelector('.bill-expand-content').innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`;
   }
@@ -2728,6 +2769,55 @@ async function loadVotingClubs() {
         <td><strong style="color:${p.pct >= 90 ? 'var(--red)' : p.pct >= 80 ? 'var(--orange)' : 'var(--text)'}">${p.pct.toFixed(1)}%</strong></td>
         <td style="font-size:12px;color:var(--text2)">${Number(p.common).toLocaleString('uk-UA')}</td>
       </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text2)">Даних поки немає</td></tr>';
+
+    // Реєстр лобіювання НАЗК (окремий запит)
+    api('/api/lobbying?limit=12').then(lb => {
+      const box = document.getElementById('vc-lobbying');
+      if (!box) return;
+      const m = lb.meta;
+      const top = lb.topSubjects || [];
+      const recent = lb.recent || [];
+      box.innerHTML = `
+        ${m ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;text-align:center;margin-bottom:14px">
+          ${[
+            { label: 'Суб\'єктів у реєстрі', value: m.subjects },
+            { label: 'Активних', value: m.active },
+            { label: 'Об\'єктів лобіювання', value: m.objects },
+            { label: 'Пов\'язано з законами ВРУ', value: m.bill_linked },
+          ].map(c => `
+            <div style="border:1px solid var(--border);border-radius:8px;padding:14px;background:var(--bg2)">
+              <div style="font-size:28px;font-weight:800;color:var(--blue);line-height:1">${Number(c.value).toLocaleString('uk-UA')}</div>
+              <div style="font-size:11.5px;color:var(--text2);margin-top:5px">${c.label}</div>
+            </div>`).join('')}
+        </div>` : ''}
+        ${top.length ? `<div style="font-size:13px;font-weight:600;margin-bottom:8px">Найактивніші суб'єкти лобіювання</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:16px">
+          ${top.map(t => {
+            const maxO = top[0].objects || 1;
+            return `<div style="display:flex;align-items:center;gap:10px;font-size:12.5px">
+              <span style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(t.name)}</span>
+              <span style="width:180px;height:7px;background:var(--bg);border-radius:3px;overflow:hidden;flex-shrink:0">
+                <span style="display:block;height:100%;width:${Math.round(100 * t.objects / maxO)}%;background:#8b5cf6;border-radius:3px"></span>
+              </span>
+              <strong style="white-space:nowrap;color:var(--text2)">${t.objects}</strong>
+            </div>`;
+          }).join('')}
+        </div>` : ''}
+        ${recent.length ? `<div style="font-size:13px;font-weight:600;margin-bottom:8px">Останні задекларовані акти з прив'язкою до законопроєктів ВРУ</div>
+        <div class="table-wrap"><table><thead><tr><th>Суб'єкт</th><th>Акт / предмет лобіювання</th><th>Відомство</th><th>Закон</th></tr></thead><tbody>
+          ${recent.map(r => `
+            <tr>
+              <td style="font-size:12px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${attr(r.subjectName)}">${escHtml(r.subjectName)}</td>
+              <td style="font-size:12px;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${attr(r.text)}">${escHtml((r.text || '').slice(0, 90))}${(r.text || '').length > 90 ? '…' : ''}</td>
+              <td style="font-size:12px;color:var(--text2);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${attr(r.agency || '')}">${escHtml((r.agency || '—').slice(0, 40))}</td>
+              <td>${r.billId ? `<a href="#" onclick="goToBill(${Number(r.billId)});return false" style="color:var(--blue);text-decoration:none;font-weight:600">#${escHtml(String(r.billNumber))}</a>` : escHtml(String(r.billNumber || '—'))}</td>
+            </tr>`).join('')}
+        </tbody></table></div>
+        <div style="font-size:11.5px;color:var(--text2);margin-top:6px">Дані — офіційний Реєстр прозорості НАЗК, синхронізація щоденна. Це декларації самих лобістів, а не оцінки проєкту.</div>` : '<div style="color:var(--text2);font-size:13px">Об\'єктів лобіювання поки немає</div>'}`;
+    }).catch(() => {
+      const box = document.getElementById('vc-lobbying');
+      if (box) box.innerHTML = '<div style="color:var(--text2);font-size:13px">Реєстр лобіювання поки недоступний</div>';
+    });
   } catch(e) {
     document.getElementById('vc-hero').innerHTML =
       '<div style="color:var(--text2);padding:20px;text-align:center">Дані поки недоступні</div>';

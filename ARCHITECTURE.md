@@ -145,6 +145,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | calc_voting_clubs.py | **Клуби голосування** (щотижня пн 05:00): numpy-матриця голосувань активних депутатів, попарна узгодженість у СПІРНИХ голосуваннях (були і «за», і «проти»), пари ≥400 спільних і ≥70% → voting_allies + stats_cache `voting_clubs_meta` |
 | backfill_interest_sectors.py | **Бекфілл interest_sectors** (щодня 08:30): процедурним — [] без LLM, непроцедурним — LLM-екстракція 0-3 галузей з raw_analysis (300/запуск, пріоритет risk_score DESC) |
 | calc_interest_profiles.py | **Профіль інтересів** (щодня 08:30, після бекфілу): авторство + голосування «за»/«проти» за галузями → deputy_interests |
+| sync_lobbying_registry.py | **Реєстр лобіювання НАЗК** (щодня 07:00): transparency.nazk.gov.ua/api/v1/public (allsubjects + report?id={guid}, подвійне JSON-кодування відповідей!) → lobbying_subjects/lobbying_objects; №NNNN з предмета лобіювання валідується EXISTS bills.bill_number |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
@@ -213,6 +214,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **bot_subscribers** — персональні підписки пушів бота: chat_id PK, attacks BOOL, digest BOOL (migration 025); розсилку роблять detect_attacks.py (attacks) та daily_digest_llm.py (digest)
 - **voting_allies** — попарна узгодженість голосувань активних депутатів: mp_a<mp_b, common/agree (по спірних голосуваннях), pct, cross_faction (migration 026); пише calc_voting_clubs.py, читає /api/voting-clubs
 - **deputy_interests** — профіль інтересів депутата: mp_id+sector PK, authored/voted_for/voted_against (migration 027); джерело = risk_assessments.json_data.interest_sectors (словник INTEREST_SECTORS у src/prompts.py); пишуть backfill_interest_sectors.py + calc_interest_profiles.py, читає /api/interests
+- **lobbying_subjects / lobbying_objects** — Реєстр прозорості НАЗК (закон №3606-20): суб'єкти лобіювання та їх декларації (акт, відомство, представник, дати контактів), bill_number витягнутий з тексту і валідований по bills (migration 028); пише sync_lobbying_registry.py, читає /api/lobbying
 - **deputy_aliases** — name change history (6 entries)
 
 ## API
@@ -261,6 +263,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_disinfo_channels` | daily 06:50 | Watchlist refresh: парсинг списка СБУ (5.ua), резолвинг новых каналов через SearXNG site:t.me + og:title, liveness-проверка всех, prune мёртвых ≥3 дней, TG-отчёт при изменениях |
 | `voting-clubs` | Mon 05:00 weekly | Клуби голосування: попарна узгодженість депутатів у спірних голосуваннях → voting_allies (вкладка «🤝 Клуби» + блок «Однодумці» в профілі) |
 | `interest-profiles` | daily 08:30 | Бекфілл interest_sectors (LLM-екстракція 300/день з raw_analysis) + профіль інтересів депутатів → deputy_interests (блок «Профіль інтересів» в профілі депутата) |
+| `lobbying-registry` | daily 07:00 | Синхронізація Реєстру прозорості НАЗК → lobbying_subjects/lobbying_objects (вкладка «🏛 Лобіювання» в картці закону + блок на вкладці Клуби) |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
