@@ -94,5 +94,15 @@
     "handle": "kherson_live",
     "origin": "sbu_auto",
     "added": "2026-08-21"
+  },
+  {
+    "name": "ГНАП",
+    "handle": "gnapinfo",
+    "origin": "manual"
+  },
+  {
+    "name": "Залізний нардеп",
+    "handle": "yzheleznyak",
+    "origin": "manual"
   }
 ]
