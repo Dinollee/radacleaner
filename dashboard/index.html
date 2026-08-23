@@ -320,6 +320,7 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <button data-section="schedule">Графік</button>
     <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
     <button data-section="info-attacks">🛡 Інфоатаки</button>
+    <button data-section="voting-clubs">🤝 Клуби</button>
     <button data-section="bot">🤖 Бот</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
@@ -562,6 +563,38 @@ tr.former-deputy:hover td { opacity: 0.75; }
           <p style="margin:0 0 8px"><strong>Ми фіксуємо синхронність публікацій автоматично.</strong> Схожі за змістом пости в багатьох телеграм-каналах протягом короткого вікна — ознака скоординованої хвилі. Це <em>сигнал для уваги</em>, а не висновок про брехню.</p>
           <p style="margin:0 0 8px"><strong>Вердикти «фейк/правда» — лише людські фактчекери:</strong> Центр протидії дезінформації (ЦПД), VoxCheck, StopFake, «Детектор медіа», SPRAVDI. Ми агрегуємо їхні публікації та посилаємось на першоджерела — власних вердиктів не виносимо.</p>
           <p style="margin:0"><strong>Список каналів моніторингу</strong> — офіційний перелік телеграм-каналів розповсюджувачів дезінформації, оприлюднений СБУ.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <!-- VOTING CLUBS -->
+  <div id="sec-voting-clubs" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🤝 Клуби голосування</div>
+        <span id="vc-updated"></span>
+      </div>
+      <div id="vc-hero">
+        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Найузгодженіші крос-фракційні пари</div>
+        <div style="font-size:12px;color:var(--text2)">депутати з різних фракцій, які найчастіше голосують однаково</div>
+      </div>
+      <div class="table-wrap"><table id="vc-table"><thead><tr><th>#</th><th>Депутат А</th><th>Фракція</th><th></th><th>Депутат Б</th><th>Фракція</th><th>Узгодженість</th><th>Спільних голосів</th></tr></thead><tbody><tr><td colspan="8" style="color:var(--text2)">Завантаження...</td></tr></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Що це таке — методологія розділу</summary>
+        <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
+          <p style="margin:0 0 8px"><strong>Що рахується.</strong> Узгодженість = частка однакових позицій («за»/«проти»/«утримався») у <em>спірних</em> голосуваннях — тих, де були і «за», і «проти». Одноголосні голосування не рахуються: у них усі згодні за замовчуванням. Позиції «не голосував» та «відсутній» до розрахунку не входять.</p>
+          <p style="margin:0 0 8px"><strong>Пороги.</strong> Пара потрапляє до списку, якщо в неї ≥400 спільних позиційних голосувань (відсіює шум депутатів, які рідко голосують) і узгодженість ≥70%. Дані перераховуються щотижня.</p>
+          <p style="margin:0"><strong>Чесна застереження.</strong> Спільне голосування — це <em>кореляція</em>, а не доказ лобіювання чи домовленості. Депутати однієї коаліції природно голосують схоже. Розділ показує факти спільних позицій — висновки залишаємо читачеві.</p>
         </div>
       </details>
     </div>
@@ -931,6 +964,7 @@ function showSection(name) {
   if (name === 'schedule') loadSchedule();
   if (name === 'eu-alignment') loadEUAlignment();
   if (name === 'info-attacks') loadInfoAttacks();
+  if (name === 'voting-clubs') loadVotingClubs();
 }
 
 // === API helpers ===
@@ -1764,6 +1798,11 @@ async function showDeputy(name, votesOffset) {
               ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
               ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
             </div>` : ''}
+            ${!d.end_date ? `
+            <div id="dep-allies" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями</div>
+              <div style="color:var(--text2);font-size:12px">Завантаження...</div>
+            </div>` : ''}
           </div>
         </div>
       </div>`;
@@ -1816,6 +1855,23 @@ async function showDeputy(name, votesOffset) {
     }
 
     el.innerHTML = html;
+
+    // Однодумці (клуби голосування) — окремий запит після рендера
+    if (d.id && !d.end_date) {
+      api(`/api/voting-clubs?mp=${d.id}`).then(r => {
+        const box = document.getElementById('dep-allies');
+        if (!box) return;
+        const al = r.allies || [];
+        const body = al.length ? al.map(a => `
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0">
+            <span style="min-width:0"><a href="#" onclick="showDeputy('${escHtml(a.name)}');return false" style="color:var(--blue);text-decoration:none">${escHtml(a.name)}</a>
+              <span style="color:var(--text2);font-size:11px">${escHtml(a.faction || '')}${a.crossFaction ? ' 🤝' : ''}</span></span>
+            <strong style="white-space:nowrap">${a.pct.toFixed(1)}%</strong>
+          </div>`).join('')
+          : '<span style="color:var(--text2);font-size:12px">Недостатньо спільних голосувань</span>';
+        box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями <span style="font-weight:400;color:var(--text2)">· 🤝 = інша фракція</span></div>${body}`;
+      }).catch(() => {});
+    }
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }
 }
 
@@ -2597,6 +2653,45 @@ function renderFakes(fakes) {
   }
   html += '</div>';
   el.innerHTML = html;
+}
+
+// === VOTING CLUBS ===
+async function loadVotingClubs() {
+  try {
+    const data = await api('/api/voting-clubs?limit=100');
+    const m = data.meta;
+    if (m) document.getElementById('vc-updated').textContent = 'оновлено ' + formatDate(m.calculated_at);
+    document.getElementById('vc-hero').innerHTML = m ? `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;text-align:center">
+        ${[
+          { label: 'Депутатів у розрахунку', value: m.deputies, color: 'var(--blue)' },
+          { label: 'Спірних голосувань', value: m.events_contested, color: 'var(--text)' },
+          { label: 'Пар збережено', value: m.pairs_stored, color: 'var(--green)' },
+          { label: 'Крос-фракційних пар', value: m.cross_faction_pairs, color: 'var(--orange)' },
+        ].map(c => `
+          <div style="border:1px solid var(--border);border-radius:8px;padding:18px;background:var(--bg2)">
+            <div style="font-size:34px;font-weight:800;color:${c.color};line-height:1">${Number(c.value).toLocaleString('uk-UA')}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:6px">${c.label}</div>
+          </div>`).join('')}
+      </div>` : '<div style="color:var(--text2);padding:20px;text-align:center">Дані ще не розраховані — чекайте нічного перерахунку</div>';
+
+    const tbody = document.querySelector('#vc-table tbody');
+    const pairs = data.pairs || [];
+    tbody.innerHTML = pairs.map((p, i) => `
+      <tr>
+        <td style="color:var(--text2)">${i + 1}</td>
+        <td><a href="#" onclick="showDeputy('${escHtml(p.a.name)}');return false" style="color:var(--blue);text-decoration:none;font-weight:600">${escHtml(p.a.name)}</a></td>
+        <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(p.a.faction)}"></span>${escHtml(p.a.faction || '—')}</td>
+        <td style="color:var(--text2)">↔</td>
+        <td><a href="#" onclick="showDeputy('${escHtml(p.b.name)}');return false" style="color:var(--blue);text-decoration:none;font-weight:600">${escHtml(p.b.name)}</a></td>
+        <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(p.b.faction)}"></span>${escHtml(p.b.faction || '—')}</td>
+        <td><strong style="color:${p.pct >= 90 ? 'var(--red)' : p.pct >= 80 ? 'var(--orange)' : 'var(--text)'}">${p.pct.toFixed(1)}%</strong></td>
+        <td style="font-size:12px;color:var(--text2)">${Number(p.common).toLocaleString('uk-UA')}</td>
+      </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text2)">Даних поки немає</td></tr>';
+  } catch(e) {
+    document.getElementById('vc-hero').innerHTML =
+      '<div style="color:var(--text2);padding:20px;text-align:center">Дані поки недоступні</div>';
+  }
 }
 
 // === THEME ===

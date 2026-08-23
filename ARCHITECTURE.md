@@ -142,6 +142,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | detect_attacks.py | **Burst detector**: union-find кластеризація 48ч вікна, правило ≥4 TG-каналів/≥8 постів, debunk lookup, bill linking, TG-алерт з cooldown+ескалацією |
 | label_narratives.py | **Nightly LLM labeling** (07:15): 2 nemotron виклики → stats_cache `info_digest` (нарративи дня + ТОП фактчеків) |
 | sync_disinfo_channels.py | **Daily watchlist refresh** (06:50): список СБУ → новые каналы авто (SearXNG `site:t.me` + og:title fuzzy-match UA/RU нормализация), liveness всех, prune dead_streak≥3 |
+| calc_voting_clubs.py | **Клуби голосування** (щотижня пн 05:00): numpy-матриця голосувань активних депутатів, попарна узгодженість у СПІРНИХ голосуваннях (були і «за», і «проти»), пари ≥400 спільних і ≥70% → voting_allies + stats_cache `voting_clubs_meta` |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
 | analyze_api.py | LLM risk analysis worker |
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
@@ -150,8 +151,8 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /attacks (синхронні хвилі), /fakes (ТОП фактчеків), /sub+/off (персональні підписки на пуші) |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
-| worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest |
-| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Бот (підключення до @RadaCleaner_bot) |
+| worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest, voting-clubs |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar + Однодумці), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Клуби (крос-фракційні пари), Бот (підключення до @RadaCleaner_bot) |
 
 ## Night Batch (UPDATED 2026-07-15)
 
@@ -207,12 +208,13 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **info_items** — сырий інфопотік детектора атак: factcheck RSS + t.me/s канали, url UNIQUE, simhash BIGINT, cluster_id (migration 024)
 - **attack_alerts** — зафіксовані синхронні хвилі: label, channels/posts count, debunk_url, related_bill_number, alert_sent
 - **bot_subscribers** — персональні підписки пушів бота: chat_id PK, attacks BOOL, digest BOOL (migration 025); розсилку роблять detect_attacks.py (attacks) та daily_digest_llm.py (digest)
+- **voting_allies** — попарна узгодженість голосувань активних депутатів: mp_a<mp_b, common/agree (по спірних голосуваннях), pct, cross_faction (migration 026); пише calc_voting_clubs.py, читає /api/voting-clubs
 - **deputy_aliases** — name change history (6 entries)
 
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
 - Dashboard: Cloudflare Pages static site
-- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (EU integration index v1 + clusters/timeline/news + legacy compat), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar` (bills activity + votes/committee/eu), `/api/activity-day`, `/api/info-digest` (нарративи дня + атаки), `/api/dashboard` (unified)
+- Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (EU integration index v1 + clusters/timeline/news + legacy compat), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar` (bills activity + votes/committee/eu), `/api/activity-day`, `/api/info-digest` (нарративи дня + атаки), `/api/voting-clubs` (клуби голосування: `?limit=` топ крос-фракційних пар, `?mp=ID` однодумці депутата), `/api/dashboard` (unified)
 - Timezone: all date queries convert UTC→Europe/Kyiv
 - Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
@@ -253,6 +255,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_committee_schedule` | daily 07:40 | Committee meetings sync (committees.rada.gov.ua weekly pages) |
 | `sync_info_monitor` | every 30 min | Info attack collector: factcheck RSS (ЦПД/VoxCheck/StopFake/Детектор/SPRAVDI) + t.me/s disinfo channels → info_items; другим ExecStart — `detect_attacks.py` (Phase 2 burst detector: union-find кластеризация simham/Jaccard, бьорст ≥4 TG-каналов и ≥8 постов за ≤24ч, спростування фактчекеров, cooldown кампаний, TG-алерт) |
 | `sync_disinfo_channels` | daily 06:50 | Watchlist refresh: парсинг списка СБУ (5.ua), резолвинг новых каналов через SearXNG site:t.me + og:title, liveness-проверка всех, prune мёртвых ≥3 дней, TG-отчёт при изменениях |
+| `voting-clubs` | Mon 05:00 weekly | Клуби голосування: попарна узгодженість депутатів у спірних голосуваннях → voting_allies (вкладка «🤝 Клуби» + блок «Однодумці» в профілі) |
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |

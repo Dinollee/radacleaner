@@ -795,6 +795,43 @@ app.get('/api/info-digest', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+app.get('/api/voting-clubs', async (req, res) => {
+  try {
+    const mp = parseInt(req.query.mp, 10);
+    if (mp) {
+      const allies = await q(`SELECT CASE WHEN va.mp_a = $1 THEN va.mp_b ELSE va.mp_a END AS ally_id,
+                                    m.name, m.faction, va.pct, va.common, va.cross_faction
+                             FROM voting_allies va
+                             JOIN mps m ON m.id = CASE WHEN va.mp_a = $1 THEN va.mp_b ELSE va.mp_a END
+                             WHERE va.mp_a = $1 OR va.mp_b = $1
+                             ORDER BY va.pct DESC, va.common DESC LIMIT $2`, [mp, Math.min(parseInt(req.query.limit, 10) || 10, 50)]);
+      return json(res, { allies: allies.map(a => ({ id: a.ally_id, name: a.name, faction: a.faction,
+        pct: Number(a.pct), common: Number(a.common), crossFaction: a.cross_faction })) }, 200, 600);
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 300);
+    const [metaRows, pairRows] = await Promise.all([
+      q(`SELECT value FROM stats_cache WHERE key = 'voting_clubs_meta'`).catch(() => []),
+      q(`SELECT va.mp_a, ma.name AS a_name, ma.faction AS a_faction,
+                va.mp_b, mb.name AS b_name, mb.faction AS b_faction, va.pct, va.common
+         FROM voting_allies va
+         JOIN mps ma ON ma.id = va.mp_a
+         JOIN mps mb ON mb.id = va.mp_b
+         WHERE va.cross_faction
+         ORDER BY va.pct DESC, va.common DESC LIMIT $1`, [limit]),
+    ]);
+    let meta = null;
+    if (metaRows[0]) { try { meta = JSON.parse(metaRows[0].value); } catch { /* malformed cache */ } }
+    json(res, {
+      meta,
+      pairs: pairRows.map(p => ({
+        a: { id: p.mp_a, name: p.a_name, faction: p.a_faction },
+        b: { id: p.mp_b, name: p.b_name, faction: p.b_faction },
+        pct: Number(p.pct), common: Number(p.common),
+      })),
+    }, 200, 600);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
 // --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 
