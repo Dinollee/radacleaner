@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — deputy portraits (LLM characterization from monitoring data)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python calc_deputy_portraits.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=14400
