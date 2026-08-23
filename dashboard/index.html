@@ -698,9 +698,12 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <div style="font-size:13px;line-height:1.7;padding-top:10px">
           <p style="margin:0 0 8px"><strong>Прозорість ШІ-аналізу.</strong> Кожен законопроєкт аналізує мова-модель (зараз nvidia/nemotron-3-super-120b-a12b через OpenRouter) з <em>точно таким самим промптом</em>, який наведено нижче — без прихованих інструкцій. Довгі закони дробляться на частини ~30 тис. символів і аналізуються послідовно з ковзним вікном контексту. Після відповіді модель проходить автоматичні перевірки: детекція англійської мови (повторний аналіз), корекція галюцинації «дискреційних повноважень», заповнення пропущених полів (з маркером «(авто)» на картці). Оцінки significance/impact/risk (1–5) виставляє модель за критеріями Етапу 3 промпта; вони конвертуються у risk_score/toxicity за фіксованою формулою без ручних правок.</p>
           <p style="margin:0 0 4px"><strong>1. Системна роль (system prompt):</strong></p>
-          <pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height:200px;overflow:auto;margin:0 0 10px">Ти — головний юридичний аналітик моніторингового центру, глибоко спеціалізований на законодавстві України, нормативно-правовій базі Верховної Ради, регламентах та вимогах до гармонізації українського права з директивами ЄС (acquis communautaire). ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ. Жодних англійських слів чи речень. ТІЛЬКИ JSON без додаткових коментарів або Markdown-оберток. ОБОВ&#x27;ЯЗКОВО заповнюй ВСІ поля JSON-схеми. Жодне поле не може бути пропущене.</pre>
+          <!-- PROMPT-SYSTEM:START -->
+<pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height=200px;overflow:auto;margin:0 0 10px">Ти — головний юридичний аналітик моніторингового центру, глибоко спеціалізований на законодавстві України, нормативно-правовій базі Верховної Ради, регламентах та вимогах до гармонізації українського права з директивами ЄС (acquis communautaire). ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ. Жодних англійських слів чи речень. ТІЛЬКИ JSON без додаткових коментарів або Markdown-оберток. ОБОВ&#x27;ЯЗКОВО заповнюй ВСІ поля JSON-схеми. Жодне поле не може бути пропущене.</pre>
+  <!-- PROMPT-SYSTEM:END -->
           <p style="margin:0 0 4px"><strong>2. Основний промпт (надсилається разом із повним текстом законопроєкту):</strong></p>
-          <pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height:420px;overflow:auto;margin:0 0 10px">Тобі надано повний текст законопроєкту Верховної Ради України.
+          <!-- PROMPT-MAIN:START -->
+<pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height=420px;overflow:auto;margin:0 0 10px">Тобі надано повний текст законопроєкту Верховної Ради України.
 
 ЕТАП 1: КЛАСИФІКАЦІЯ
 Визнач, чи є цей закон ПРОЦЕДУРНИМ чи НЕПРОЦЕДУРНИМ.
@@ -841,8 +844,16 @@ tr.former-deputy:hover td { opacity: 0.75; }
     &quot;beneficiaries&quot;: [&quot;хто виграє&quot;],
     &quot;losers&quot;: [&quot;хто програє&quot;]
   }},
+  &quot;interest_sectors&quot;: [&quot;галузі зі списку нижче, які виграють від закону&quot;],
   &quot;risk_signals&quot;: [&quot;Рання ознака загрози&quot;]
 }}
+
+ДОЗВОЛЕНІ ГАЛУЗІ для interest_sectors (ЛИШЕ ці значення, без вигадування своїх):
+Агропром, Енергетика, Оборона та безпека, Будівництво та земля, Транспорт та інфраструктура,
+ІТ та телеком, Медицина, Освіта та наука, Фінанси та банки, ЗМІ та інформація,
+Азартні ігри, Тютюн та алкоголь, Видобувна промисловість, Туризм та культура,
+Соцзахист, Держуправління.
+Правила interest_sectors: обери 0-3 галузі, які отримують реальні вигоди або пільги за цим законом. Процедурному закону чи закону без явних галузевих вигод — порожній масив []. Не плутай «на кого поширюється дія» з «хто виграє».
 
 Правила:
 - Не вигадуй наслідки — аналізуй лише наведений текст.
@@ -901,7 +912,8 @@ tr.former-deputy:hover td { opacity: 0.75; }
 Кінець прикладу. Тепер аналізуй наступний законопроєкт у такому ж форматі.
 
 Текст законопроєкту:
-{text}</pre>
+&#123;text&#125;</pre>
+  <!-- PROMPT-MAIN:END -->
           <p style="margin:0;color:var(--text2);font-size:12px">Канонічне джерело тексту — файл <code>src/prompts.py</code> в репозиторії. При зміні промпта цей розділ оновлюється. Версія методології: 2.1 (2026-08-21).</p>
         </div>
       </details>
@@ -1802,6 +1814,10 @@ async function showDeputy(name, votesOffset) {
             <div id="dep-allies" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
               <div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями</div>
               <div style="color:var(--text2);font-size:12px">Завантаження...</div>
+            </div>
+            <div id="dep-interests" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
+              <div style="color:var(--text2);font-size:12px">Завантаження...</div>
             </div>` : ''}
           </div>
         </div>
@@ -1870,6 +1886,30 @@ async function showDeputy(name, votesOffset) {
           </div>`).join('')
           : '<span style="color:var(--text2);font-size:12px">Недостатньо спільних голосувань</span>';
         box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями <span style="font-weight:400;color:var(--text2)">· 🤝 = інша фракція</span></div>${body}`;
+      }).catch(() => {});
+      api(`/api/interests?mp=${d.id}`).then(r => {
+        const box = document.getElementById('dep-interests');
+        if (!box) return;
+        const sectors = (r.sectors || []).filter(s => s.authored > 0 || s.votedFor > 0);
+        if (!sectors.length) {
+          box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
+            <div style="color:var(--text2);font-size:12px">Ще недостатньо даних — профіль наповнюється в міру ШІ-аналізу законів</div>`;
+          return;
+        }
+        const score = s => s.authored * 3 + s.votedFor;
+        const maxVal = Math.max(...sectors.map(score), 1);
+        box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів <span style="font-weight:400;color:var(--text2)">· галузі, вигодами яких насичений закон</span></div>` +
+          sectors.map(s => `
+          <div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px">
+              <span>${escHtml(s.sector)}</span>
+              <span style="color:var(--text2);white-space:nowrap">${s.authored} автор. · ${s.votedFor} «за»</span>
+            </div>
+            <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.round(100 * score(s) / maxVal)}%;background:var(--blue);border-radius:3px"></div>
+            </div>
+          </div>`).join('') +
+          `<div style="font-size:11px;color:var(--text2);margin-top:4px">автор. — законів у автора/співавтора; «за» — голосів за такі закони (2 роки). Кореляція, не доказ лобіювання.</div>`;
       }).catch(() => {});
     }
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }

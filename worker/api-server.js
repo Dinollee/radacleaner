@@ -832,6 +832,20 @@ app.get('/api/voting-clubs', async (req, res) => {
   } catch (e) { error(res, e.message, 500); }
 });
 
+app.get('/api/interests', async (req, res) => {
+  try {
+    const mp = parseInt(req.query.mp, 10);
+    if (!mp) return error(res, 'mp parameter required', 400);
+    const rows = await q(`SELECT di.sector, di.authored, di.voted_for, di.voted_against
+                          FROM deputy_interests di WHERE di.mp_id = $1
+                          ORDER BY (di.authored * 3 + di.voted_for) DESC LIMIT 16`, [mp]);
+    json(res, {
+      sectors: rows.map(r => ({ sector: r.sector, authored: Number(r.authored),
+        votedFor: Number(r.voted_for), votedAgainst: Number(r.voted_against) })),
+    }, 200, 600);
+  } catch (e) { error(res, e.message, 500); }
+});
+
 // --- Query endpoints REMOVED (security: no raw SQL exposure) ---
 // --- /api/eu-alignment/bills REMOVED 2026-08-21: bill_eu_classification table dropped (feature never populated) ---
 
