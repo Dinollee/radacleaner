@@ -429,8 +429,7 @@ app.get('/api/activity-calendar', async (req, res) => {
     if (!month) return error(res, 'month param required (YYYY-MM)');
     const rows = await q(
       `SELECT to_char(date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv'), 'YYYY-MM-DD') as day,
-              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills,
-              COUNT(*) FILTER (WHERE change_type = 'status_change') as status_changes
+              COUNT(*) FILTER (WHERE change_type = 'new') as new_bills
        FROM change_log
        WHERE created_at >= $1 AND created_at < $2
        GROUP BY date(created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv')`,
@@ -438,7 +437,20 @@ app.get('/api/activity-calendar', async (req, res) => {
     );
     const activity = {};
     for (const r of rows) {
-      activity[r.day] = { new: Number(r.new_bills), changed: Number(r.status_changes) };
+      activity[r.day] = { new: Number(r.new_bills), changed: 0 };
+    }
+    // зміни — за ОФІЦІЙНОЮ датою події з хронології (bill_passings.pass_date),
+    // а не за моментом виявлення нашим синком (інакше вечірні події з'їжджали на наступний день)
+    const prows = await q(
+      `SELECT left(pass_date,10) as day, COUNT(DISTINCT bill_id) as cnt
+       FROM bill_passings
+       WHERE left(pass_date,10) >= $1 AND left(pass_date,10) < $2
+       GROUP BY 1`,
+      [month + '-01', month + '-32']
+    );
+    for (const r of prows) {
+      if (!activity[r.day]) activity[r.day] = { new: 0, changed: 0 };
+      activity[r.day].changed = Number(r.cnt);
     }
     // votes per day (vote_date is ISO text)
     const vrows = await q(
@@ -479,14 +491,22 @@ app.get('/api/activity-day', async (req, res) => {
   try {
     const date = req.query.date;
     if (!date) return error(res, 'date param required (YYYY-MM-DD)');
-    const rows = await q(
-      `SELECT cl.change_type, b.bill_number, b.title, b.url, cl.old_value, cl.new_value
-       FROM change_log cl
-       JOIN bills b ON cl.bill_id = b.id
-       WHERE date(cl.created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv') = $1
-       ORDER BY cl.change_type, b.bill_number`,
-      [date]
-    );
+    // «нові» — за моментом появи в моніторингу, «зміни» — за офіційною датою події (pass_date)
+    const [newRows, passRows] = await Promise.all([
+      q(`SELECT cl.change_type, b.bill_number, b.title, b.url, cl.old_value, cl.new_value
+         FROM change_log cl
+         JOIN bills b ON cl.bill_id = b.id
+         WHERE cl.change_type = 'new'
+           AND date(cl.created_at::timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Kyiv') = $1
+         ORDER BY b.bill_number`, [date]),
+      q(`SELECT 'status_change' AS change_type, b.bill_number, b.title, b.url,
+                NULL::text AS old_value, bp.status AS new_value
+         FROM bill_passings bp
+         JOIN bills b ON bp.bill_id = b.id
+         WHERE left(bp.pass_date,10) = $1
+         ORDER BY b.bill_number`, [date]),
+    ]);
+    const rows = [...newRows, ...passRows];
     const schedule = await q(
       `SELECT event_type, title, description, url FROM rada_schedule WHERE date = $1`, [date]
     );

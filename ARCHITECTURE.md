@@ -222,6 +222,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - Dashboard: Cloudflare Pages static site
 - Key endpoints: `/api/bills`, `/api/deputies`, `/api/deputies/:name`, `/api/eu-alignment` (EU integration index v1 + clusters/timeline/news + legacy compat), `/api/eu-alignment/trend`, `/api/schedule`, `/api/plenary-sessions`, `/api/activity-calendar` (bills activity + votes/committee/eu), `/api/activity-day`, `/api/info-digest` (нарративи дня + атаки), `/api/voting-clubs` (клуби голосування: `?limit=` топ крос-фракційних пар, `?mp=ID` однодумці депутата), `/api/interests?mp=ID` (профіль інтересів за галузями), `/api/dashboard` (unified)
 - Timezone: all date queries convert UTC→Europe/Kyiv
+- ⚠️ Календар активностей: «зміни» рахуються за ОФІЦІЙНОЮ датою події (`bill_passings.pass_date` — та сама, що в хронології картки закону), а НЕ за моментом виявлення синком (`change_log.created_at`) — інакше вечірні події з'їжджали на наступний день. «Нові» — за моментом появи в моніторингу (офіційної дати реєстрації немає в 100% покриття).
 - Dashboard deploy: `npx wrangler pages deploy dashboard --project-name radacleaner-dashboard`
 
 ## Free LLM Providers (tested 2026-07-01)
