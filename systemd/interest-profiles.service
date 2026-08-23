@@ -1,0 +1,14 @@
+[Unit]
+Description=Radacleaner — interest sectors backfill + deputy interest profiles
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python backfill_interest_sectors.py --limit 300
+ExecStart=/home/radamon/radacleaner/venv/bin/python calc_interest_profiles.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=7200

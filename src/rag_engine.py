@@ -22,6 +22,7 @@ from .config import (
     LLM_MODEL,
     log,
 )
+from .prompts import INTEREST_SECTORS
 from .llm_client import llm_completion, llm_completion_raw
 from .chunking import chunk_text, CHUNK_SIZE
 from .pdf_utils import (
@@ -239,9 +240,17 @@ risk_level та toxicity будуть розраховані сервером �
     }}
   ],
   "detailed_risks": ["flat list of all risks for backward compatibility"],
+  "stakeholders": {{
+    "beneficiaries": ["хто виграє"],
+    "losers": ["хто програє"]
+  }},
+  "interest_sectors": ["галузі зі списку нижче, які виграють від закону"],
   "analyzed_chunks": [{chunk_indices}],
   "insufficient_text": false
 }}
+
+ДОЗВОЛЕНІ ГАЛУЗІ для interest_sectors (ЛИШЕ ці значення): {sectors}
+Правила interest_sectors: обери 0-3 галузі, які отримують реальні вигоди або пільги за цим законом. Процедурному закону чи закону без явних галузевих вигод — порожній масив []. Не плутай «на кого поширюється дія» з «хто виграє».
 
 Правила:
 - Об'єднай дублікати ризиків з різних чанків
@@ -525,6 +534,7 @@ def _chunked_llm_analysis(full_text: str, total_chunks: int, provider: str | Non
         max_significance=max_significance,
         max_impact=max_impact,
         max_risk=max_risk,
+        sectors=", ".join(INTEREST_SECTORS),
     )
 
     messages.append({"role": "user", "content": final_prompt})
@@ -601,6 +611,17 @@ def _build_fallback_summaries(data: dict, bill_number: str = "") -> None:
         sentences = re.split(r"(?<=[.!?])\s+", risks_text)
         data["summary"] = " ".join(sentences[:2])[:2000]
     data["summary_source"] = "fallback"
+
+
+def _normalize_interest_sectors(llm_data: dict) -> None:
+    """Гарантує ключ interest_sectors (урок has_risks: модель іноді пропускає поля),
+    фільтрує до словника INTEREST_SECTORS, максимум 3. Споживачі: calc_interest_profiles,
+    /api/interests, дашборд."""
+    raw = llm_data.get("interest_sectors")
+    if not isinstance(raw, list):
+        raw = []
+    allowed = set(INTEREST_SECTORS)
+    llm_data["interest_sectors"] = [s for s in raw if isinstance(s, str) and s in allowed][:3]
 
 
 def _fix_discretion_hallucination(data: dict):
@@ -793,6 +814,7 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
         llm_data["has_risks"] = False
         llm_data["risk_level"] = None
         llm_data["detailed_risks"] = []
+        llm_data["interest_sectors"] = []
     else:
         sig = llm_data.get("significance", 0)
         imp = llm_data.get("impact", 0)
@@ -829,6 +851,9 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
 
     # Fallback: заповнити summary/law_summary, якщо модель їх пропустила (з маркером summary_source)
     _build_fallback_summaries(llm_data, bill_number)
+
+    # Post-verification: interest_sectors — гарантований ключ + словник (після всіх ретраїв)
+    _normalize_interest_sectors(llm_data)
 
     try:
         save_risk(doc_db_id, llm_data, LLM_MODEL)

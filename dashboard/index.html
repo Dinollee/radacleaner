@@ -320,6 +320,7 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <button data-section="schedule">Графік</button>
     <button data-section="eu-alignment">🇪🇺 EU Alignment</button>
     <button data-section="info-attacks">🛡 Інфоатаки</button>
+    <button data-section="voting-clubs">🤝 Клуби</button>
     <button data-section="bot">🤖 Бот</button>
   </nav>
   <div class="header-stats" id="header-stats"></div>
@@ -567,6 +568,38 @@ tr.former-deputy:hover td { opacity: 0.75; }
     </div>
   </div>
 
+  <!-- VOTING CLUBS -->
+  <div id="sec-voting-clubs" class="section">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🤝 Клуби голосування</div>
+        <span id="vc-updated"></span>
+      </div>
+      <div id="vc-hero">
+        <div class="section-loading"><div class="spinner"></div><div>Завантаження...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Найузгодженіші крос-фракційні пари</div>
+        <div style="font-size:12px;color:var(--text2)">депутати з різних фракцій, які найчастіше голосують однаково</div>
+      </div>
+      <div class="table-wrap"><table id="vc-table"><thead><tr><th>#</th><th>Депутат А</th><th>Фракція</th><th></th><th>Депутат Б</th><th>Фракція</th><th>Узгодженість</th><th>Спільних голосів</th></tr></thead><tbody><tr><td colspan="8" style="color:var(--text2)">Завантаження...</td></tr></tbody></table></div>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;font-size:14px">📖 Що це таке — методологія розділу</summary>
+        <div style="font-size:13px;line-height:1.7;color:var(--text);padding-top:10px">
+          <p style="margin:0 0 8px"><strong>Що рахується.</strong> Узгодженість = частка однакових позицій («за»/«проти»/«утримався») у <em>спірних</em> голосуваннях — тих, де були і «за», і «проти». Одноголосні голосування не рахуються: у них усі згодні за замовчуванням. Позиції «не голосував» та «відсутній» до розрахунку не входять.</p>
+          <p style="margin:0 0 8px"><strong>Пороги.</strong> Пара потрапляє до списку, якщо в неї ≥400 спільних позиційних голосувань (відсіює шум депутатів, які рідко голосують) і узгодженість ≥70%. Дані перераховуються щотижня.</p>
+          <p style="margin:0"><strong>Чесна застереження.</strong> Спільне голосування — це <em>кореляція</em>, а не доказ лобіювання чи домовленості. Депутати однієї коаліції природно голосують схоже. Розділ показує факти спільних позицій — висновки залишаємо читачеві.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
   <!-- TELEGRAM BOT -->
   <div id="sec-bot" class="section">
     <div class="card">
@@ -665,9 +698,12 @@ tr.former-deputy:hover td { opacity: 0.75; }
         <div style="font-size:13px;line-height:1.7;padding-top:10px">
           <p style="margin:0 0 8px"><strong>Прозорість ШІ-аналізу.</strong> Кожен законопроєкт аналізує мова-модель (зараз nvidia/nemotron-3-super-120b-a12b через OpenRouter) з <em>точно таким самим промптом</em>, який наведено нижче — без прихованих інструкцій. Довгі закони дробляться на частини ~30 тис. символів і аналізуються послідовно з ковзним вікном контексту. Після відповіді модель проходить автоматичні перевірки: детекція англійської мови (повторний аналіз), корекція галюцинації «дискреційних повноважень», заповнення пропущених полів (з маркером «(авто)» на картці). Оцінки significance/impact/risk (1–5) виставляє модель за критеріями Етапу 3 промпта; вони конвертуються у risk_score/toxicity за фіксованою формулою без ручних правок.</p>
           <p style="margin:0 0 4px"><strong>1. Системна роль (system prompt):</strong></p>
-          <pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height:200px;overflow:auto;margin:0 0 10px">Ти — головний юридичний аналітик моніторингового центру, глибоко спеціалізований на законодавстві України, нормативно-правовій базі Верховної Ради, регламентах та вимогах до гармонізації українського права з директивами ЄС (acquis communautaire). ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ. Жодних англійських слів чи речень. ТІЛЬКИ JSON без додаткових коментарів або Markdown-оберток. ОБОВ&#x27;ЯЗКОВО заповнюй ВСІ поля JSON-схеми. Жодне поле не може бути пропущене.</pre>
+          <!-- PROMPT-SYSTEM:START -->
+<pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height=200px;overflow:auto;margin:0 0 10px">Ти — головний юридичний аналітик моніторингового центру, глибоко спеціалізований на законодавстві України, нормативно-правовій базі Верховної Ради, регламентах та вимогах до гармонізації українського права з директивами ЄС (acquis communautaire). ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ. Жодних англійських слів чи речень. ТІЛЬКИ JSON без додаткових коментарів або Markdown-оберток. ОБОВ&#x27;ЯЗКОВО заповнюй ВСІ поля JSON-схеми. Жодне поле не може бути пропущене.</pre>
+  <!-- PROMPT-SYSTEM:END -->
           <p style="margin:0 0 4px"><strong>2. Основний промпт (надсилається разом із повним текстом законопроєкту):</strong></p>
-          <pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height:420px;overflow:auto;margin:0 0 10px">Тобі надано повний текст законопроєкту Верховної Ради України.
+          <!-- PROMPT-MAIN:START -->
+<pre style="white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:11.5px;max-height=420px;overflow:auto;margin:0 0 10px">Тобі надано повний текст законопроєкту Верховної Ради України.
 
 ЕТАП 1: КЛАСИФІКАЦІЯ
 Визнач, чи є цей закон ПРОЦЕДУРНИМ чи НЕПРОЦЕДУРНИМ.
@@ -808,8 +844,16 @@ tr.former-deputy:hover td { opacity: 0.75; }
     &quot;beneficiaries&quot;: [&quot;хто виграє&quot;],
     &quot;losers&quot;: [&quot;хто програє&quot;]
   }},
+  &quot;interest_sectors&quot;: [&quot;галузі зі списку нижче, які виграють від закону&quot;],
   &quot;risk_signals&quot;: [&quot;Рання ознака загрози&quot;]
 }}
+
+ДОЗВОЛЕНІ ГАЛУЗІ для interest_sectors (ЛИШЕ ці значення, без вигадування своїх):
+Агропром, Енергетика, Оборона та безпека, Будівництво та земля, Транспорт та інфраструктура,
+ІТ та телеком, Медицина, Освіта та наука, Фінанси та банки, ЗМІ та інформація,
+Азартні ігри, Тютюн та алкоголь, Видобувна промисловість, Туризм та культура,
+Соцзахист, Держуправління.
+Правила interest_sectors: обери 0-3 галузі, які отримують реальні вигоди або пільги за цим законом. Процедурному закону чи закону без явних галузевих вигод — порожній масив []. Не плутай «на кого поширюється дія» з «хто виграє».
 
 Правила:
 - Не вигадуй наслідки — аналізуй лише наведений текст.
@@ -868,7 +912,8 @@ tr.former-deputy:hover td { opacity: 0.75; }
 Кінець прикладу. Тепер аналізуй наступний законопроєкт у такому ж форматі.
 
 Текст законопроєкту:
-{text}</pre>
+&#123;text&#125;</pre>
+  <!-- PROMPT-MAIN:END -->
           <p style="margin:0;color:var(--text2);font-size:12px">Канонічне джерело тексту — файл <code>src/prompts.py</code> в репозиторії. При зміні промпта цей розділ оновлюється. Версія методології: 2.1 (2026-08-21).</p>
         </div>
       </details>
@@ -931,6 +976,7 @@ function showSection(name) {
   if (name === 'schedule') loadSchedule();
   if (name === 'eu-alignment') loadEUAlignment();
   if (name === 'info-attacks') loadInfoAttacks();
+  if (name === 'voting-clubs') loadVotingClubs();
 }
 
 // === API helpers ===
@@ -1764,6 +1810,15 @@ async function showDeputy(name, votesOffset) {
               ${strengths.length ? `<div style="margin-bottom:8px">${strengths.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2)">✓ ${escHtml(s)}</div>`).join('')}</div>` : ''}
               ${features.length ? `<div>${features.map(s=>`<div style="display:inline-block;padding:3px 8px;margin:2px;border-radius:4px;font-size:12px;background:rgba(52,152,219,0.12);color:var(--blue);border:1px solid rgba(52,152,219,0.2)">ℹ ${escHtml(s)}</div>`).join('')}</div>` : ''}
             </div>` : ''}
+            ${!d.end_date ? `
+            <div id="dep-allies" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями</div>
+              <div style="color:var(--text2);font-size:12px">Завантаження...</div>
+            </div>
+            <div id="dep-interests" style="background:var(--bg2);border-radius:12px;padding:14px;border:1px solid var(--border)">
+              <div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
+              <div style="color:var(--text2);font-size:12px">Завантаження...</div>
+            </div>` : ''}
           </div>
         </div>
       </div>`;
@@ -1816,6 +1871,47 @@ async function showDeputy(name, votesOffset) {
     }
 
     el.innerHTML = html;
+
+    // Однодумці (клуби голосування) — окремий запит після рендера
+    if (d.id && !d.end_date) {
+      api(`/api/voting-clubs?mp=${d.id}`).then(r => {
+        const box = document.getElementById('dep-allies');
+        if (!box) return;
+        const al = r.allies || [];
+        const body = al.length ? al.map(a => `
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:3px 0">
+            <span style="min-width:0"><a href="#" onclick="showDeputy('${escHtml(a.name)}');return false" style="color:var(--blue);text-decoration:none">${escHtml(a.name)}</a>
+              <span style="color:var(--text2);font-size:11px">${escHtml(a.faction || '')}${a.crossFaction ? ' 🤝' : ''}</span></span>
+            <strong style="white-space:nowrap">${a.pct.toFixed(1)}%</strong>
+          </div>`).join('')
+          : '<span style="color:var(--text2);font-size:12px">Недостатньо спільних голосувань</span>';
+        box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями <span style="font-weight:400;color:var(--text2)">· 🤝 = інша фракція</span></div>${body}`;
+      }).catch(() => {});
+      api(`/api/interests?mp=${d.id}`).then(r => {
+        const box = document.getElementById('dep-interests');
+        if (!box) return;
+        const sectors = (r.sectors || []).filter(s => s.authored > 0 || s.votedFor > 0);
+        if (!sectors.length) {
+          box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
+            <div style="color:var(--text2);font-size:12px">Ще недостатньо даних — профіль наповнюється в міру ШІ-аналізу законів</div>`;
+          return;
+        }
+        const score = s => s.authored * 3 + s.votedFor;
+        const maxVal = Math.max(...sectors.map(score), 1);
+        box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів <span style="font-weight:400;color:var(--text2)">· галузі, вигодами яких насичений закон</span></div>` +
+          sectors.map(s => `
+          <div style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px">
+              <span>${escHtml(s.sector)}</span>
+              <span style="color:var(--text2);white-space:nowrap">${s.authored} автор. · ${s.votedFor} «за»</span>
+            </div>
+            <div style="height:6px;background:var(--bg);border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${Math.round(100 * score(s) / maxVal)}%;background:var(--blue);border-radius:3px"></div>
+            </div>
+          </div>`).join('') +
+          `<div style="font-size:11px;color:var(--text2);margin-top:4px">автор. — законів у автора/співавтора; «за» — голосів за такі закони (2 роки). Кореляція, не доказ лобіювання.</div>`;
+      }).catch(() => {});
+    }
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }
 }
 
@@ -2597,6 +2693,45 @@ function renderFakes(fakes) {
   }
   html += '</div>';
   el.innerHTML = html;
+}
+
+// === VOTING CLUBS ===
+async function loadVotingClubs() {
+  try {
+    const data = await api('/api/voting-clubs?limit=100');
+    const m = data.meta;
+    if (m) document.getElementById('vc-updated').textContent = 'оновлено ' + formatDate(m.calculated_at);
+    document.getElementById('vc-hero').innerHTML = m ? `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;text-align:center">
+        ${[
+          { label: 'Депутатів у розрахунку', value: m.deputies, color: 'var(--blue)' },
+          { label: 'Спірних голосувань', value: m.events_contested, color: 'var(--text)' },
+          { label: 'Пар збережено', value: m.pairs_stored, color: 'var(--green)' },
+          { label: 'Крос-фракційних пар', value: m.cross_faction_pairs, color: 'var(--orange)' },
+        ].map(c => `
+          <div style="border:1px solid var(--border);border-radius:8px;padding:18px;background:var(--bg2)">
+            <div style="font-size:34px;font-weight:800;color:${c.color};line-height:1">${Number(c.value).toLocaleString('uk-UA')}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:6px">${c.label}</div>
+          </div>`).join('')}
+      </div>` : '<div style="color:var(--text2);padding:20px;text-align:center">Дані ще не розраховані — чекайте нічного перерахунку</div>';
+
+    const tbody = document.querySelector('#vc-table tbody');
+    const pairs = data.pairs || [];
+    tbody.innerHTML = pairs.map((p, i) => `
+      <tr>
+        <td style="color:var(--text2)">${i + 1}</td>
+        <td><a href="#" onclick="showDeputy('${escHtml(p.a.name)}');return false" style="color:var(--blue);text-decoration:none;font-weight:600">${escHtml(p.a.name)}</a></td>
+        <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(p.a.faction)}"></span>${escHtml(p.a.faction || '—')}</td>
+        <td style="color:var(--text2)">↔</td>
+        <td><a href="#" onclick="showDeputy('${escHtml(p.b.name)}');return false" style="color:var(--blue);text-decoration:none;font-weight:600">${escHtml(p.b.name)}</a></td>
+        <td style="font-size:12px"><span class="faction-dot" style="background:${factionColor(p.b.faction)}"></span>${escHtml(p.b.faction || '—')}</td>
+        <td><strong style="color:${p.pct >= 90 ? 'var(--red)' : p.pct >= 80 ? 'var(--orange)' : 'var(--text)'}">${p.pct.toFixed(1)}%</strong></td>
+        <td style="font-size:12px;color:var(--text2)">${Number(p.common).toLocaleString('uk-UA')}</td>
+      </tr>`).join('') || '<tr><td colspan="8" style="color:var(--text2)">Даних поки немає</td></tr>';
+  } catch(e) {
+    document.getElementById('vc-hero').innerHTML =
+      '<div style="color:var(--text2);padding:20px;text-align:center">Дані поки недоступні</div>';
+  }
 }
 
 // === THEME ===

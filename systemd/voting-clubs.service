@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — weekly voting clubs calculation (pairwise deputy agreement)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python calc_voting_clubs.py
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=900
