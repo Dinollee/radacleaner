@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sync_nazk_declarations import match_deputy, parse_list, pick_newest
+from enrich_company_sectors import parse_items
 
 SAMPLE = """<article class="doc-icon-1-1">
 <div class="fio"><a href="/documents/0650c718-7273-47fb-b2f4-aa522e3da4b8">ГЕТМАНЦЕВ ДАНИЛО ОЛЕКСАНДРОВИЧ</a></div>
@@ -41,3 +42,11 @@ def test_pick_newest():
         {"uuid": "bad-date", "submitted": ""},
     ]
     assert pick_newest(rows)["uuid"] == "new"
+
+
+def test_parse_classify_items():
+    raw = '{"items": [{"name": "Інтер Солар Енерджі", "sector": "Енергетика"}, ' \
+          '{"name": "Хтось", "sector": "Вигадана галузь"}, {"name": ""}]}'
+    out = parse_items(raw)
+    assert out == {"ІНТЕР СОЛАР ЕНЕРДЖІ": "Енергетика"}
+    assert parse_items("без json") == {}

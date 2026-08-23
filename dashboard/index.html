@@ -1939,9 +1939,10 @@ async function showDeputy(name, votesOffset) {
           : '<span style="color:var(--text2);font-size:12px">Недостатньо спільних голосувань</span>';
         box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Однодумці за голосуваннями <span style="font-weight:400;color:var(--text2)">· 🤝 = інша фракція</span></div>${body}`;
       }).catch(() => {});
-      api(`/api/interests?mp=${d.id}`).then(r => {
+    // Профиль интересов + декларация: общий скоуп для перетину «бізнес ∩ закони»
+    const interestsPromise = api(`/api/interests?mp=${d.id}`).then(r => {
         const box = document.getElementById('dep-interests');
-        if (!box) return;
+        if (!box) return [];
         const sectors = (r.sectors || []).filter(s => s.authored > 0 || s.votedFor > 0);
         if (!sectors.length) {
           box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Профіль інтересів</div>
@@ -1962,7 +1963,12 @@ async function showDeputy(name, votesOffset) {
             </div>
           </div>`).join('') +
           `<div style="font-size:11px;color:var(--text2);margin-top:4px">автор. — законів у автора/співавтора; «за» — голосів за такі закони (2 роки). Кореляція, не доказ лобіювання.</div>`;
-      }).catch(() => {});
+        return sectors.map(s => s.sector);
+      }).catch(() => []);
+
+      // Декларація НАЗК + перетин «бізнес ∩ закони того ж сектора»
+      const intSectors = await interestsPromise;
+      const intSet = new Set(intSectors);
       api(`/api/declarations?mp=${d.id}`).then(r => {
         const box = document.getElementById('dep-declaration');
         if (!box) return;
@@ -1972,14 +1978,18 @@ async function showDeputy(name, votesOffset) {
             <div style="color:var(--text2);font-size:12px">${r.uuid ? 'Корпоративних прав у декларації не задекларовано' : 'Декларацію в реєстрі НАЗК не знайдено'}</div>`;
           return;
         }
+        const overlaps = [...new Set(comps.filter(c => c.sector && intSet.has(c.sector)).map(c => c.sector))];
         box.innerHTML = `<div style="font-size:13px;font-weight:600;margin-bottom:10px">Бізнес за декларацією <span style="font-weight:400;color:var(--text2)">· ${escHtml(r.year ? String(r.year) : '')}${r.submittedAt ? ' · подано ' + escHtml(r.submittedAt) : ''}</span></div>` +
+          (overlaps.length ? `<div style="margin-bottom:8px;padding:8px 10px;background:rgba(142,68,173,0.08);border-left:3px solid #8e44ad;border-radius:4px;font-size:12px">
+            <strong>⚡ Перетин:</strong> бізнес у галуз${overlaps.length > 1 ? 'ях' : 'і'} ${overlaps.map(s => escHtml(s)).join(', ')} — і в його ж законотворчості простежуються інтереси цих галузей. Факт співпадіння, не висновок про конфлікт інтересів.
+          </div>` : '') +
           comps.slice(0, 8).map(c => `
           <div style="padding:6px 0;border-bottom:1px solid var(--border)">
-            <div style="font-size:12.5px;font-weight:600">${escHtml(c.name || '(без назви)')}</div>
+            <div style="font-size:12.5px;font-weight:600">${escHtml(c.name || '(без назви)')}${c.sector ? ` <span style="font-weight:400;color:${intSet.has(c.sector) ? '#8e44ad' : 'var(--text2)'};font-size:11.5px">· ${escHtml(c.sector)}${c.sector_source === 'auto_name' ? ' (авто)' : ''}</span>` : ''}</div>
             <div style="font-size:11.5px;color:var(--text2)">${c.edrpou ? 'ЄДРПОУ ' + escHtml(c.edrpou) : ''}${c.legalForm ? ' · ' + escHtml(c.legalForm.trim()) : ''}${c.sharePct != null && c.sharePct !== '' ? ' · частка ' + escHtml(String(c.sharePct)) + '%' : ''}</div>
           </div>`).join('') +
           (comps.length > 8 ? `<div style="font-size:11.5px;color:var(--text2);margin-top:4px">…та ще ${comps.length - 8}</div>` : '') +
-          `<div style="font-size:11px;color:var(--text2);margin-top:6px">джерело: Реєстр декларацій НАЗК (дані самих депутатів)</div>`;
+          `<div style="font-size:11px;color:var(--text2);margin-top:6px">джерело: Реєстр декларацій НАЗК (дані самих депутатів). Галузь компанії визначено автоматично за назвою.</div>`;
       }).catch(() => {});
     }
   } catch(e) { el.innerHTML = `<p style="color:var(--red)">Помилка: ${escHtml(e.message)}</p>`; }
