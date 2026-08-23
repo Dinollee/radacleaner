@@ -915,7 +915,7 @@ app.get('/api/declarations', async (req, res) => {
       uuid: d.uuid, submittedAt: d.submitted_at, year: d.declaration_year,
       companies: (d.companies || []).map(c => ({
         name: c.name || '', edrpou: c.edrpou || '', legalForm: c.legalForm || '',
-        sharePct: c.share_pct ?? null,
+        sharePct: c.share_pct ?? null, sector: c.sector || '',
       })),
     } : { companies: [] }, 200, 600);
   } catch (e) { error(res, e.message, 500); }

@@ -1,5 +1,5 @@
 [Unit]
-Description=Radacleaner - daily NAZK declarations sync (deputy companies)
+Description=Radacleaner - daily NAZK declarations sync + company sector classification
 After=network-online.target
 Wants=network-online.target
 
@@ -8,6 +8,7 @@ Type=oneshot
 User=radamon
 WorkingDirectory=/home/radamon/radacleaner
 ExecStart=/home/radamon/radacleaner/venv/bin/python sync_nazk_declarations.py
+ExecStart=/home/radamon/radacleaner/venv/bin/python -u enrich_company_sectors.py
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=3600
+TimeoutStartSec=7200
