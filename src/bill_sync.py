@@ -325,9 +325,21 @@ def process_full_data(data: bytes) -> int:
                     # Знаходимо mp_id через rada_uid
                     mp_id = None
                     if rada_uid:
-                        mp_rows = d1_query("SELECT id FROM mps WHERE rada_uid=?", [rada_uid])
+                        mp_rows = d1_query("SELECT id, name FROM mps WHERE rada_uid=?", [rada_uid])
                         if mp_rows:
                             mp_id = mp_rows[0]["id"]
+                            # RADA віддає свіже ім'я: якщо воно відрізняється від
+                            # поточного mps.name — фіксуємо пару (стара → нова) в deputy_aliases
+                            if full_name != mp_rows[0]["name"]:
+                                d1_exec("raw_sql", {
+                                    "sql": ("INSERT INTO deputy_aliases (rada_uid, old_name, new_name) "
+                                            "SELECT ?, ?, ? WHERE NOT EXISTS ("
+                                            "  SELECT 1 FROM deputy_aliases WHERE rada_uid=? AND old_name=?) "
+                                            "AND NOT EXISTS ("
+                                            "  SELECT 1 FROM deputy_aliases WHERE rada_uid=? AND new_name=?)"),
+                                    "params": [rada_uid, full_name, mp_rows[0]["name"],
+                                               rada_uid, full_name, rada_uid, full_name],
+                                })
 
                     d1_exec("raw_sql", {
                         "sql": "INSERT INTO bill_sponsors (bill_id, mp_id, mp_name, rada_uid, sponsor_order) VALUES (?, ?, ?, ?, ?)",

@@ -193,7 +193,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
-- **mps** — 460 deputies. rada_uid = stable identity key (from RADA API person.id). 6 name changes in deputy_aliases.
+- **mps** — 460 deputies. rada_uid = stable identity key (from RADA API person.id). Name changes live in deputy_aliases; lookups go through src/aliases.resolve_name_candidates().
   - kpi_v12_score, kpi_v12_rank — ІЕД results (6 equal-weight categories)
   - kpi_v12_discipline/legislation/efficiency/committee/requests/impact — 6 components
   - kpi_v11_score, kpi_v11_rank — KPI v11 results (legacy, 5 weighted components)
@@ -219,7 +219,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **lobbying_subjects / lobbying_objects** — Реєстр прозорості НАЗК (закон №3606-20): суб'єкти лобіювання та їх декларації (акт, відомство, представник, дати контактів), bill_number витягнутий з тексту і валідований по bills (migration 028); пише sync_lobbying_registry.py, читає /api/lobbying
 - **deputy_declarations** — остання декларація депутата в НАЗК: uuid, submitted_at, declaration_year, companies jsonb (назва/ЄДРПОУ/частка) (migration 030); пише sync_nazk_declarations.py, читає /api/declarations
 - mps.portrait / portrait_signals — LLM-портрет депутата з даних моніторингу (migration 029); пише calc_deputy_portraits.py; дашборд показує portrait, старі signal_* — fallback
-- **deputy_aliases** — name change history (6 entries)
+- **deputy_aliases** — name change history (marriage/divorce): old_name → new_name per rada_uid. Auto-populated by src/bill_sync.py when RADA shows a surname that differs from mps.name for a known rada_uid; seeded with 6 manual entries (2026-06). Consumers: sync_nazk_declarations.py (searches declarations under old surnames), sync_mp_factions/dates/bills, worker/api-server.js `/api/deputies/:name`, telegram_bot.py /dep — via src/aliases.resolve_name_candidates() or `rada_uid IN (SELECT … FROM deputy_aliases WHERE old_name ILIKE $1)`
 
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)

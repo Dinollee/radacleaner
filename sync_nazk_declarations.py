@@ -31,6 +31,8 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent))
 load_dotenv(Path(__file__).parent / ".env")
 
+from src.aliases import alias_surnames, resolve_name_candidates  # noqa: E402
+
 DB_DSN = "host=192.168.1.244 dbname=radacleaner user=postgres password=164352"
 LIST_URL = "https://public.nazk.gov.ua/documents/list?q="
 # document_type: 1 = Декларація, 3 = Виправлена (2 = Повідомлення про суттєві зміни — без посади)
@@ -149,17 +151,25 @@ def run(limit: int | None = None, delay: float = DELAY,
         surname = parts[0]
         first_initial = parts[1][0] if len(parts) > 1 else None
         patronymic_initial = parts[1][2] if len(parts) > 1 and len(parts[1]) > 3 else None
+        # декларація могла бути подана до зміни прізвища — пробуємо й старі форми
+        surnames = [surname] + [s for s in alias_surnames(resolve_name_candidates(cur, name))
+                                if s != surname]
         try:
-            html_text = http_get(list_url(surname)).decode("utf-8", errors="replace")
-            rows = parse_list(html_text)
-            for page in range(2, min(max_page(html_text), MAX_PAGES) + 1):
-                html_text = http_get(list_url(surname, page)).decode("utf-8", errors="replace")
-                rows += parse_list(html_text)
+            best = None
+            for sn in surnames:
+                html_text = http_get(list_url(sn)).decode("utf-8", errors="replace")
+                rows = parse_list(html_text)
+                for page in range(2, min(max_page(html_text), MAX_PAGES) + 1):
+                    html_text = http_get(list_url(sn, page)).decode("utf-8", errors="replace")
+                    rows += parse_list(html_text)
+                    time.sleep(delay)
+                rows = [r for r in rows
+                        if is_deputy_post(r["post"])
+                        and match_deputy(r["fio"], sn, first_initial, patronymic_initial)]
+                best = pick_newest(rows)
                 time.sleep(delay)
-            rows = [r for r in rows
-                    if is_deputy_post(r["post"])
-                    and match_deputy(r["fio"], surname, first_initial, patronymic_initial)]
-            best = pick_newest(rows)
+                if best:
+                    break
             if not best:
                 not_found += 1
                 continue

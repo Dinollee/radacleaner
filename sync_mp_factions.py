@@ -8,7 +8,8 @@ import re
 import urllib.request
 
 from src.config import log
-from src.d1_client import d1_exec
+from src.d1_client import d1_exec, _get_conn
+from src.aliases import resolve_name_candidates
 
 
 def fetch_url(url, timeout=30):
@@ -88,6 +89,7 @@ def sync_factions():
 
     factions_count = {}
     total_updated = 0
+    alias_cur = _get_conn().cursor()  # для resolve_name_candidates (лише читання)
 
     for full_name, raw_faction, fr_id, start_date, end_date in all_cards:
         faction = parse_faction_name(raw_faction)
@@ -98,13 +100,15 @@ def sync_factions():
             continue
 
         try:
+            # після зміни прізвища точна назва може не збігтися — оновлюємо за будь-якою формою
             d1_exec("raw_sql", {
-                "sql": "UPDATE mps SET faction = ?, start_date = ?, end_date = ? WHERE name = ?",
+                "sql": ("UPDATE mps SET faction = ?, start_date = ?, end_date = ? "
+                        "WHERE name = ANY(?)"),
                 "params": [
                     faction,
                     start_date if start_date else None,
                     end_date if end_date else None,
-                    db_name,
+                    resolve_name_candidates(alias_cur, db_name),
                 ],
             })
             total_updated += 1

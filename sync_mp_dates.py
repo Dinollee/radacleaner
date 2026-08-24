@@ -17,7 +17,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-from src.d1_client import d1_exec
+from src.d1_client import d1_exec, _get_conn
+from src.aliases import alias_surnames, resolve_name_candidates
 
 
 def fetch_mp_dates():
@@ -63,16 +64,25 @@ def update_mp_dates(deputies):
     """
     updated = 0
     errors = 0
-    
+    alias_cur = _get_conn().cursor()  # для resolve_name_candidates (лише читання)
+
     for dep in deputies:
         try:
             # Отримуємо прізвище (перше слово повного імені)
-            last_name = dep["name"].split()[0]
-            
-            # Шукаємо по прізвищу та оновлюємо
-            sql = "UPDATE mps SET start_date = ?, end_date = ? WHERE name LIKE ?"
-            params = [dep["start_date"], dep["end_date"], f"{last_name}%"]
-            
+            full_parts = dep["name"].split()
+            last_name = full_parts[0]
+            # приблизна форма як у БД ("Прізвище І.Б.") — щоб знайти старі форми імені
+            guess = last_name
+            if len(full_parts) >= 3 and full_parts[1] and full_parts[2]:
+                guess = f"{last_name} {full_parts[1][0]}.{full_parts[2][0]}."
+
+            # Шукаємо по прізвищу (враховуємо зміни прізвища) та оновлюємо
+            surnames = alias_surnames(resolve_name_candidates(alias_cur, guess))
+            like_sql = " OR ".join(["name LIKE ?"] * len(surnames))
+            sql = f"UPDATE mps SET start_date = ?, end_date = ? WHERE {like_sql}"
+            params = ([dep["start_date"], dep["end_date"]] +
+                      [f"{s}%" for s in surnames])
+
             d1_exec("raw_sql", {"sql": sql, "params": params})
             updated += 1
             
