@@ -157,7 +157,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest, voting-clubs, interests |
-| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони, Депутати (ІЕД + radar + Однодумці + Профіль інтересів), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Клуби (крос-фракційні пари), Бот (підключення до @RadaCleaner_bot) |
+| dashboard/index.html | Cloudflare Pages frontend — single-page app: Дашборд, Закони (таб «🏛 Лобіювання»), Депутати (ІЕД + radar + Портрет + Однодумці + Профіль інтересів + Бізнес за декларацією), Графік (календар активностей), EU Alignment (індекс євроінтеграції), Інфоатаки, Клуби (крос-фракційні пари + реєстр лобіювання НАЗК), Бот (підключення до @RadaCleaner_bot) |
 | scripts/sync_prompt_to_dashboard.py | Синхронізація тексту промптів у методологію дашборда (маркери PROMPT-SYSTEM/PROMPT-MAIN) — запускати після кожної зміни src/prompts.py |
 
 ## Night Batch (UPDATED 2026-07-15)
@@ -283,7 +283,7 @@ Cron ліквідовано (2026-08-21): все планування — system
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status: **ІЕД (v12) ACTIVE**, Dashboard: ІЕД radar + Графік (календар активностей) + EU Integration Index 23.9% + Інфоатаки (детектор синхронних хвиль), Telegram bot + digest + attack alerts, EU tracker + cluster auto-detection.
+Current status (2026-08-23): **ІЕД v12 + аналітика впливу ACTIVE**. Дашборд: ІЕД radar + Графік + EU Integration Index 23.9% + Інфоатаки + **🤝 Клуби голосування** (крос-фракційні пари) + профілі депутатів (**Портрет** LLM, **Однодумці**, **Профіль інтересів**, **Бізнес за декларацією НАЗК** з банером перетину «бізнес ∩ закони»). Реєстр лобіювання НАЗК (вкладка в картці закону). Telegram bot menu v2 (/attacks /fakes /sub) + персональні підписки на пуші. 21 канал моніторингу дезінфо.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
