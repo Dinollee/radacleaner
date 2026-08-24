@@ -304,14 +304,16 @@ app.get('/api/deputies/:name', async (req, res) => {
     const isNum = /^\d+$/.test(param);
     const deputy = isNum
       ? (await q('SELECT * FROM mps WHERE id = $1', [Number(param)]))[0]
-      : (await q('SELECT * FROM mps WHERE name = $1', [param]))[0];
+      : (await q('SELECT * FROM mps WHERE name = $1 OR rada_uid IN (SELECT rada_uid FROM deputy_aliases WHERE old_name ILIKE $1)', [param]))[0];
     if (!deputy) return error(res, 'Deputy not found', 404);
 
     const limit = Math.min(Number(req.query.limit) || 50, 200);
     const offset = Number(req.query.offset) || 0;
+    // голоси могли записуватися під старим прізвищем депутата
+    const nameFilter = `(mv.mp_name=$1 OR mv.mp_name IN (SELECT old_name FROM deputy_aliases WHERE new_name=$1 UNION SELECT new_name FROM deputy_aliases WHERE old_name=$1))`;
 
-    const votes = (await q(`SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label, v.title as vote_title, mv.vote_date, b.bill_number FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id=vs.id JOIN votes v ON mv.vote_id=v.vote_id LEFT JOIN bills b ON v.bill_id=b.id WHERE mv.mp_name=$1 ORDER BY mv.vote_date DESC LIMIT $2 OFFSET $3`, [deputy.name, limit, offset]));
-    const countResult = (await q('SELECT COUNT(*) as total FROM mp_votes mv WHERE mv.mp_name=$1', [deputy.name]))[0];
+    const votes = (await q(`SELECT mv.mp_name, mv.mp_faction, vs.code as vote_code, vs.label as vote_label, v.title as vote_title, mv.vote_date, b.bill_number FROM mp_votes mv JOIN vote_statuses vs ON mv.status_id=vs.id JOIN votes v ON mv.vote_id=v.vote_id LEFT JOIN bills b ON v.bill_id=b.id WHERE ${nameFilter} ORDER BY mv.vote_date DESC LIMIT $2 OFFSET $3`, [deputy.name, limit, offset]));
+    const countResult = (await q(`SELECT COUNT(*) as total FROM mp_votes mv WHERE ${nameFilter}`, [deputy.name]))[0];
     const total = deputy.total_votes || 0;
 
     json(res, { deputy, votes, votesTotal: Number(countResult.total), votesLimit: limit, votesOffset: offset, stats: { total, attended: total, py: deputy.py || 0, pda: deputy.pda || 0, vkp: deputy.vkp || 0, dataSufficient: deputy.data_sufficient || false, lei: deputy.lei || 0, avgS: deputy.avg_s || 0, avgI: deputy.avg_i || 0, avgTox: deputy.avg_tox || 0, kpiScore: deputy.kpi_score || 0, kpiRank: deputy.kpi_rank || 0 } });

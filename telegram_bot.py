@@ -215,8 +215,9 @@ async def send_dep_profile(update, name_query):
         "signal_warnings, signal_strengths, signal_features, "
         "(SELECT committee_name FROM committee_members WHERE member_uid = mps.rada_uid LIMIT 1) as committee "
         "FROM mps WHERE (end_date IS NULL OR end_date = '') "
-        "AND name ILIKE %s LIMIT 1",
-        [f"%{name_query}%"],
+        "AND (name ILIKE %s OR rada_uid IN "
+        "(SELECT rada_uid FROM deputy_aliases WHERE old_name ILIKE %s)) LIMIT 1",
+        [f"%{name_query}%", f"%{name_query}%"],
     )
     if not rows:
         await update.message.reply_text(f"❌ Депутата '{name_query}' не знайдено.")

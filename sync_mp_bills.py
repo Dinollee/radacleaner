@@ -12,7 +12,8 @@ import urllib.request
 import gzip
 
 from src.config import log
-from src.d1_client import d1_exec, d1_query
+from src.d1_client import d1_exec, d1_query, _get_conn
+from src.aliases import resolve_name_candidates
 
 
 def fetch_url(url, timeout=30):
@@ -185,13 +186,19 @@ def sync_all():
     log.info("Mapped %d deputies with initials", len(full_name_map))
 
     # Синхронізуємо кожного депутата
+    alias_cur = _get_conn().cursor()  # для resolve_name_candidates (лише читання)
     total_synced = 0
     total_errors = 0
     for deputy in deputies:
         name = deputy["name"]
         mp_id = deputy["id"]
 
-        match_url = full_name_map.get(name)
+        # після зміни прізвища карта сайту може тримати іншу форму імені
+        match_url = None
+        for candidate in resolve_name_candidates(alias_cur, name):
+            match_url = full_name_map.get(candidate)
+            if match_url:
+                break
 
         if not match_url:
             log.debug("No match for %s, skipping", name)

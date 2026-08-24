@@ -145,7 +145,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | calc_voting_clubs.py | **Клуби голосування** (щотижня пн 05:00): numpy-матриця голосувань активних депутатів, попарна узгодженість у СПІРНИХ голосуваннях (були і «за», і «проти»), пари ≥400 спільних і ≥70% → voting_allies + stats_cache `voting_clubs_meta` |
 | backfill_interest_sectors.py | **Бекфілл interest_sectors** (щодня 08:30): процедурним — [] без LLM, непроцедурним — LLM-екстракція 0-3 галузей з raw_analysis (300/запуск, пріоритет risk_score DESC) |
 | calc_deputy_portraits.py | **Портрет депутата** (щодня 04:30, свіжі <6д пропускаються): факт-лист з наших даних (ІЕД+ранги, однодумці, інтереси) → LLM пише характеристику + персональні сигнали → mps.portrait/portrait_signals |
-| sync_nazk_declarations.py | **Декларації НАЗК** (щодня 06:00, другим ExecStart — enrich_company_sectors.py): пошук за прізвищем public.nazk.gov.ua/documents/list → фільтр «народний депутат» + ПІБ → v2 JSON API → корпоративні права (компанії, ЄДРПОУ) + LLM-класифікація галузі за назвою (sector_source=auto_name) → deputy_declarations |
+| sync_nazk_declarations.py | **Декларації НАЗК** (щодня 06:00, другим ExecStart — enrich_company_sectors.py): пошук за прізвищем public.nazk.gov.ua/documents/list з серверними фільтрами (responsible_position=52 «народний депутат», лише декларації; догуляє ?page=N до 5) → фільтр посада депутата/комітету + ПІБ з ініціалами ім'я та по батькові → v2 JSON API → корпоративні права (компанії, ЄДРПОУ) + LLM-класифікація галузі за назвою (sector_source=auto_name) → deputy_declarations |
 | calc_interest_profiles.py | **Профіль інтересів** (щодня 08:30, після бекфілу): авторство + голосування «за»/«проти» за галузями → deputy_interests |
 | sync_lobbying_registry.py | **Реєстр лобіювання НАЗК** (щодня 07:00): transparency.nazk.gov.ua/api/v1/public (allsubjects + report?id={guid}, подвійне JSON-кодування відповідей!) → lobbying_subjects/lobbying_objects; №NNNN з предмета лобіювання валідується EXISTS bills.bill_number |
 | eu_alignment.py | EU keyword alignment scoring (legacy, replaced by harmonization) |
@@ -193,7 +193,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 ## DB schema (key tables)
 - **bills** — 15K+ bills from RADA API. Has: significance, impact, risk_score, toxicity (set by LLM), is_urgent, is_euro (from JSON)
 - **bill_sponsors** — 15K+ author records (extracted from JSON initiators). Columns: bill_id, mp_id, mp_name, rada_uid, sponsor_order
-- **mps** — 460 deputies. rada_uid = stable identity key (from RADA API person.id). 6 name changes in deputy_aliases.
+- **mps** — 460 deputies. rada_uid = stable identity key (from RADA API person.id). Name changes live in deputy_aliases; lookups go through src/aliases.resolve_name_candidates().
   - kpi_v12_score, kpi_v12_rank — ІЕД results (6 equal-weight categories)
   - kpi_v12_discipline/legislation/efficiency/committee/requests/impact — 6 components
   - kpi_v11_score, kpi_v11_rank — KPI v11 results (legacy, 5 weighted components)
@@ -219,7 +219,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 - **lobbying_subjects / lobbying_objects** — Реєстр прозорості НАЗК (закон №3606-20): суб'єкти лобіювання та їх декларації (акт, відомство, представник, дати контактів), bill_number витягнутий з тексту і валідований по bills (migration 028); пише sync_lobbying_registry.py, читає /api/lobbying
 - **deputy_declarations** — остання декларація депутата в НАЗК: uuid, submitted_at, declaration_year, companies jsonb (назва/ЄДРПОУ/частка) (migration 030); пише sync_nazk_declarations.py, читає /api/declarations
 - mps.portrait / portrait_signals — LLM-портрет депутата з даних моніторингу (migration 029); пише calc_deputy_portraits.py; дашборд показує portrait, старі signal_* — fallback
-- **deputy_aliases** — name change history (6 entries)
+- **deputy_aliases** — name change history (marriage/divorce): old_name → new_name per rada_uid. Auto-populated by src/bill_sync.py when RADA shows a surname that differs from mps.name for a known rada_uid; seeded with 6 manual entries (2026-06). Consumers: sync_nazk_declarations.py (searches declarations under old surnames), sync_mp_factions/dates/bills, worker/api-server.js `/api/deputies/:name`, telegram_bot.py /dep — via src/aliases.resolve_name_candidates() or `rada_uid IN (SELECT … FROM deputy_aliases WHERE old_name ILIKE $1)`
 
 ## API
 - Express: `https://api.dino.pp.ua` (tunnel → localhost:8788)
