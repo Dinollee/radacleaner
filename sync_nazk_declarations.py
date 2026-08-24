@@ -7,7 +7,10 @@
   GET public-api.nazk.gov.ua/v2/documents/{uuid}       — повна декларація JSON
      (data.step_8 = корпоративні права: name, ЄДРПОУ, legalForm, частка)
 
-Матчинг депутата: прізвище + перший літера імені + посада «народний депутат України».
+Матчинг депутата: прізвище + ініціали імені та по батькові + посада депутата/комітету ВРУ.
+Пошук звужуємо серверними фільтрами НАЗК (responsible_position=52 «народний депутат»,
+лише декларації) — це згортає пагінцію для поширених прізвищ (Ткаченко = 304 сторінки)
+і прибирає тезок не-депутатів; за потреби догуляємо ?page=N до MAX_PAGES.
 Беремо найсвіжішу за «Дата та час подання». КВЕД у декларації немає — галузь
 потім визначаємо окремо (відкритий реєстр ЄДР або класифікація назви).
 """
@@ -16,6 +19,7 @@ import json
 import re
 import sys
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from html import unescape
@@ -29,21 +33,27 @@ load_dotenv(Path(__file__).parent / ".env")
 
 DB_DSN = "host=192.168.1.244 dbname=radacleaner user=postgres password=164352"
 LIST_URL = "https://public.nazk.gov.ua/documents/list?q="
+# document_type: 1 = Декларація, 3 = Виправлена (2 = Повідомлення про суттєві зміни — без посади)
+LIST_FILTERS = "&document_type%5B%5D=1&document_type%5B%5D=3&responsible_position%5B%5D=52"
+MAX_PAGES = 5  # межа догулювання пагінції на випадок зміни сортування
 API_URL = "https://public-api.nazk.gov.ua/v2/documents/"
 DELAY = 0.5
-
-ARTICLE_RE = re.compile(
-    r'<a href="/documents/([0-9a-f-]{36})">([^<]+)</a>.*?'
-    r'(?:Дата та час подання:</span>([^<]*)<)?.*?(?:<div class="type-info">([^<]+)</div>)?.*?'
-    r'Посада:</span>([^<]*)</div>',
-    re.S,
-)
 
 
 def http_get(url: str) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         return resp.read()
+
+
+def list_url(surname: str, page: int = 1) -> str:
+    url = LIST_URL + urllib.parse.quote(surname) + LIST_FILTERS
+    return f"{url}&page={page}" if page > 1 else url
+
+
+def max_page(html_text: str) -> int:
+    pages = [int(p) for p in re.findall(r'data-page="(\d+)"', html_text)]
+    return max(pages) if pages else 1
 
 
 def parse_list(html_text: str) -> list[dict]:
@@ -67,13 +77,23 @@ def parse_list(html_text: str) -> list[dict]:
     return out
 
 
-def match_deputy(fio: str, surname: str, first_initial: str | None) -> bool:
+def match_deputy(fio: str, surname: str, first_initial: str | None,
+                 patronymic_initial: str | None = None) -> bool:
     parts = fio.upper().split()
     if not parts or parts[0] != surname.upper():
         return False
     if first_initial and parts[1:2] and not parts[1].startswith(first_initial.upper()):
         return False
+    # по батькові відсіває тезок із збігом прізвище+ініціал (Грищенко Т.М. vs Т.В.)
+    if patronymic_initial and parts[2:3] and not parts[2].startswith(patronymic_initial.upper()):
+        return False
     return True
+
+
+def is_deputy_post(post: str) -> bool:
+    """Посада формату 2019+: «Член/Голова Комітету Верховної Ради…», «депутатка» тощо."""
+    p = post.lower()
+    return "депутат" in p or "комітет" in p or "верховної рад" in p
 
 
 def pick_newest(rows: list[dict]) -> dict | None:
@@ -107,10 +127,18 @@ def fetch_companies(uuid: str) -> tuple[list[dict], int | None]:
     return companies, year, step1.get("workPost", "")
 
 
-def run(limit: int | None = None, delay: float = DELAY) -> None:
+def run(limit: int | None = None, delay: float = DELAY,
+        only_unmatched: bool = False) -> None:
     conn = psycopg2.connect(DB_DSN)
     cur = conn.cursor()
-    cur.execute("SELECT id, name FROM mps WHERE end_date IS NULL ORDER BY id")
+    if only_unmatched:
+        cur.execute("""
+            SELECT id, name FROM mps
+            WHERE end_date IS NULL AND NOT EXISTS (
+                SELECT 1 FROM deputy_declarations dd WHERE dd.mp_id = mps.id)
+            ORDER BY id""")
+    else:
+        cur.execute("SELECT id, name FROM mps WHERE end_date IS NULL ORDER BY id")
     deputies = cur.fetchall()
 
     found = not_found = errors = 0
@@ -120,11 +148,17 @@ def run(limit: int | None = None, delay: float = DELAY) -> None:
         parts = name.split()
         surname = parts[0]
         first_initial = parts[1][0] if len(parts) > 1 else None
+        patronymic_initial = parts[1][2] if len(parts) > 1 and len(parts[1]) > 3 else None
         try:
-            html_text = http_get(LIST_URL + urllib.parse.quote(surname)).decode("utf-8", errors="replace")
-            rows = [r for r in parse_list(html_text)
-                    if "народний депутат" in r["post"].lower()
-                    and match_deputy(r["fio"], surname, first_initial)]
+            html_text = http_get(list_url(surname)).decode("utf-8", errors="replace")
+            rows = parse_list(html_text)
+            for page in range(2, min(max_page(html_text), MAX_PAGES) + 1):
+                html_text = http_get(list_url(surname, page)).decode("utf-8", errors="replace")
+                rows += parse_list(html_text)
+                time.sleep(delay)
+            rows = [r for r in rows
+                    if is_deputy_post(r["post"])
+                    and match_deputy(r["fio"], surname, first_initial, patronymic_initial)]
             best = pick_newest(rows)
             if not best:
                 not_found += 1
@@ -167,5 +201,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--delay", type=float, default=DELAY)
+    parser.add_argument("--only-unmatched", action="store_true",
+                        help="лише депутати без запису в deputy_declarations")
     args = parser.parse_args()
-    run(args.limit, args.delay)
+    run(args.limit, args.delay, args.only_unmatched)
