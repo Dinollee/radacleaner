@@ -1,0 +1,13 @@
+[Unit]
+Description=Radacleaner — citizen impact backfill (до/після для громадян)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radamon
+WorkingDirectory=/home/radamon/radacleaner
+ExecStart=/home/radamon/radacleaner/venv/bin/python backfill_citizen_impact.py --limit 300
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=43200

@@ -1451,6 +1451,25 @@ async function toggleBillExpand(row, id) {
           <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 ${escHtml(risks.model_used||'?')} · ${formatDate(risks.assessed_at)} · ${risks.insufficient_text ? '⚠️ неповний текст' : 'повний аналіз'}</div>
         </div>`;
       }
+      // === Що зміниться для громадянина ===
+      const ci = j.citizen_impact;
+      if (ci && Array.isArray(ci.changes) && ci.changes.length) {
+        html += `<div style="padding:10px 14px;background:var(--bg);border-left:3px solid var(--green);border-radius:4px;margin-bottom:12px">
+          <div style="font-size:12px;color:var(--green);font-weight:600;margin-bottom:6px">👥 Що зміниться для громадянина</div>
+          ${ci.headline ? `<div style="font-size:13px;line-height:1.5;margin-bottom:8px">${escHtml(ci.headline)}</div>` : ''}
+          ${ci.changes.map((ch,i) => `
+            <div style="margin-bottom:8px">
+              <div style="font-size:12px;font-weight:600;color:var(--text)">${i+1}. ${escHtml(ch.who||'')}</div>
+              <div style="font-size:12px;line-height:1.5;padding-left:12px"><span style="color:var(--text2)">Було:</span> ${escHtml(ch.before||'—')}</div>
+              <div style="font-size:12px;line-height:1.5;padding-left:12px"><span style="color:var(--green)">Стане:</span> ${escHtml(ch.after||'—')}</div>
+            </div>`).join('')}
+          <div style="margin-top:6px;font-size:11px;color:var(--text2)">🤖 пояснення згенеровано ШІ за текстом закону</div>
+        </div>`;
+      } else if (ci && ci.affects_citizens === false) {
+        html += `<div style="padding:8px 14px;background:var(--bg);border-radius:4px;margin-bottom:12px;font-size:12px;color:var(--text2)">
+          👥 ${escHtml(ci.no_impact_reason || 'Прямого впливу на життя громадян немає')}
+        </div>`;
+      }
     } else if (risks?.raw_analysis) {
       let summaryText = risks.raw_analysis;
       let autoMark2 = '';

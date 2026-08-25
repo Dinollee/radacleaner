@@ -144,6 +144,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | sync_disinfo_channels.py | **Daily watchlist refresh** (06:50): список СБУ → новые каналы авто (SearXNG `site:t.me` + og:title fuzzy-match UA/RU нормализация), liveness всех, prune dead_streak≥3 |
 | calc_voting_clubs.py | **Клуби голосування** (щотижня пн 05:00): numpy-матриця голосувань активних депутатів, попарна узгодженість у СПІРНИХ голосуваннях (були і «за», і «проти»), пари ≥400 спільних і ≥70% → voting_allies + stats_cache `voting_clubs_meta` |
 | backfill_interest_sectors.py | **Бекфілл interest_sectors** (щодня 08:30): процедурним — [] без LLM, непроцедурним — LLM-екстракція 0-3 галузей з raw_analysis (300/запуск, пріоритет risk_score DESC) |
+| backfill_citizen_impact.py | **«Що зміниться для громадянина»** (щодня 05:30): процедурним/без тексту — фіксований об'єкт без LLM, непроцедурним — LLM-генерація до/після (3-5 пар, max 1-2 речення) з ПОВНОГО plain_text (до 50K символів, не з raw_analysis!), 300/запуск, пріоритет risk_score DESC, мовний чекер + retry |
 | calc_deputy_portraits.py | **Портрет депутата** (щодня 04:30, свіжі <6д пропускаються): факт-лист з наших даних (ІЕД+ранги, однодумці, інтереси) → LLM пише характеристику + персональні сигнали → mps.portrait/portrait_signals |
 | sync_nazk_declarations.py | **Декларації НАЗК** (щодня 06:00, другим ExecStart — enrich_company_sectors.py): пошук за прізвищем public.nazk.gov.ua/documents/list з серверними фільтрами (responsible_position=52 «народний депутат», лише декларації; догуляє ?page=N до 5) → фільтр посада депутата/комітету + ПІБ з ініціалами ім'я та по батькові → v2 JSON API → корпоративні права (компанії, ЄДРПОУ) + LLM-класифікація галузі за назвою (sector_source=auto_name) → deputy_declarations |
 | calc_interest_profiles.py | **Профіль інтересів** (щодня 08:30, після бекфілу): авторство + голосування «за»/«проти» за галузями → deputy_interests |
@@ -206,7 +207,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
   - documents_count — bill document richness
 - **mp_votes** — 7.5M voting records
 - **bill_sponsors** — deputy↔bill links (rada_uid, mp_id, sponsor_order)
-- **risk_assessments** — LLM analysis results
+- **risk_assessments** — LLM analysis results. json_data (TEXT, потрібен `::jsonb` cast) містить: has_risks, risk_categories, interest_sectors, **citizen_impact** ({affects_citizens, headline, changes[{before,after,who}], no_impact_reason} — «що зміниться для громадянина» простою мовою; пише backfill_citizen_impact.py, читає дашборд у картці закону)
 - **committee_members** — 385 members, 24 committees
 - **eu_alignment_overall / eu_alignment_chapters** — EU alignment scores (trend history)
 - **eu_cluster_status** — переговорні кластери: status CHECK(not_opened|opened|provisionally_closed), event_date, source_url (migration 023)
@@ -268,6 +269,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_disinfo_channels` | daily 06:50 | Watchlist refresh: парсинг списка СБУ (5.ua), резолвинг новых каналов через SearXNG site:t.me + og:title, liveness-проверка всех, prune мёртвых ≥3 дней, TG-отчёт при изменениях |
 | `voting-clubs` | Mon 05:00 weekly | Клуби голосування: попарна узгодженість депутатів у спірних голосуваннях → voting_allies (вкладка «🤝 Клуби» + блок «Однодумці» в профілі) |
 | `interest-profiles` | daily 08:30 | Бекфілл interest_sectors (LLM-екстракція 300/день з raw_analysis) + профіль інтересів депутатів → deputy_interests (блок «Профіль інтересів» в профілі депутата) |
+| `citizen-impact` | daily 05:30 | «Що зміниться для громадянина»: до/після простою мовою з повного тексту закону → risk_assessments.json_data.citizen_impact (блок «👥 Що зміниться для громадянина» в картці закону; TimeoutStartSec=43200, резюмиться сам) |
 | `lobbying-registry` | daily 07:00 | Синхронізація Реєстру прозорості НАЗК → lobbying_subjects/lobbying_objects (вкладка «🏛 Лобіювання» в картці закону + блок на вкладці Клуби) |
 | `deputy-portraits` | daily 04:30 | Портрети депутатів: LLM-узагальнення даних моніторингу → mps.portrait (блок «🧭 Портрет депутата») |
 | `nazk-declarations` | daily 06:00 | Декларації НАЗК: компанії депутатів (корпоративні права) → deputy_declarations (блок «Бізнес за декларацією») |
