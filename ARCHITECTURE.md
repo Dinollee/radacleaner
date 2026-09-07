@@ -134,7 +134,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | calc_bill_quality.py | Quality/Risk/Authorship recalculation (weighted by sponsor_order) |
 | calc_kpi_v12.py | **ІЕД**: 6 equal-weight categories (C1-C6) |
 | calc_eu_llm.py | EU Score from LLM aggregation (raw_analysis) |
-| sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) + авто-детекція відкриттів кластерів → eu_cluster_status |
+| sync_eu_tracker.py | EU cluster monitoring (EC RSS + Європравда) + авто-детекція відкриттів кластерів → eu_cluster_status. Пуш: групування за категорією («🔓 Відкриття кластера N» окремо, «📜 Реформи», «💰 Фінансування»), переклад en→uk батчем через nemotron, дедуп по md5(url) |
 | sync_schedule_legacy.py | Plenary calendar from w1.c1.rada.gov.ua (daily 07:30) |
 | sync_committee_schedule.py | Committee meetings from committees.rada.gov.ua (daily 07:40) |
 | sync_holidays.py | Holidays → rada_schedule |
