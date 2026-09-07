@@ -154,6 +154,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | night_batch.py | Nightly bill fetch + analysis trigger (3 workers, sliding window, language check) |
 | monitor.py | Telegram monitor: NEW bills + status change posts |
 | daily_digest_llm.py | **Daily digest: deterministic format (no LLM)** — fixed template, data from DB + rada.gov.ua scraping |
+| weekly_digest.py | **Weekly digest (пн 08:00):** детерміновані групи (підписані / відхилено / ризиковані) + **один LLM-виклик** для «📝 ГОЛОВНЕ» (3-5 буллетів українською для звичайного користувача). Мовний гейт (латинка>30% / mix «wprowadжує» → fallback на без LLM). Посилання itd.rada.gov.ua + dashboard |
 | telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /attacks (синхронні хвилі), /fakes (ТОП фактчеків), /sub+/off (персональні підписки на пуші) |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
