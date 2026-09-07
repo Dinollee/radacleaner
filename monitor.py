@@ -12,6 +12,7 @@ from src.telegram_notifier import send_message
 QUIET_HOURS_START = 23
 QUIET_HOURS_END = 8
 CRITICAL_SCORE_THRESHOLD = 70
+DASHBOARD_URL = "https://radacleaner-dashboard.pages.dev"
 
 # Стадії: (крок, коротка назва)
 STATUS_MAP = {
@@ -112,31 +113,103 @@ def format_status_update_group(changes):
 
 
 def format_daily_digest(changes, date_str):
+    """Дайджест за день: нові законопроекти + групи змін статусів.
+
+    Структура (2026-09-07):
+      🆕 Нові законопроекти (з повними назвами + посиланнями)
+      🟢 Підписано Президентом (важливі підії)
+      📥 Знято з розгляду / Відхилено (масові)
+      📋 Передано в комітет (масові)
+      🔁 Інші зміни
+
+    Масові зміни (>5 однакових переходів) згортаються до «N законів» з
+    переліком номерів — щоб не топити важливі підії в одноманітності.
+    """
     new_bills = [c for c in changes if c.get("change_type") == "new"]
     status_changes = [c for c in changes if c.get("change_type") == "status_change"]
     formatted_date = _format_date(date_str) or date_str
     lines = [f"📋 Дайджест <b>{formatted_date}</b>"]
 
+    # --- Нові законопроекти ---
     if new_bills:
-        lines.append(f"\n<b>Нові</b> ({len(new_bills)})")
-        for b in new_bills[:10]:
+        lines.append("")
+        lines.append(f"🆕 <b>Нові законопроекти ({len(new_bills)}):</b>")
+        for b in new_bills[:8]:
             score = b.get("overall_score", 0)
             tag = f" ⚠️{score}" if score >= CRITICAL_SCORE_THRESHOLD else ""
-            lines.append(f'#{b["bill_number"]} {b.get("title", "")[:50]}{tag}')
-        if len(new_bills) > 10:
-            lines.append(f"... і ще {len(new_bills) - 10}")
+            title = (b.get("title") or "").strip()
+            if len(title) > 200:
+                title = title[:197] + "..."
+            url = b.get("url") or f"https://itd.rada.gov.ua/billinfo/Bills/Card/?id={b['bill_number']}"
+            lines.append(f'• <a href="{url}">№{b["bill_number"]}</a> — {title}{tag}')
+        if len(new_bills) > 8:
+            lines.append(f"... і ще {len(new_bills) - 8}")
 
-    if status_changes:
-        if new_bills:
+    if not status_changes:
+        if not new_bills:
             lines.append("")
-        lines.append(f"<b>Зміни статусу</b> ({len(status_changes)})")
-        for ch in status_changes[:10]:
-            lines.append(f'#{ch["bill_number"]}: {ch.get("old_value", "?")} → {ch.get("new_value", "?")}')
-        if len(status_changes) > 10:
-            lines.append(f"... і ще {len(status_changes) - 10}")
+            lines.append("Без змін")
+        return "\n".join(lines)
 
-    if not new_bills and not status_changes:
-        lines.append("Без змін")
+    # --- Групування статусних змін ---
+    lines.append("")
+    lines.append(f"🔄 <b>Зміни статусів ({len(status_changes)})</b>")
+
+    signed = []      # Підписано Президентом
+    rejected = []     # Знято / Відхилено
+    to_committee = []  # Передано в комітет (1→2)
+    reading2 = []     # 2-е читання
+    other = []
+
+    for ch in status_changes:
+        new_v = (ch.get("new_value") or "").strip()
+        if new_v == "Закон підписано":
+            signed.append(ch)
+        elif "Відхилено" in new_v or "Знято" in new_v or "Повернуто" in new_v:
+            rejected.append(ch)
+        elif new_v in ("Опрацьовується в комітеті", "На розгляді в комітеті", "Одержано проєкт"):
+            to_committee.append(ch)
+        elif new_v == "Друге читання":
+            reading2.append(ch)
+        else:
+            other.append(ch)
+
+    def emit_group(label, items, show_titles=True, max_full=4):
+        if not items:
+            return
+        lines.append("")
+        lines.append(f"<b>{label} ({len(items)}):</b>")
+        # Масові зміни (>5) — тільки номери + посилання, без назв (щоб не топити)
+        compact = len(items) > 5
+        for ch in items[:10]:
+            bn = ch["bill_number"]
+            url = ch.get("url") or f"https://itd.rada.gov.ua/billinfo/Bills/Card/?id={bn}"
+            old = ch.get("old_value") or "—"
+            new = ch.get("new_value") or "—"
+            if compact:
+                # Тільки номери через кому — назви не показуємо
+                lines.append(f'• <a href="{url}">№{bn}</a>')
+            else:
+                title = (ch.get("title") or "").strip()
+                if show_titles and title:
+                    if len(title) > 120:
+                        title = title[:117] + "..."
+                    lines.append(f'• <a href="{url}">№{bn}</a> — {title}')
+                    lines.append(f'    <i>{old[:40]} → {new[:40]}</i>')
+                else:
+                    lines.append(f'• <a href="{url}">№{bn}</a>: {old[:40]} → {new[:40]}')
+        if len(items) > 10:
+            lines.append(f"... і ще {len(items) - 10}")
+
+    emit_group("🟢 Підписано Президентом", signed)
+    emit_group("🟡 Передано в комітет", to_committee)
+    emit_group("📖 Підготовка до 2-го читання", reading2)
+    emit_group("📥 Знято / Відхилено", rejected)
+    emit_group("🔁 Інші зміни", other)
+
+    # Дашборд
+    lines.append("")
+    lines.append(f"💡 <a href='{DASHBOARD_URL}/overview'>Деталі на дашборді</a>")
 
     return "\n".join(lines)
 
