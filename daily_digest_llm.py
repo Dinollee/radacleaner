@@ -56,6 +56,7 @@ def collect_our_data():
         'plenary_today': None,
         'committee_meetings': [],
         'new_bill_numbers': [],
+        'fresh_risky': [],
     }
     try:
         # Загальна статистика
@@ -130,6 +131,33 @@ def collect_our_data():
             "WHERE meeting_date = ? ORDER BY meeting_time",
             [today])
         data['committee_meetings'] = committees
+
+        # Свіжі високоризиковані за день (risk_score>=4, від нових до старих)
+        try:
+            fresh = d1_query(
+                "SELECT b.bill_number, b.title, ra.risk_score, ra.json_data "
+                "FROM risk_assessments ra JOIN bills b ON ra.bill_id=b.id "
+                "WHERE date(ra.assessed_at) = ? AND ra.risk_score >= 4 "
+                "ORDER BY ra.assessed_at DESC LIMIT 3",
+                [today])
+            import json as _json
+            for b in fresh or []:
+                cats_short = ''
+                if b.get('json_data'):
+                    try:
+                        j = _json.loads(b['json_data']) if isinstance(b['json_data'], str) else b['json_data']
+                        names = [c.get('category', '') for c in j.get('risk_categories', [])][:2]
+                        cats_short = ' · '.join(n for n in names if n)
+                    except Exception:
+                        pass
+                data['fresh_risky'].append({
+                    'bill_number': b['bill_number'],
+                    'title': b['title'],
+                    'risk_score': b['risk_score'],
+                    'risk_categories_short': cats_short[:160],
+                })
+        except Exception as e:
+            logger.warning('fresh_risky query failed: %s', e)
 
     except Exception as e:
         logger.error('Error collecting data: %s', e, exc_info=True)
@@ -230,9 +258,30 @@ STAGE_NAMES = {
     5: 'Відхилено',
 }
 
+DASHBOARD_URL = "https://radacleaner-dashboard.pages.dev"
+
+
+def bill_url(bill_number):
+    """Посилання на сторінку закону на сайті ВРУ."""
+    bn = str(bill_number or '').strip()
+    if not bn:
+        return ''
+    return f"https://itd.rada.gov.ua/billinfo/Bills/Card/?id={bn}"
+
 
 def format_digest(data, news=None):
-    """Форматує дайджест у точному форматі без LLM."""
+    """Форматує дайджест: групи + повні назви + посилання. Без LLM.
+
+    Структура (2026-09-07, на основі weekly_digest.py):
+      🏛 ПЛЕНАРНЕ
+      🆕 НОВІ ЗАКОНОПРОЕКТИ (повні назви + посилання)
+      📋 КОМІТЕТИ СЬОГОДНІ (конкретні)
+      🔄 ЗМІНИ СТАТУСІВ ЗА ДЕНЬ (1-3 з посиланнями)
+      ⚠️ СВІЖІ ВИСОКОРИЗИКОВАНІ (risk>=4 за день, не дублі weekly)
+      💡 Дашборд
+
+    Видалено: «Перевірено: X/Y» (дубль weekly), «Підсумок:» (дубль «СЬОГОДНІ»).
+    """
     if news is None:
         news = {'new_bills': [], 'committee_news': [], 'other_news': []}
 
@@ -243,99 +292,121 @@ def format_digest(data, news=None):
     lines.append(f'📋 {date_str} — Моніторинг законів ВРУ')
     lines.append('')
 
-    # --- СЬОГОДНІ ---
-    lines.append('📊 СЬОГОДНІ:')
-
-    # Пленарне засідання
+    # --- ПЛЕНАРНЕ ---
     plenary = data.get('plenary_today')
     if plenary:
-        title = plenary.get('title', 'Пленарне засідання')
-        lines.append(f'• {title}')
+        title = plenary.get('title') or 'Пленарне засідання'
+        ev_type = plenary.get('event_type') or ''
+        prefix = '🏛 ПЛЕНАРНЕ:'
+        lines.append(f'{prefix} {title}' + (f' ({ev_type})' if ev_type else ''))
     else:
-        lines.append('• Пленарне засідання: не заплановано')
+        lines.append('🏛 ПЛЕНАРНЕ: не заплановано')
+    lines.append('')
 
-    # Комітети
-    meetings = data.get('committee_meetings', [])
-    if meetings:
-        lines.append(f'• Комітети: {len(meetings)} засідань заплановано')
-    else:
-        tracked = data.get('tracked_bills', [])
-        in_committee = sum(1 for b in tracked if b.get('stage') == 2)
-        if in_committee:
-            lines.append(f'• Комітети: працюють над {in_committee} законопроектами у стадії 2/4')
-        else:
-            lines.append('• Комітети: засідань не заплановано')
-
-    # Нові законопроекти
+    # --- НОВІ ЗАКОНОПРОЕКТИ (повні назви + посилання) ---
     new_bills = data.get('new_bills', [])
     rada_new = news.get('new_bills', [])
-    if rada_new:
-        nums = ', '.join(b['number'] for b in rada_new[:5])
-        lines.append(f'• Нові законопроекти: {nums}')
-    elif new_bills:
-        nums = ', '.join('#' + str(b['bill_number']) for b in new_bills[:5])
-        lines.append(f'• Нові законопроекти: {nums}')
+    # Пріоритет: зміни change_log з повним title; якщо немає — з rada.gov.ua парсера
+    if new_bills:
+        lines.append(f'🆕 НОВІ ЗАКОНОПРОЕКТИ ({len(new_bills)}):')
+        for b in new_bills[:5]:
+            num = b.get('bill_number', '?')
+            title = (b.get('title') or 'Без назви').strip()
+            if len(title) > 200:
+                title = title[:197] + '...'
+            url = bill_url(num)
+            line = f'• №{num} — {title}'
+            if url:
+                line += f'\n    <a href="{url}">картка закону</a>'
+            lines.append(line)
+    elif rada_new:
+        lines.append(f'🆕 НОВІ ЗАКОНОПРОЕКТИ ({len(rada_new)}):')
+        for b in rada_new[:5]:
+            # number може приходити як "№ 16043" з rada.gov.ua — strip префікс
+            num = str(b.get('number', '?')).replace('№', '').strip()
+            desc = (b.get('desc') or '').strip()
+            if len(desc) > 200:
+                desc = desc[:197] + '...'
+            # URL будуємо з bill_number, не з id (id в URL втрачається після видалень)
+            url = bill_url(num) or b.get('url', '')
+            line = f'• №{num}'
+            if desc:
+                line += f' — {desc}'
+            if url:
+                line += f'\n    <a href="{url}">картка закону</a>'
+            lines.append(line)
     else:
-        lines.append('• Нові законопроекти: немає')
-
+        lines.append('🆕 Нових законопроектів не зафіксовано')
     lines.append('')
 
-    # --- УВАГА ---
-    lines.append('📢 УВАГА (топ-5 ризикових за 30 днів, від нового до старого):')
-    tracked = data.get('tracked_bills', [])
-    if tracked:
-        for b in tracked[:5]:
-            bill_num = b.get('bill_number', '')
-            title = (b.get('title') or 'Без назви')[:60]
-            stage = b.get('stage') or 1
-            status = b.get('current_status') or 'Невідомо'
-            reg = _fmt_date(b.get('registration_date', ''))
-            stage_name = STAGE_NAMES.get(stage, status)
-            lines.append(f'📌 {bill_num} — {title}')
-            # Стадія 5 = відхилено — «5/4» виглядає як помилка, статус і так каже «Відхилено»
-            mid = f'Стадія {stage}/4 · ' if stage < 5 else ''
-            lines.append(f'   {mid}{stage_name} · {reg}')
+    # --- КОМІТЕТИ СЬОГОДНІ ---
+    meetings = data.get('committee_meetings', [])
+    if meetings:
+        lines.append(f'📋 КОМІТЕТИ ({len(meetings)}):')
+        for m in meetings[:6]:
+            name = m.get('committee_name') or 'комітет'
+            tm = m.get('meeting_time') or ''
+            topic = (m.get('topic') or '').strip()
+            if len(topic) > 100:
+                topic = topic[:97] + '...'
+            line = f'• {name}'
+            if tm:
+                line += f' · {tm}'
+            if topic:
+                line += f' — {topic}'
+            lines.append(line)
     else:
-        high_risk = data.get('high_risk_bills', [])
-        if high_risk:
-            for b in high_risk[:5]:
-                bill_num = b.get('bill_number', '')
-                title = (b.get('title') or 'Без назви')[:60]
-                stage = b.get('stage') or 1
-                status = b.get('current_status') or 'Невідомо'
-                lines.append(f'📌 {bill_num} — {title}')
-                mid = f'Стадія {stage}/4 · ' if stage < 5 else ''
-                lines.append(f'   {mid}{status}')
-        else:
-            lines.append('📌 Ризикових законів не виявлено')
-
+        lines.append('📋 Комітетів сьогодні не заплановано')
     lines.append('')
 
-    # --- Перевірено ---
-    analyzed = data.get('analyzed_bills', 0)
-    total = data.get('total_bills', 0)
-    lines.append(f'✅ Перевірено: {analyzed}/{total}')
+    # --- ЗМІНИ СТАТУСІВ ЗА ДЕНЬ (конкретні, з посиланнями) ---
+    status_changes = data.get('status_changes', [])
+    if status_changes:
+        lines.append(f'🔄 ЗМІНИ СТАТУСІВ ({len(status_changes)}):')
+        for c in status_changes[:5]:
+            num = c.get('bill_number', '?')
+            new_v = (c.get('new_value') or '').strip()
+            old_v = (c.get('old_value') or '').strip()
+            title = (c.get('title') or '').strip()
+            if len(title) > 120:
+                title = title[:117] + '...'
+            url = bill_url(num)
+            arrow = f'{old_v[:40]} → {new_v[:40]}' if old_v else new_v[:80]
+            line = f'• №{num} — {arrow}'
+            if title:
+                line += f'\n    {title}'
+            if url:
+                line += f'\n    <a href="{url}">деталі</a>'
+            lines.append(line)
+    else:
+        lines.append('🔄 Змін статусів не зафіксовано')
     lines.append('')
 
-    # --- Підсумок ---
-    changes = data.get('recent_changes_count', 0)
-    new_cnt = len(new_bills) + len(rada_new)
-    high_risk_cnt = len(data.get('high_risk_bills', []))
-    summary_parts = []
-    if changes > 0:
-        summary_parts.append(f'Зафіксовано {changes} змін статусів.')
-    if new_cnt > 0:
-        summary_parts.append(f'Нових законопроектів: {new_cnt}.')
-    if high_risk_cnt > 0:
-        summary_parts.append(f'Відстежується {high_risk_cnt} високоризикових законів.')
-    if not summary_parts:
-        summary_parts.append('Змін статусів не зафіксовано.')
-    summary_parts.append(f'Усього в базі {total} законопроектів.')
-    lines.append('Підсумок: ' + ' '.join(summary_parts))
+    # --- СВІЖІ ВИСОКОРИЗИКОВАНІ (за день, не дублі weekly) ---
+    fresh_risky = data.get('fresh_risky', [])
+    if fresh_risky:
+        lines.append('⚠️ СВІЖІ ВИСОКОРИЗИКОВАНІ (за день):')
+        for b in fresh_risky[:3]:
+            num = b.get('bill_number', '?')
+            title = (b.get('title') or 'Без назви').strip()
+            if len(title) > 150:
+                title = title[:147] + '...'
+            risk = b.get('risk_score') or '?'
+            cats = b.get('risk_categories_short') or ''
+            url = bill_url(num)
+            line = f'• №{num} (risk {risk}/5) — {title}'
+            if cats:
+                line += f'\n    <i>{cats}</i>'
+            if url:
+                line += f'\n    <a href="{url}">деталі</a>'
+            lines.append(line)
+    else:
+        # Якщо за день немає нових — підкажемо де шукати повний топ
+        lines.append('⚠️ Свіжих високоризикованих за день немає (повний топ — у weekly)')
     lines.append('')
 
-    # --- Джерело ---
-    lines.append('Дані: rada.gov.ua')
+    # --- Дашборд ---
+    lines.append(f"💡 <a href='{DASHBOARD_URL}/overview'>Огляд на дашборді</a>")
 
     return NL.join(lines)
 
