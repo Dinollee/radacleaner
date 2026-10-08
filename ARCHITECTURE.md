@@ -16,9 +16,9 @@ worker/           — Express API server (api-server.js)
 dashboard/        — Cloudflare Pages frontend (index.html)
 data/             — конфіги (disinfo_channels.json — канали моніторингу детектора атак)
 migrations/       — SQL migration files
-scripts/          — utility scripts (test_llm_providers.py, backfill_summaries.py; test_kpi_formula.py — в корні)
+scripts/          — utility scripts (test_llm_providers.py, backfill_summaries.py)
 systemd/          — .service unit files
-tests/            — tests
+tests/            — tests (tests/test_kpi_v12.py — ІЕД формула + compute_kpi)
 telegram_bot.py   — Telegram bot (interactive commands)
 calc_kpi_v12.py   — ІЕД calculation (active, 6 equal-weight categories)
 ```

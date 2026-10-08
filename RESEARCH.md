@@ -1933,9 +1933,9 @@ Night batch працює стабільно:
 | # | Task | Note |
 |---|------|------|
 | A | Migrate `worker/api-server.js` to D1/Cloudflare Workers | Currently Express on server, could be edge |
-| B | Add tests for `calc_kpi_v12.py` | Only `test_kpi_formula.py` for virtual testing |
+| B | Add tests for `calc_kpi_v12.py` | **DONE** (2026-09-07): `tests/test_kpi_v12.py` — 31 tests (C1–C6 + `compute_kpi` assembly; root `test_kpi_formula.py` deleted as orphan 2026-08-21) |
 | C | Document `rag_engine.py` / `risk_storage.py` | LLM pipeline not in ARCHITECTURE.md |
-| D | Cleanup legacy KPI scripts (v2-v8) | Keep only v9, v11, v12 |
+| D | Cleanup legacy KPI scripts (v2-v8) | **DONE** (2026-08-21, `95190da`): deleted 9 scripts (v1–v9+v11) + `kpi_weights.json`; only `calc_kpi_v12.py` active |
 
 ---
 
