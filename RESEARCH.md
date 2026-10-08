@@ -2663,3 +2663,32 @@ wrangler deploy --branch main.
 - **`tests/test_digest_format.py`: 5 падінь — PRE-EXISTING** (не чіпали):
   `format_weekly()` отримав обов'язковий `summary_bullets` при редизайні
   2026-09-07 (`676e2c1`), тести не оновили. Фікс = додати аргумент у 5 викликах.
+
+## Session 2026-10-08 (додаток): аудит 5 останніх stage-4 + правки
+
+Скоуп: останні 5 підписаних (15579, 15329, 15589-4, 16080, 16081) — LLM-аналіз,
+карточка, citizen_impact. Аудит → 2 user-visible баги + мікро-викачки → правка
+затверджена користувачем («правити»).
+
+1. **citizen_impact хибна причина (3084/3084 процедурних)**: крок 1
+   `backfill_citizen_impact.py` писав NO_TEXT_IMPACT для процедурних, хоча
+   PROCEDURAL_IMPACT визначений (:30) і не використовувався. Фікс: два окремі
+   UPDATE (процедурні → PROCEDURAL_IMPACT; без тексту → NO_TEXT_IMPACT) +
+   data-UPDATE 3084 рядків + LLM-гілка `COALESCE(is_procedural,'false')`
+   (89 легасі-рядків без ключа випадали з усіх гілок, CI null назавжди).
+2. **HTML-сутності в заголовках**: RADA bulk `name` містить `&#xA;`/`&#x27;`
+   (67 bills). Фікс: `html.unescape` + collapse whitespace у `d1_client._exec_bill`
+   (єдиний writer title) + one-off чистка 67/67.
+3. **Мовні викачки** (json_data, 5 законів; 0 після правки): «такие»→«такі»
+   (видимий на картці), «substantive»→«суттєву», «Parlamenti»→«парламентів»,
+   «учёних/учёним»→«вчених/вченим». Мовний гейт `_is_ukrainian` одиночні
+   російські слова НЕ ловить (перевіряє змішання скриптів, не лексику) — стеля.
+
+Спостереження без правок: у 15579 citizen_impact зміни #1/#3 дублюють сенс;
+`risk_level`/`summary_source` консистентність старих аналізів (15329 — ключі
+відсутні, аналіз 01.07); `last_card_check` NULL для stage-4 — by design
+(TERMINAL_STAGES). Verdict по якості LLM: 15579 — висока (summary/law_summary
+детальні, консистентні з bills.*).
+
+Gotcha: `d1_query` без параметрів → psycopg2 %-інтерполяція → literal `%` у SQL
+має бути `%%` (иначе "list index out of range").

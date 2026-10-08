@@ -146,7 +146,9 @@ def backfill(limit: int) -> None:
     conn = psycopg2.connect(DB_DSN)
     cur = conn.cursor()
 
-    # 1. Процедурні та закони без тексту — фіксована відповідь без LLM
+    # 1. Процедурні та закони без тексту — фіксована відповідь без LLM.
+    # Раніше обидві групи отримували NO_TEXT_IMPACT («текст недоступний»),
+    # хоча PROCEDURAL_IMPACT визначений — 3084 процедурних мали хибну причину.
     cur.execute(
         """
         UPDATE risk_assessments ra
@@ -154,14 +156,23 @@ def backfill(limit: int) -> None:
         FROM bills b
         WHERE b.id = ra.bill_id
           AND (ra.json_data::jsonb -> 'citizen_impact') IS NULL
-          AND (
-            (ra.json_data::jsonb ->> 'is_procedural') = 'true'
-            OR COALESCE(length(b.plain_text), 0) < 1200
-          )
+          AND (ra.json_data::jsonb ->> 'is_procedural') = 'true'
+        """,
+        (json.dumps(PROCEDURAL_IMPACT, ensure_ascii=False),),
+    )
+    n_proc = cur.rowcount
+    cur.execute(
+        """
+        UPDATE risk_assessments ra
+        SET json_data = jsonb_set(json_data::jsonb, '{citizen_impact}', %s::jsonb)::text
+        FROM bills b
+        WHERE b.id = ra.bill_id
+          AND (ra.json_data::jsonb -> 'citizen_impact') IS NULL
+          AND COALESCE(length(b.plain_text), 0) < 1200
         """,
         (json.dumps(NO_TEXT_IMPACT, ensure_ascii=False),),
     )
-    print(f"Процедурних/без тексту позначено: {cur.rowcount}")
+    print(f"Процедурних позначено: {n_proc}, без тексту: {cur.rowcount}")
     conn.commit()
 
     # 2. Непроцедурні з текстом — LLM, спочатку найризиковіші
@@ -171,7 +182,7 @@ def backfill(limit: int) -> None:
         FROM risk_assessments ra
         JOIN bills b ON b.id = ra.bill_id
         WHERE (ra.json_data::jsonb -> 'citizen_impact') IS NULL
-          AND (ra.json_data::jsonb ->> 'is_procedural') = 'false'
+          AND COALESCE(ra.json_data::jsonb ->> 'is_procedural', 'false') = 'false'
           AND length(COALESCE(b.plain_text, '')) >= 1200
         ORDER BY b.risk_score DESC NULLS LAST, ra.id DESC
         LIMIT %s

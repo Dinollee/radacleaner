@@ -15,6 +15,7 @@ Usage:
     # Raw SQL
     d1_exec("raw_sql", {"sql": "UPDATE bills SET x=%s", "params": [1]})
 """
+import html
 import json
 import os
 import threading
@@ -108,6 +109,10 @@ def _exec_bill(conn, data: dict) -> bool:
     bn = data.get("bill_number", "")
     if not bn:
         return False
+    # RADA bulk JSON віддає name з HTML-сутністю (&#xA; newline, &#x27; ') —
+    # розкодовуємо на вході, інакше сутність видно на картці закону.
+    if data.get("title"):
+        data = {**data, "title": " ".join(html.unescape(data["title"]).split())}
 
     with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
         cur.execute("SELECT id FROM bills WHERE bill_number=%s", (bn,))
