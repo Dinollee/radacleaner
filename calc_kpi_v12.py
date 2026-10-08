@@ -94,6 +94,25 @@ def calc_c6(risk, eu_score):
     return r * 0.6 + e * 0.4
 
 
+def compute_kpi(d, total_primary, adopted_primary):
+    """Pure per-deputy assembly: adoption recalc + C1..C6 + final score."""
+    if total_primary > 0:
+        adoption_primary = adopted_primary / total_primary * 100
+    else:
+        adoption_primary = d['adoption']
+    c1 = calc_c1(d['py'], d['pda'], d['vkp'])
+    c2 = calc_c2(d['quality'], d['risk'], d['docs'], d['authorship'], d['analyzed'] > 0)
+    c3 = calc_c3(adoption_primary, total_primary)
+    c4 = calc_c4(d['committee'])
+    c5 = calc_c5(d['req_resp'], d['req_count'])
+    c6 = calc_c6(d['risk'], d['eu_score'])
+    return {
+        'c1': c1, 'c2': c2, 'c3': c3, 'c4': c4, 'c5': c5, 'c6': c6,
+        'kpi_v12': (c1 + c2 + c3 + c4 + c5 + c6) / 6,
+        'total_primary': total_primary, 'adopted_primary': adopted_primary,
+    }
+
+
 def main():
     conn = get_conn()
     cur = conn.cursor()
@@ -150,28 +169,10 @@ def main():
         total_primary = primary_map.get(d['id'], 0)
         adopted_primary = adopted_primary_map.get(d['id'], 0)
 
-        # Recalculate adoption_rate from primary bills
-        if total_primary > 0:
-            adoption_primary = adopted_primary / total_primary * 100
-        else:
-            adoption_primary = d['adoption']
-
-        has_legislation_data = d['analyzed'] > 0
-
-        c1 = calc_c1(d['py'], d['pda'], d['vkp'])
-        c2 = calc_c2(d['quality'], d['risk'], d['docs'], d['authorship'], has_legislation_data)
-        c3 = calc_c3(adoption_primary, total_primary)
-        c4 = calc_c4(d['committee'])
-        c5 = calc_c5(d['req_resp'], d['req_count'])
-        c6 = calc_c6(d['risk'], d['eu_score'])
-
-        kpi_v12 = (c1 + c2 + c3 + c4 + c5 + c6) / 6
-
         results.append({
             'id': d['id'], 'name': d['name'], 'faction': d['faction'],
-            'c1': c1, 'c2': c2, 'c3': c3, 'c4': c4, 'c5': c5, 'c6': c6,
-            'kpi_v12': kpi_v12, 'kpi_v11': d['kpi_v11'],
-            'total_primary': total_primary, 'adopted_primary': adopted_primary,
+            'kpi_v11': d['kpi_v11'],
+            **compute_kpi(d, total_primary, adopted_primary),
         })
 
     # Sort by KPI v12
