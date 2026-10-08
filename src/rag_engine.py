@@ -14,6 +14,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import time
 
@@ -693,6 +694,16 @@ def _fix_discretion_hallucination(data: dict):
                     log.info("  POST_VERIFY: replaced English term '%s' with '%s'", eng, ukr)
 
 
+# Детермінований тайбрейкер класифікації (2026-10-08): явно процедурні
+# заголовки. LLM зрідка хибить, відносячи порядок денний/депутатські запити
+# до непроцедурних (виміряно: 73 випадки). Діє лише true-напрямок (ПРОЦЕДУРНИЙ
+# понад LLM); substantive-закони з таким заголовком не трапляються.
+PROCEDURAL_TITLE_RE = re.compile(
+    r"поряд\w*\s+денн|денн\w*\s+поряд|депутатськ\w*\s+запит|змін\w*\s+до\s+регламент",
+    re.IGNORECASE,
+)
+
+
 def process_bill(info: dict, test_mode: bool = False, provider: str | None = None):
     """Повна обробка одного законопроекту: PDF → чанки → LLM → збереження.
 
@@ -802,6 +813,17 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
     llm_data["model_used"] = LLM_MODEL
 
     is_procedural = llm_data.get("is_procedural", False)
+    # Тайбрейкер за заголовком: LLM сказав «непроцедурний», але заголовок —
+    # чиста процедурна дія → форсуємо процедурність з floor-оцінками.
+    if not is_procedural and PROCEDURAL_TITLE_RE.search(title):
+        log.info("  Title overrule → ПРОЦЕДУРНИЙ: %s", title[:70])
+        llm_data["is_procedural"] = True
+        llm_data["classification_reason"] = "(детерміноване правило за заголовком)"
+        llm_data["significance"] = 1
+        llm_data["impact"] = 1
+        llm_data["risk"] = 1
+        llm_data["toxicity"] = 0.01
+        is_procedural = True
     risk_level = llm_data.get("risk_level")
     has_risks = llm_data.get("has_risks", False)
 
@@ -815,6 +837,8 @@ def process_bill(info: dict, test_mode: bool = False, provider: str | None = Non
         llm_data["risk_level"] = None
         llm_data["detailed_risks"] = []
         llm_data["interest_sectors"] = []
+        llm_data["risk_categories"] = []
+        llm_data["chunk_risks"] = []
     else:
         sig = llm_data.get("significance", 0)
         imp = llm_data.get("impact", 0)
