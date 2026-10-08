@@ -98,8 +98,8 @@ def format_status_update_group(changes):
     lines = [f"🔄 Зміни статусів <b>{len(changes)}</b>"]
     for ch in changes[:15]:
         bn = ch["bill_number"]
-        old = ch.get("old_value", "?")[:25]
-        new = ch.get("new_value", "?")[:25]
+        old = (ch.get("old_value") or "—")[:25]
+        new = (ch.get("new_value") or "—")[:25]
         url = ch.get("url", "")
         old_step, old_name = STATUS_MAP.get(old, (0, old))
         new_step, new_name = STATUS_MAP.get(new, (0, new))
