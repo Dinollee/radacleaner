@@ -125,7 +125,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | bill_sync.py | Bill sync from RADA bulk JSON (status, documents, **authors**, isUrgent, isEuro) |
 | sync_bill_passings.py | Bill passings from bulk JSON (1x/day) |
 | sync_bill_passings_html.py | **Bill passings from HTML (every 4h): АКТИВНІ закони (остання подія ≤7 днів) першими, потім ніколи не синхронізовані, потім ротация застарілих (500/запуск)** |
-| sync_votes.py / sync_votes_bulk.py | Fetch voting records |
+| sync_votes.py / sync_votes_bulk.py | Fetch voting records. Bulk (6h): дві групи — stage≥2 з updated_at за 4 дні (нові голоси = новий статус) + voteless зі статусом, що передбачає пленарне голосування; парсить ЛИШЕ нові g_id (diff vs votes); `--since YYYY-MM-DD` — catch-up. ⚠️ Прогрес-файл чорним списком вилучено (2026-10-08) — див. RESEARCH T4 |
 | sync_mp_factions.py | Deputy faction membership |
 | sync_mp_bills.py | Bills per deputy (FULL NAME matching!) |
 | sync_mp_stats.py | Voting stats per deputy (ПЯ/ПДА/ВКП) + adoption_rate |
