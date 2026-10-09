@@ -155,7 +155,7 @@ LEGISLATION = overall гармонізація (calc_harmonization.py: total_sig
 | monitor.py | Telegram monitor: NEW bills + status change posts |
 | daily_digest_llm.py | **Daily digest: deterministic format (no LLM)** — fixed template, data from DB + rada.gov.ua scraping |
 | weekly_digest.py | **Weekly digest (пн 08:00):** детерміновані групи (підписані / відхилено / ризиковані) + **один LLM-виклик** для «📝 ГОЛОВНЕ» (3-5 буллетів українською для звичайного користувача). Мовний гейт (латинка>30% / mix «wprowadжує» → fallback на без LLM). Посилання itd.rada.gov.ua + dashboard |
-| telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /attacks (синхронні хвилі), /fakes (ТОП фактчеків), /sub+/off (персональні підписки на пуші: атаки, дайджест, закони з citizen_impact) |
+| telegram_bot.py | **Telegram bot**: /bill, /dep, /top, /eu, /attacks (синхронні хвилі), /fakes (ТОП фактчеків), /sub+/off (персональні підписки на пуші: атаки, дайджест, закони з citizen_impact). Search: exact match → normalized (strip /П, -N) → strict partial (starts-with or /number). `normalize_bill_number()` helper. |
 | telegram_notifier.py | Telegram alerts (send_message, format_risk/status) |
 | d1_client.py | PostgreSQL client (auto-converts ? → %s) |
 | worker/api-server.js | Express API (port 8788) — bills, deputies, EU integration index, schedule, info-digest, voting-clubs, interests |
