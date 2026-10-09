@@ -1,5 +1,5 @@
-"""Тести форматтерів команд бота v2 (/attacks, /fakes)."""
-from telegram_bot import format_attacks, format_fakes
+"""Тести форматтерів команд бота v2 (/attacks, /fakes) + citizen_impact."""
+from telegram_bot import format_attacks, format_fakes, format_citizen_impact
 
 
 def test_format_attacks_empty():
@@ -29,7 +29,7 @@ def test_format_fakes_none():
 
 def test_format_fakes_top10_and_source():
     fakes = [{"one_line": f"перевірка {i}", "source": "ЦПД", "url": f"https://x/{i}"}
-             for i in range(15)]
+              for i in range(15)]
     t = format_fakes({"fakes": fakes})
     assert t.count("повний розбір") == 10          # тільки ТОП-10
     assert "[ЦПД]" in t and "перевірка 0" in t
@@ -39,3 +39,60 @@ def test_format_fakes_top10_and_source():
 def test_format_fakes_missing_fields():
     t = format_fakes({"fakes": [{"title": "тільки заголовок"}]})
     assert "тільки заголовок" in t and "повний розбір" not in t
+
+
+# --- citizen_impact formatters ---
+
+def _impact(headline="Закон встановлює нові штрафи", changes=None, affects=True):
+    if changes is None:
+        changes = [
+            {"who": "власники тварин", "before": "штраф 850 грн", "after": "штраф від 5000"},
+            {"who": "платники", "before": "нічого", "after": "кошти на притулки"},
+        ]
+    return {"affects_citizens": affects, "headline": headline, "changes": changes, "no_impact_reason": None}
+
+
+def test_affects_citizens_shows_headline_and_changes():
+    lines = format_citizen_impact(_impact())
+    assert any("👥" in l for l in lines)
+    assert any("Штрафи" in l or "нові" in l for l in lines)
+    assert any("До:" in l for l in lines)
+    assert any("Після:" in l for l in lines)
+
+
+def test_no_affect_shows_reason():
+    imp = {"affects_citizens": False, "headline": None, "changes": [],
+           "no_impact_reason": "Процедурний законопроєкт — не містить змін для громадян"}
+    lines = format_citizen_impact(imp)
+    assert any("Не впливає" in l for l in lines)
+    assert any("Процедурний" in l for l in lines)
+
+
+def test_none_impact_returns_empty():
+    assert format_citizen_impact(None) == []
+    assert format_citizen_impact({}) == []
+    assert format_citizen_impact("not a dict") == []
+
+
+def test_limits_to_5_changes():
+    many = [{"who": f"хто {i}", "before": f"до {i}", "after": f"після {i}"} for i in range(10)]
+    imp = _impact(changes=many)
+    lines = format_citizen_impact(imp)
+    text = "\n".join(lines)
+    assert "<i>Хто: хто 0</i>" in text
+    assert "<i>Хто: хто 4</i>" in text
+    assert "<i>Хто: хто 5</i>" not in text
+    assert "і ще 5 змін" in text
+
+
+def test_empty_changes_no_crash():
+    imp = _impact(changes=[])
+    lines = format_citizen_impact(imp)
+    assert len(lines) >= 1  # headline still shown
+
+
+def test_no_headline_only_changes():
+    imp = _impact(headline="", affects=True)
+    lines = format_citizen_impact(imp)
+    assert not any("👥" in l for l in lines)
+    assert any("До:" in l for l in lines)

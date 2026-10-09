@@ -309,6 +309,40 @@ async def cmd_off(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "Повернутись: /sub")
 
 
+def format_citizen_impact(impact):
+    """Формує блок «Що зміниться для громадянина» з impact dict. Повертає список рядків."""
+    lines = []
+    if not impact or not isinstance(impact, dict):
+        return lines
+    if impact.get("affects_citizens"):
+        headline = impact.get("headline")
+        if headline:
+            lines.append(f"👥 <b>{headline}</b>")
+        changes = impact.get("changes", [])
+        if changes:
+            shown = changes[:5]
+            for ch in shown:
+                who = ch.get("who", "")
+                before = ch.get("before", "")
+                after = ch.get("after", "")
+                if who or before or after:
+                    parts = []
+                    if who:
+                        parts.append(f"<i>Хто: {who}</i>")
+                    if before:
+                        parts.append(f"До: {before}")
+                    if after:
+                        parts.append(f"Після: {after}")
+                    lines.append(" · ".join(parts))
+            if len(changes) > 5:
+                lines.append(f"\n<i>...і ще {len(changes) - 5} змін (повний перелік — на дашборді)</i>")
+    else:
+        reason = impact.get("no_impact_reason")
+        if reason:
+            lines.append(f"\nℹ️ <b>Не впливає на громадян:</b> {reason}")
+    return lines
+
+
 # --- Bill info ---
 
 async def send_bill_info(update, bill_number):
@@ -408,6 +442,19 @@ async def send_bill_info(update, bill_number):
         names = [a["mp_name"] for a in authors if a.get("mp_name")]
         if names:
             lines.append(f"\n👤 <b>Автори:</b> {', '.join(names[:3])}")
+
+    # Citizen impact — «Що зміниться для громадянина»
+    imp_rows = db_query(
+        "SELECT json_data::jsonb -> 'citizen_impact' as impact "
+        "FROM risk_assessments WHERE bill_id = %s LIMIT 1",
+        [bill_id],
+    )
+    if imp_rows:
+        imp = imp_rows[0].get("impact")
+        imp_lines = format_citizen_impact(imp)
+        if imp_lines:
+            lines.append("")
+            lines.extend(imp_lines)
 
     await update.message.reply_text("\n".join(lines), parse_mode="HTML", disable_web_page_preview=True)
 
