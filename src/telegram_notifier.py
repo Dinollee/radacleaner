@@ -24,7 +24,8 @@ def format_citizen_impact(impact):
     Текст не обрізаємо: довжину тримає LLM-промпт, а довгий перелік ділиться
     на кілька повідомлень через chunk_blocks().
 
-    Кольори: «Було» — сірий (пройдеш), «Стане» — зелений (майбутнє).
+    Кольори: «Було» —  (сірий кружок, пройдеш), «Стане» — 🟢 (зелений, майбутнє).
+    Telegram не підтримує <font>, тому використовуємо емодзі.
     """
     if not isinstance(impact, dict):
         return []
@@ -40,9 +41,9 @@ def format_citizen_impact(impact):
     for i, ch in enumerate(impact.get("changes") or [], 1):
         lines = [f"<b>{i}. {esc(ch.get('who') or '—')}</b>"]
         if ch.get("before"):
-            lines.append(f"<font color=\"#888888\"><b>Було:</b> {esc(ch['before'])}</font>")
+            lines.append(f"<b>⚪ Було:</b> {esc(ch['before'])}")
         if ch.get("after"):
-            lines.append(f"<font color=\"#4CAF50\"><b>Стане:</b> {esc(ch['after'])}</font>")
+            lines.append(f"<b>🟢 Стане:</b> {esc(ch['after'])}")
         blocks.append("\n".join(lines))
 
     blocks.append("<i>пояснення згенеровано ШІ за текстом закону</i>")
