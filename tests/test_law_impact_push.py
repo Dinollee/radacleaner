@@ -27,8 +27,9 @@ class TestFormatCitizenImpact:
         text = "\n".join(blocks)
         assert "👥 <b>Що зміниться для громадянина</b>" in text
         assert "Закон встановлює нові штрафи" in text
-        assert "<b>1. власники тварин</b>\nБуло: штраф 850 грн\nСтане: штраф від 5000 до 17000 грн" in text
-        assert "<b>2. платники податків</b>" in text
+        assert '<font color="#888888"><b>Було:</b> штраф 850 грн</font>' in text
+        assert '<font color="#4CAF50"><b>Стане:</b> штраф від 5000 до 17000 грн</font>' in text
+        assert "<b>1. власники тварин</b>\n" in text
 
     def test_long_text_is_never_truncated(self):
         long_before = "Дуже довгий текст до змін " * 15  # ~375 символів

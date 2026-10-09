@@ -23,6 +23,8 @@ def format_citizen_impact(impact):
     Структура як на дашборді: заголовок, пояснення, нумеровані зміни «Було / Стане».
     Текст не обрізаємо: довжину тримає LLM-промпт, а довгий перелік ділиться
     на кілька повідомлень через chunk_blocks().
+
+    Кольори: «Було» — сірий (пройдеш), «Стане» — зелений (майбутнє).
     """
     if not isinstance(impact, dict):
         return []
@@ -38,9 +40,9 @@ def format_citizen_impact(impact):
     for i, ch in enumerate(impact.get("changes") or [], 1):
         lines = [f"<b>{i}. {esc(ch.get('who') or '—')}</b>"]
         if ch.get("before"):
-            lines.append(f"Було: {esc(ch['before'])}")
+            lines.append(f"<font color=\"#888888\"><b>Було:</b> {esc(ch['before'])}</font>")
         if ch.get("after"):
-            lines.append(f"Стане: {esc(ch['after'])}")
+            lines.append(f"<font color=\"#4CAF50\"><b>Стане:</b> {esc(ch['after'])}</font>")
         blocks.append("\n".join(lines))
 
     blocks.append("<i>пояснення згенеровано ШІ за текстом закону</i>")
