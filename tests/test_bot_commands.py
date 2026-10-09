@@ -1,5 +1,16 @@
 """Тести форматтерів команд бота v2 (/attacks, /fakes)."""
-from telegram_bot import format_attacks, format_fakes
+from telegram_bot import format_attacks, format_fakes, normalize_bill_number
+
+
+def test_normalize_bill_number():
+    """Нормалізація номера закону: видаляє суфікси /П, -1, тощо."""
+    assert normalize_bill_number("14191") == "14191"
+    assert normalize_bill_number("14191/П") == "14191"
+    assert normalize_bill_number("14191/П1") == "14191"
+    assert normalize_bill_number("14191-2") == "14191"
+    assert normalize_bill_number("14191-10") == "14191"
+    assert normalize_bill_number("15579") == "15579"
+    assert normalize_bill_number("15579/П") == "15579"
 
 
 def test_format_attacks_empty():

@@ -313,23 +313,50 @@ async def cmd_off(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # --- Bill info ---
 
+def normalize_bill_number(number: str) -> str:
+    """Нормалізує номер закону: видаляє суфікси /П, /П1, -1, -2, тощо.
+
+    Приклади:
+    - "14191/П" → "14191"
+    - "14191-2" → "14191"
+    - "15579" → "15579"
+    """
+    import re
+    # Видаляємо суфікси: /П, /П1, /П2, ..., -1, -2, ..., -9
+    return re.sub(r'[/\-]\w+$', '', number.strip())
+
+
 async def send_bill_info(update, bill_number):
     """Шукає закон за номером та відправляє інформацію."""
-    # Search by bill_number or id
+    # 1. Точне совпадання
     rows = db_query(
         "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
         "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
         "FROM bills b WHERE b.bill_number = %s OR b.id = %s::integer",
         [bill_number, bill_number],
     )
+
+    # 2. Якщо не знайдено — пробуємо нормалізований номер (без суфіксів)
     if not rows:
-        # Try partial match
+        normalized = normalize_bill_number(bill_number)
+        if normalized != bill_number:
+            rows = db_query(
+                "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
+                "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
+                "FROM bills b WHERE b.bill_number = %s OR b.bill_number ILIKE %s || '/%'",
+                [normalized, normalized],
+            )
+
+    # 3. Якщо все ще не знайдено — partial match ( але тільки з початку або кінця)
+    if not rows:
         rows = db_query(
             "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
             "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
-            "FROM bills b WHERE b.bill_number ILIKE %s LIMIT 1",
-            [f"%{bill_number}%"],
+            "FROM bills b WHERE b.bill_number ILIKE %s OR b.bill_number ILIKE %s "
+            "ORDER BY b.bill_number LIMIT 1",
+            [f"{bill_number}%", f"%/{bill_number}", f"{bill_number}-%"],
         )
+
     if not rows:
         await update.message.reply_text(f"❌ Закон #{bill_number} не знайдено.")
         return
