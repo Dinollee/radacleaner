@@ -13,6 +13,29 @@ def test_normalize_bill_number():
     assert normalize_bill_number("15579/П") == "15579"
 
 
+def test_bill_search_returns_correct_law():
+    """Search for bill 14191 should return 14191, NOT 14110-2."""
+    from telegram_bot import db_query
+
+    # Exact match
+    rows = db_query(
+        'SELECT b.bill_number FROM bills b WHERE b.bill_number = %s LIMIT 1',
+        ['14191']
+    )
+    assert len(rows) == 1
+    assert rows[0]['bill_number'] == '14191'
+    assert rows[0]['bill_number'] != '14110-2'
+
+    # Normalized match (14191/П -> 14191)
+    normalized = normalize_bill_number("14191/П")
+    rows = db_query(
+        'SELECT b.bill_number FROM bills b WHERE b.bill_number = %s OR b.bill_number ILIKE %s ORDER BY b.bill_number LIMIT 1',
+        [normalized, f'{normalized}%']
+    )
+    assert len(rows) == 1
+    assert rows[0]['bill_number'] == '14191'
+
+
 def test_format_attacks_empty():
     t = format_attacks([])
     assert "не зафіксовано" in t and "добре" in t
