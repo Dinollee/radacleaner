@@ -1,85 +1,105 @@
-"""Тести форматування пушів про підписані закони з citizen_impact (без мережі/БД)."""
+"""Тести «Що зміниться для громадянина» у Telegram: повний текст, без обрізання, розбиття по лімітах."""
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from monitor import _format_law_impact_message, DASHBOARD_URL
+from monitor import DASHBOARD_URL, _format_law_impact_messages
+from src.telegram_notifier import TG_LIMIT, chunk_blocks, format_citizen_impact
 
 
-class TestFormatLawImpactMessage:
-    """Формування окремого пуша для stage 4 законів з citizen_impact."""
+def _impact(changes=None, headline="Закон встановлює нові штрафи", affects=True):
+    if changes is None:
+        changes = [
+            {"who": "власники тварин", "before": "штраф 850 грн", "after": "штраф від 5000 до 17000 грн"},
+            {"who": "платники податків", "before": "нічого", "after": "кошти йдуть на притулки"},
+        ]
+    return {"affects_citizens": affects, "headline": headline, "changes": changes, "no_impact_reason": None}
 
-    def _info(self, bn="12345", title="Про захист тварин", url="https://itd.rada.gov.ua/billinfo/Bills/Card/?id=12345"):
-        return {"bill_number": bn, "title": title, "url": url}
 
-    def _impact(self, headline="Закон встановлює нові штрафи", changes=None):
-        if changes is None:
-            changes = [
-                {"who": "власники тварин", "before": "штраф 850 грн", "after": "штраф від 5000 до 17000 грн"},
-                {"who": "платники податків", "before": "нічого", "after": "кошти йдуть на притулки"},
-            ]
-        return {"affects_citizens": True, "headline": headline, "changes": changes, "no_impact_reason": None}
+_INFO = {"bill_number": "12345", "title": "Про захист тварин",
+         "url": "https://itd.rada.gov.ua/billinfo/Bills/Card/?id=12345"}
 
-    def test_contains_header_and_bill_info(self):
-        msg = _format_law_impact_message(self._info(), self._impact())
-        assert "📜 <b>ЗАКОН ПІДПИСАНО!</b>" in msg
-        assert "#12345" in msg
-        assert "Про захист тварин" in msg
 
-    def test_headline_shown(self):
-        msg = _format_law_impact_message(self._info(), self._impact())
-        assert "👥 <b>Закон встановлює нові штрафи</b>" in msg
+class TestFormatCitizenImpact:
+    def test_headline_and_numbered_changes_with_было_стане(self):
+        blocks = format_citizen_impact(_impact())
+        text = "\n".join(blocks)
+        assert "👥 <b>Що зміниться для громадянина</b>" in text
+        assert "Закон встановлює нові штрафи" in text
+        assert "<b>1. власники тварин</b>\nБуло: штраф 850 грн\nСтане: штраф від 5000 до 17000 грн" in text
+        assert "<b>2. платники податків</b>" in text
 
-    def test_changes_rendered(self):
-        msg = _format_law_impact_message(self._info(), self._impact())
-        assert "<i>Хто: власники тварин</i>" in msg
-        assert "До: штраф 850 грн" in msg
-        assert "Після: штраф від 5000 до 17000 грн" in msg
+    def test_long_text_is_never_truncated(self):
+        long_before = "Дуже довгий текст до змін " * 15  # ~375 символів
+        long_after = "Дуже довгий текст після змін " * 15
+        text = "\n".join(format_citizen_impact(_impact(changes=[
+            {"who": "усі", "before": long_before, "after": long_after}])))
+        assert long_before.strip() in text
+        assert long_after.strip() in text
+        assert "..." not in text
 
-    def test_dashboard_link(self):
-        msg = _format_law_impact_message(self._info(), self._impact())
-        assert f"{DASHBOARD_URL}/overview" in msg
+    def test_all_changes_present_no_cap(self):
+        many = [{"who": f"хто {i}", "before": f"до {i}", "after": f"після {i}"} for i in range(12)]
+        text = "\n".join(format_citizen_impact(_impact(changes=many)))
+        for i in range(12):
+            assert f"<b>{i + 1}. хто {i}</b>" in text
 
-    def test_no_headline_still_works(self):
-        impact = {"affects_citizens": True, "headline": None, "changes": [], "no_impact_reason": None}
-        msg = _format_law_impact_message(self._info(), impact)
-        assert "📜 <b>ЗАКОН ПІДПИСАНО!</b>" in msg
-        assert "👥" not in msg
+    def test_html_is_escaped(self):
+        text = "\n".join(format_citizen_impact(_impact(changes=[
+            {"who": "<script>", "before": "a & b", "after": "x < y"}])))
+        assert "&lt;script&gt;" in text and "a &amp; b" in text and "x &lt; y" in text
+        assert "<script>" not in text
 
-    def test_empty_changes_no_crash(self):
-        impact = {"affects_citizens": True, "headline": "Щось важливе", "changes": [], "no_impact_reason": None}
-        msg = _format_law_impact_message(self._info(), impact)
-        assert "Щось важливе" in msg
-        assert "💡" in msg
+    def test_no_impact_shows_reason(self):
+        imp = {"affects_citizens": False, "headline": None, "changes": [],
+               "no_impact_reason": "Процедурний законопроєкт"}
+        blocks = format_citizen_impact(imp)
+        assert len(blocks) == 1 and "Не впливає на громадян" in blocks[0]
 
-    def test_truncates_to_4000_chars(self):
-        long_title = "Дуже довга назва закону " * 20
-        long_changes = [{"who": "усі громадяни України", "before": "старий стан речей який дуже довгий ",
-                         "after": "новий стан речей який також дуже довгий "} for _ in range(20)]
-        impact = {"affects_citizens": True, "headline": "Заголовок", "changes": long_changes, "no_impact_reason": None}
-        info = {"bill_number": "99999", "title": long_title, "url": ""}
-        msg = _format_law_impact_message(info, impact)
-        assert len(msg) <= 4000
+    def test_none_or_garbage_returns_empty(self):
+        assert format_citizen_impact(None) == []
+        assert format_citizen_impact({}) == []
+        assert format_citizen_impact("not a dict") == []
 
-    def test_limits_to_8_changes(self):
-        many_changes = [{"who": f"хто {i}", "before": f"до {i}", "after": f"після {i}"} for i in range(10)]
-        impact = {"affects_citizens": True, "headline": "Багато змін", "changes": many_changes, "no_impact_reason": None}
-        msg = _format_law_impact_message(self._info(), impact)
-        # Перші 8 мають бути видимими
-        assert "<i>Хто: хто 0</i>" in msg
-        assert "<i>Хто: хто 7</i>" in msg
-        # 9-й прихований
-        assert "<i>Хто: хто 8</i>" not in msg
-        assert "і ще 2 змін" in msg
 
-    def test_url_optional(self):
-        info = {"bill_number": "12345", "title": "Тест", "url": ""}
-        msg = _format_law_impact_message(info, self._impact())
-        assert "#12345" in msg
+class TestChunkBlocks:
+    def test_small_fits_one_message(self):
+        assert chunk_blocks(["a", "b", "c"]) == ["a\n\nb\n\nc"]
 
-    def test_no_bill_anchor_when_no_url(self):
-        info = {"bill_number": "12345", "title": "Тест", "url": ""}
-        msg = _format_law_impact_message(info, self._impact())
-        # Закон без URL — немає якірного посилання на закон (до дашборд-футера)
-        assert "#12345" in msg and "<a href=" not in msg.split("💡")[0]
+    def test_splits_on_block_boundaries_and_keeps_all_text(self):
+        blocks = [f"блок {i} " + "x" * 900 for i in range(10)]
+        msgs = chunk_blocks(blocks)
+        assert len(msgs) > 1
+        assert all(len(m) <= TG_LIMIT for m in msgs)
+        joined = "\n\n".join(msgs)
+        for b in blocks:
+            assert b in joined  # жоден блок не розрізаний і не втрачений
+
+    def test_empty(self):
+        assert chunk_blocks([]) == []
+
+
+class TestLawImpactMessages:
+    def test_header_has_bill_link_and_full_title(self):
+        long_title = "Проєкт Закону про внесення змін до Закону України " * 3
+        msgs = _format_law_impact_messages({**_INFO, "title": long_title}, _impact())
+        assert "📜 <b>ЗАКОН ПІДПИСАНО!</b>" in msgs[0]
+        assert "#12345" in msgs[0]
+        assert long_title.strip() in msgs[0]  # заголовок не обрізаний
+
+    def test_dashboard_footer_present(self):
+        msgs = _format_law_impact_messages(_INFO, _impact())
+        assert f"{DASHBOARD_URL}/overview" in msgs[-1]
+
+    def test_every_message_within_limit_for_big_law(self):
+        many = [{"who": f"група {i}", "before": "б" * 300, "after": "а" * 300} for i in range(30)]
+        msgs = _format_law_impact_messages(_INFO, _impact(changes=many))
+        assert len(msgs) > 1
+        assert all(len(m) <= TG_LIMIT for m in msgs)
+        joined = "\n".join(msgs)
+        assert "<b>30. група 29</b>" in joined  # останній пункт не втрачено
+
+    def test_no_bill_url_no_anchor_in_header(self):
+        msgs = _format_law_impact_messages({**_INFO, "url": ""}, _impact())
+        assert "#12345" in msgs[0] and "<a href=\"" not in msgs[0].split("💡")[0]

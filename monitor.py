@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from src.config import log
 from src.d1_client import d1_exec, d1_query
-from src.telegram_notifier import send_message
+from src.telegram_notifier import chunk_blocks, esc, format_citizen_impact, send_message
 
 QUIET_HOURS_START = 23
 QUIET_HOURS_END = 8
@@ -281,33 +281,14 @@ def _fetch_laws_with_impact(status_changes):
             SIGNED_LAW_IMPACT[r["bill_id"]] = imp
 
 
-def _format_law_impact_message(info, impact):
-    """Формує повідомлення «Що зміниться для громадянина» про підписаний закон."""
-    from telegram_bot import format_citizen_impact
-
+def _format_law_impact_messages(info, impact):
+    """Повідомлення про підписаний закон + «Що зміниться для громадянина». Список ≤4000 символів кожне."""
     bn = info["bill_number"]
-    title = (info.get("title") or "")[:120]
     url = info.get("url", "")
     link = f'<a href="{url}">#{bn}</a>' if url else f"#{bn}"
-
-    headline = impact.get("headline")
-    changes = impact.get("changes", [])
-
-    lines = [f"📜 <b>ЗАКОН ПІДПИСАНО!</b>"]
-    lines.append(f"{link} — {title}")
-
-    if headline:
-        lines.append("")
-        lines.append(f"👥 <b>{headline}</b>")
-
-    # Використовуємо format_citizen_impact для форматування
-    imp_lines = format_citizen_impact(impact)
-    lines.extend(imp_lines)
-
-    lines.append("")
-    lines.append(f"💡 <a href='{DASHBOARD_URL}/overview'>Повна картка закону на дашборді</a>")
-
-    return "\n".join(lines)[:4000]
+    head = f"📜 <b>ЗАКОН ПІДПИСАНО!</b>\n{link} — {esc(info.get('title'))}"
+    foot = f"💡 <a href='{DASHBOARD_URL}/overview'>Повна картка закону на дашборді</a>"
+    return chunk_blocks([head, *format_citizen_impact(impact), foot])
 
 
 def run_monitor(test_mode=False, force=False):
@@ -331,12 +312,12 @@ def run_monitor(test_mode=False, force=False):
         # Знайти інформацію про цей закон серед status_changes
         info = next((c for c in status_changes if c["bill_id"] == bill_id), None)
         if info:
-            msg = _format_law_impact_message(info, impact)
-            if not test_mode:
-                send_message(msg)
-                time.sleep(0.5)
-            else:
-                log.info("[TEST] LAW IMPACT #%s: %s", info["bill_number"], msg[:200])
+            for msg in _format_law_impact_messages(info, impact):
+                if not test_mode:
+                    send_message(msg)
+                    time.sleep(0.5)
+                else:
+                    log.info("[TEST] LAW IMPACT #%s: %s", info["bill_number"], msg[:200])
             sent_impact_ids.add(bill_id)
 
     processed_ids = []
