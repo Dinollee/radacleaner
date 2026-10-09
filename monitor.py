@@ -252,7 +252,81 @@ def is_quiet_hours():
     return h >= QUIET_HOURS_START or h < QUIET_HOURS_END
 
 
+def _laws_signed_enabled():
+    """Перевірити, чи увімкнено laws_signed підписку для відправки пушів."""
+    rows = d1_query("SELECT laws_signed FROM bot_subscribers WHERE laws_signed = true LIMIT 1")
+    # Якщо немає рядків — значить ніхто не відписався, шлемо за замовчуванням
+    return len(rows) == 0 or bool(rows[0].get("laws_signed"))
+
+
+
+# Підписані закони з citizen_impact — окремі пуши (B variant)
+SIGNED_LAW_IMPACT = {}  # bill_id -> parsed impact (accumulated during run_monitor)
+
+
+def _fetch_laws_with_impact(status_changes):
+    """Витягнути citizen_impact для законів, що перейшли на stage 4."""
+    signed = [c for c in status_changes if (c.get("new_value") or "") == "Закон підписано"]
+    if not signed:
+        return
+    bill_ids = [c["bill_id"] for c in signed]
+    rows = d1_query(
+        "SELECT ra.bill_id, ra.json_data::jsonb -> 'citizen_impact' as impact "
+        "FROM risk_assessments ra WHERE ra.bill_id = ANY(%s)",
+        [bill_ids],
+    )
+    for r in rows:
+        imp = r.get("impact")
+        if imp and isinstance(imp, dict) and imp.get("affects_citizens"):
+            SIGNED_LAW_IMPACT[r["bill_id"]] = imp
+
+
+def _format_law_impact_message(info, impact):
+    """Формує повідомлення «Що зміниться для громадянина» про підписаний закон."""
+    bn = info["bill_number"]
+    title = (info.get("title") or "")[:120]
+    url = info.get("url", "")
+    link = f'<a href="{url}">#{bn}</a>' if url else f"#{bn}"
+
+    headline = impact.get("headline")
+    changes = impact.get("changes", [])
+
+    lines = [f"📜 <b>ЗАКОН ПІДПИСАНО!</b>"]
+    lines.append(f"{link} — {title}")
+
+    if headline:
+        lines.append("")
+        lines.append(f"👥 <b>{headline}</b>")
+
+    if changes:
+        shown = changes[:5]
+        for ch in shown:
+            who = ch.get("who", "")
+            before = ch.get("before", "")
+            after = ch.get("after", "")
+            if who or before or after:
+                lines.append("")
+                parts = []
+                if who:
+                    parts.append(f"<i>Хто: {who}</i>")
+                if before:
+                    parts.append(f"До: {before}")
+                if after:
+                    parts.append(f"Після: {after}")
+                lines.append(" · ".join(parts))
+
+        if len(changes) > 5:
+            lines.append(f"\n<i>...і ще {len(changes) - 5} змін (повний перелік — на дашборді)</i>")
+
+    lines.append("")
+    lines.append(f"💡 <a href='{DASHBOARD_URL}/overview'>Повна картка закону на дашборді</a>")
+
+    return "\n".join(lines)[:4000]
+
+
 def run_monitor(test_mode=False, force=False):
+    global SIGNED_LAW_IMPACT
+    SIGNED_LAW_IMPACT = {}  # reset per run
     quiet = is_quiet_hours() and not force
     if quiet:
         log.info("Quiet hours - only critical")
@@ -262,6 +336,23 @@ def run_monitor(test_mode=False, force=False):
         return
     new_bills = [c for c in changes if c["change_type"] in ("new", "status_fix")]
     status_changes = [c for c in changes if c["change_type"] == "status_change"]
+
+    # B variant: окремий пуш для законів stage 4 з citizen_impact
+    if _laws_signed_enabled():
+        _fetch_laws_with_impact(status_changes)
+    sent_impact_ids = set()
+    for bill_id, impact in SIGNED_LAW_IMPACT.items():
+        # Знайти інформацію про цей закон серед status_changes
+        info = next((c for c in status_changes if c["bill_id"] == bill_id), None)
+        if info:
+            msg = _format_law_impact_message(info, impact)
+            if not test_mode:
+                send_message(msg)
+                time.sleep(0.5)
+            else:
+                log.info("[TEST] LAW IMPACT #%s: %s", info["bill_number"], msg[:200])
+            sent_impact_ids.add(bill_id)
+
     processed_ids = []
     for bill in new_bills:
         if quiet and bill["overall_score"] < CRITICAL_SCORE_THRESHOLD:
@@ -273,21 +364,24 @@ def run_monitor(test_mode=False, force=False):
         else:
             log.info("[TEST] %s", msg[:200])
         processed_ids.append(bill["change_id"])
-    if status_changes and not quiet:
-        for i in range(0, len(status_changes), 15):
-            chunk = status_changes[i:i + 15]
+
+    # A variant: решта статусних змін (без citizen_impact або без impact даних)
+    remaining = [c for c in status_changes if c["bill_id"] not in sent_impact_ids]
+    if remaining and not quiet:
+        for i in range(0, len(remaining), 15):
+            chunk = remaining[i:i + 15]
             msg = format_status_update_group(chunk)
             if not test_mode:
                 send_message(msg)
                 time.sleep(0.3)
             else:
                 log.info("[TEST] %s", msg[:200])
-        processed_ids.extend([c["change_id"] for c in status_changes])
+        processed_ids.extend([c["change_id"] for c in remaining])
     elif quiet:
         log.info("Skipping %d status changes", len(status_changes))
     if processed_ids:
         mark_processed(processed_ids)
-    log.info("Done: %d processed", len(processed_ids))
+    log.info("Done: %d processed, %d law-impact pushes", len(processed_ids), len(sent_impact_ids))
 
 
 def check_high_risk_alerts(test_mode=False):

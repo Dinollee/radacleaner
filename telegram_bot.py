@@ -94,14 +94,17 @@ def build_fakes_text():
 
 
 def sub_keyboard(chat_id):
-    row = db_query("SELECT attacks, digest FROM bot_subscribers WHERE chat_id = %s", [chat_id])
+    row = db_query("SELECT attacks, digest, laws_signed FROM bot_subscribers WHERE chat_id = %s", [chat_id])
     atk = bool(row and row[0]["attacks"])
     dig = bool(row and row[0]["digest"])
+    laws = bool(row and row[0].get("laws_signed"))
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(f"🚨 Атаки: {'✅ увімк' if atk else '❌ вимк'}",
                               callback_data="sub_toggle_attacks")],
         [InlineKeyboardButton(f"📰 Дайджест: {'✅ увімк' if dig else '❌ вимк'}",
                               callback_data="sub_toggle_digest")],
+        [InlineKeyboardButton(f"📜 Закони: {'✅ увімк' if laws else '❌ вимк'}",
+                              callback_data="sub_toggle_laws")],
         [InlineKeyboardButton("🗑 Видалити мене повністю", callback_data="sub_off")],
     ])
 
@@ -290,7 +293,8 @@ async def cmd_sub(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🔔 <b>Підписки на сповіщення</b>\n\n"
         "🚨 <b>Атаки</b> — пуш, коли ≥4 каналів синхронно поширюють один нарратив.\n"
-        "📰 <b>Дайджест</b> — щоденне зведення проєкту у твій чат.\n\n"
+        "📰 <b>Дайджест</b> — щоденне зведення проєкту у твій чат.\n"
+        "📜 <b>Закони</b> — пуш про підписані закони зі змінами для громадян.\n\n"
         "Твій статус:",
         reply_markup=sub_keyboard(chat_id),
         parse_mode="HTML",
@@ -477,9 +481,13 @@ async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if query.data in ("sub_toggle_attacks", "sub_toggle_digest"):
+    if query.data in ("sub_toggle_attacks", "sub_toggle_digest", "sub_toggle_laws"):
         chat_id = query.message.chat_id
-        field = "attacks" if query.data == "sub_toggle_attacks" else "digest"
+        field = {
+            "sub_toggle_attacks": "attacks",
+            "sub_toggle_digest": "digest",
+            "sub_toggle_laws": "laws_signed",
+        }[query.data]
         db_exec(
             f"""INSERT INTO bot_subscribers (chat_id, {field}, subscribed_at)
                 VALUES (%s, true, now())
