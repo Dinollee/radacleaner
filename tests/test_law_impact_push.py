@@ -62,16 +62,16 @@ class TestFormatLawImpactMessage:
         msg = _format_law_impact_message(info, impact)
         assert len(msg) <= 4000
 
-    def test_limits_to_5_changes(self):
+    def test_limits_to_8_changes(self):
         many_changes = [{"who": f"хто {i}", "before": f"до {i}", "after": f"після {i}"} for i in range(10)]
         impact = {"affects_citizens": True, "headline": "Багато змін", "changes": many_changes, "no_impact_reason": None}
         msg = _format_law_impact_message(self._info(), impact)
-        # Перші 5 мають бути видимими
+        # Перші 8 мають бути видимими
         assert "<i>Хто: хто 0</i>" in msg
-        assert "<i>Хто: хто 4</i>" in msg
-        # 6-й прихований
-        assert "<i>Хто: хто 5</i>" not in msg
-        assert "і ще 5 змін" in msg
+        assert "<i>Хто: хто 7</i>" in msg
+        # 9-й прихований
+        assert "<i>Хто: хто 8</i>" not in msg
+        assert "і ще 2 змін" in msg
 
     def test_url_optional(self):
         info = {"bill_number": "12345", "title": "Тест", "url": ""}

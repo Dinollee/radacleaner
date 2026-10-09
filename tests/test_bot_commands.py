@@ -74,15 +74,29 @@ def test_none_impact_returns_empty():
     assert format_citizen_impact("not a dict") == []
 
 
-def test_limits_to_5_changes():
+def test_limits_to_8_changes():
     many = [{"who": f"хто {i}", "before": f"до {i}", "after": f"після {i}"} for i in range(10)]
     imp = _impact(changes=many)
     lines = format_citizen_impact(imp)
     text = "\n".join(lines)
     assert "<i>Хто: хто 0</i>" in text
-    assert "<i>Хто: хто 4</i>" in text
-    assert "<i>Хто: хто 5</i>" not in text
-    assert "і ще 5 змін" in text
+    assert "<i>Хто: хто 7</i>" in text
+    assert "<i>Хто: хто 8</i>" not in text
+    assert "і ще 2 змін" in text
+
+
+def test_long_before_after_truncated():
+    imp = _impact(changes=[
+        {"who": "усі", "before": "Дуже довгий текст до змін який перевищує 80 символів і має бути обрізаний",
+         "after": "Дуже довгий текст після змін який також перевищує 80 символів і має бути обрізаний"},
+    ])
+    lines = format_citizen_impact(imp)
+    text = "\n".join(lines)
+    # Обрізані тексти мають "..." в кінці
+    assert "..." in text
+    # Але не зникають повністю
+    assert "до змін" in text
+    assert "після змін" in text
 
 
 def test_empty_changes_no_crash():

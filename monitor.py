@@ -283,6 +283,8 @@ def _fetch_laws_with_impact(status_changes):
 
 def _format_law_impact_message(info, impact):
     """Формує повідомлення «Що зміниться для громадянина» про підписаний закон."""
+    from telegram_bot import format_citizen_impact
+
     bn = info["bill_number"]
     title = (info.get("title") or "")[:120]
     url = info.get("url", "")
@@ -298,25 +300,9 @@ def _format_law_impact_message(info, impact):
         lines.append("")
         lines.append(f"👥 <b>{headline}</b>")
 
-    if changes:
-        shown = changes[:5]
-        for ch in shown:
-            who = ch.get("who", "")
-            before = ch.get("before", "")
-            after = ch.get("after", "")
-            if who or before or after:
-                lines.append("")
-                parts = []
-                if who:
-                    parts.append(f"<i>Хто: {who}</i>")
-                if before:
-                    parts.append(f"До: {before}")
-                if after:
-                    parts.append(f"Після: {after}")
-                lines.append(" · ".join(parts))
-
-        if len(changes) > 5:
-            lines.append(f"\n<i>...і ще {len(changes) - 5} змін (повний перелік — на дашборді)</i>")
+    # Використовуємо format_citizen_impact для форматування
+    imp_lines = format_citizen_impact(impact)
+    lines.extend(imp_lines)
 
     lines.append("")
     lines.append(f"💡 <a href='{DASHBOARD_URL}/overview'>Повна картка закону на дашборді</a>")
