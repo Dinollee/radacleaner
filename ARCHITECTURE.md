@@ -277,7 +277,7 @@ All providers offer free tiers. Provider testing: `./venv/bin/python scripts/tes
 | `sync_bills` | hourly :55 | Bill sync from RADA (bulk JSON + passings) |
 | `sync_bill_passings_html` | every 4h :15 | Bill passings sync (HTML parsing, real-time) |
 | `sync_eu_tracker` | daily 09:00 | EU cluster news monitoring + Telegram alerts |
-| `radacleaner-votesync` | every 6h :00 | Voting records sync (`sync_votes_bulk.py --resume`) |
+| `radacleaner-votesync` | every 6h :00 | Voting records sync (`sync_votes_bulk.py`, дві групи + g_id diff, без progress-файлу) |
 | `radacleaner-mpstats` | every 6h | factions + stats + **ІЕД recalc** (calc_kpi_v12.py) |
 | `night-batch` | 21:00 (+stop 08:00) | LLM analysis, 3 workers, alert on err>10 |
 
@@ -286,7 +286,12 @@ Cron ліквідовано (2026-08-21): все планування — system
 
 ## Roadmap
 See `RESEARCH.md` — "ROADMAP — Project Plan" section. 7 groups, dependency graph.
-Current status (2026-09-07): **ІЕД v12 + аналітика впливу + citizen-impact ACTIVE**. Дашборд: ІЕД radar + Графік + EU Integration Index + Інфоатаки + **🤝 Клуби голосування** (крос-фракційні пари) + профілі депутатів (**Портрет** LLM 387/387 активних, **Однодумці**, **Профіль інтересів**, **Бізнес за декларацією НАЗК** з банером перетину «бізнес ∩ закони») + **👥 «Що зміниться для громадянина»** в картці закону (до/після простою мовою з повного тексту, citizen-impact.timer 05:30). Реєстр лобіювання НАЗК (вкладка в картці закону). Telegram bot menu v2 (/attacks /fakes /sub) + персональні підписки на пуші. 21 канал моніторингу дезінфо.
+Current status (2026-10-09): **ІЕД v12 + аналітика впливу + citizen-impact ACTIVE**. Дашборд: ІЕД radar + Графік + EU Integration Index + Інфоатаки + **🤝 Клуби голосування** (крос-фракційні пари) + профілі депутатів (**Портрет** LLM 387/387 активних, **Однодумці**, **Профіль інтересів**, **Бізнес за декларацією НАЗК** з банером перетину «бізнес ∩ закони») + **👥 «Що зміниться для громадянина»** в картці закону (до/після простою мовою з повного тексту, citizen-impact.timer 05:30). Реєстр лобіювання НАЗК (вкладка в картці закону). Telegram bot menu v2 (/attacks /fakes /sub) + персональні підписки на пуші. 21 канал моніторингу дезінфо.
+
+**Останні сесії (2026-10-08/09):**
+- **votesync re-verify (T4)**: синк був мертвий (progress-файл = перманентний чорний список через `--resume` у таймері + `NOT EXISTS votes` не перечитував нові g_id). `sync_votes_bulk.py` переписано: дві групи вибору (updated_at за 4 дні ∪ voteless з `VOTE_IMPLYING_STATUSES`) + diff нових g_id, `--since` catch-up, progress-файл вилучено, юніт timeout 1800→7200. Catch-up: +197 votes/+32k mp_votes, max vote_date 01.09→17.09.
+- **Класифікація процедурних (3 пункти)**: МЕЖА КЛАСИФІКАЦІЇ в `prompts.py` **і** `rag_engine.CHUNK1_PROMPT` (chunk-етап має власний промпт + early-stop — правки тільки в FINAL не працювали); детермінований тайбрейкер `PROCEDURAL_TITLE_RE` (з `\b`, лише true-напрямок) + data-fix 78; рераналіз: хибно-процедурних «Проєкт Закону» **67→10**. Методологія v2.2 (дашборд prod).
+- **Аудит 5 stage-4 + гігієна карточок**: PROCEDURAL_IMPACT нарешті застосовується (3084 рядки), HTML-entities у 67 title (unescape у `_exec_bill`), мовні викачки в json_data. Виявлено: llm_client тихий hang (kill+`timeout`-обгортка), `d1_query` literal `%` → `%%`.
 
 ## Rules
 - NEVER match deputies by last name alone — always full name
@@ -300,6 +305,8 @@ Current status (2026-09-07): **ІЕД v12 + аналітика впливу + ci
 - Gemini rate limit: 12 req/min, 1400 req/day (enforced in llm_client.py)
 - PDF downloads: retry 3 times with backoff on 503/429/500
 - `bills.act_number` — official law number in IX-convocation register (e.g. «4931-ІХ»), 100% заповнений для stage 4. Дашборд показує бейдж із посиланням на zakon.rada.gov.ua/laws/show/{номер} (кирилиця ІХ → латиниця IX для URL)
+- `d1_client._exec_bill` розкодовує HTML-сутності в `title` при записі: RADA bulk `name` містить `&#xA;`/`&#x27;` — це єдиний writer, фікс централізований (67 старих рядків очищено 2026-10-08)
 - `json_data.has_risks` — обов'язковий ключ: фронтенд фільтрує рендеринг ризиків за ним. rag_engine гарантує його для непроцедурних аналізів (модель nemotron іноді пропускає; міграція 017 бекфіллила 246 старих рядків)
+- **`is_procedural` — гібридна класифікація (2026-10-09)**: LLM (зрідка хибить, відносячи substantive до процедурних) + детермінований тайбрейкер `PROCEDURAL_TITLE_RE` у rag_engine — **лише true-напрямок** (ПРОЦЕДУРНИЙ понад LLM для заголовків «порядок денний / депутатський запит / зміни до регламенту»). `\b` в regex обов'язковий — без нього «приведення порядку оподаткування» (ПК/МК) матчило як процедурне. Chunk-етап робить early-stop (`if is_procedural: return`) і має **ВЛАСНИЙ** промпт `CHUNK1_PROMPT` — бордерлайн-правки класифікації додавати в **ОБИДВА** промпти (prompts.py FINAL + rag_engine CHUNK1), інакше вони не доходять до ранніх стопів.
 - One session = one logical step = one commit
 - Before finishing: self-reflection — did I add dependencies/tables/scripts/APIs not in ARCHITECTURE.md?
