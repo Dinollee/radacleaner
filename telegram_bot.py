@@ -328,33 +328,35 @@ def normalize_bill_number(number: str) -> str:
 
 async def send_bill_info(update, bill_number):
     """Шукає закон за номером та відправляє інформацію."""
-    # 1. Точне совпадання
+    # 1. Точне совпадання (bill_number = '14191')
     rows = db_query(
         "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
         "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
-        "FROM bills b WHERE b.bill_number = %s OR b.id = %s::integer",
-        [bill_number, bill_number],
+        "FROM bills b WHERE b.bill_number = %s LIMIT 1",
+        [bill_number],
     )
 
     # 2. Якщо не знайдено — пробуємо нормалізований номер (без суфіксів)
     if not rows:
         normalized = normalize_bill_number(bill_number)
         if normalized != bill_number:
+            # Точне совпадання з нормалізованим + всі варіанти з суфіксами (14191, 14191/П, 14191-1, тощо)
             rows = db_query(
                 "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
                 "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
-                "FROM bills b WHERE b.bill_number = %s OR b.bill_number ILIKE %s || '/%'",
-                [normalized, normalized],
+                "FROM bills b WHERE b.bill_number = %s OR b.bill_number ILIKE %s "
+                "ORDER BY b.bill_number LIMIT 1",
+                [normalized, f"{normalized}%"],
             )
 
-    # 3. Якщо все ще не знайдено — partial match ( але тільки з початку або кінця)
+    # 3. Якщо все ще не знайдено — partial match (початок або /номер)
     if not rows:
         rows = db_query(
             "SELECT b.id, b.bill_number, b.title, b.current_status, b.stage, "
             "b.toxicity, b.is_urgent, b.is_euro, b.url, b.agenda_category "
             "FROM bills b WHERE b.bill_number ILIKE %s OR b.bill_number ILIKE %s "
             "ORDER BY b.bill_number LIMIT 1",
-            [f"{bill_number}%", f"%/{bill_number}", f"{bill_number}-%"],
+            [f"{bill_number}%", f"%/{bill_number}"],
         )
 
     if not rows:
