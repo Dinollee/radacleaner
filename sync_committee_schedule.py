@@ -44,7 +44,7 @@ def fetch_page(url):
         return None
 
 
-def extract_committees_from_html(html, week_start):
+def extract_committees_from_html(page_html, week_start):
     """Extract committee meetings from Word-exported HTML using regex."""
     meetings = []
 
@@ -69,7 +69,7 @@ def extract_committees_from_html(html, week_start):
     )
 
     # Split HTML by committee headers
-    committee_blocks = re.split(r"(?=КОМІТЕТ\s+З\s+ПИТАНЬ)", html)
+    committee_blocks = re.split(r"(?=КОМІТЕТ\s+З\s+ПИТАНЬ)", page_html)
 
     for block in committee_blocks[1:]:  # Skip first (before any committee)
         # Extract committee name
