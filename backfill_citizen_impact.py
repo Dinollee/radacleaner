@@ -82,7 +82,9 @@ USER_PROMPT = """Законопроєкт №{number}: {title}
 }}"""
 
 
-def parse_impact(raw: str) -> dict | None:
+def parse_impact(raw: str | None) -> dict | None:
+    if not raw:
+        return None
     start = raw.find("{")
     end = raw.rfind("}")
     if start == -1 or end == -1:
@@ -123,6 +125,7 @@ def _selftest() -> None:
     wrapped = f"Ось відповідь:\n```json\n{ok}\n```"
     assert parse_impact(wrapped)["changes"][0]["who"] == "усі"
     assert parse_impact("no json here") is None
+    assert parse_impact(None) is None  # LLM не відповів — пропускаємо закон, не падаємо
     assert parse_impact('{"nope": []}') is None
     assert _is_ukrainian("Закон вводить новий статус та штрафи за знищення.")
     assert not _is_ukrainian("Закон wprowadжує новий статус.")  # змішане слово
