@@ -986,6 +986,23 @@ EU:                6%
 
 ---
 
+## Info Monitor — Factcheck Categorization (SHIPPED 2026-10-13)
+
+### Problem
+Section "ТОП перевірок фактчекерів" showed ALL factcheck articles as if they debunked fakes, even when they were just verified facts or news. Readers saw "Україна запровадила санкції" in the same context as "ФЕЙК: військовий вбив односельця" — confusing and misleading.
+
+### Solution
+- `label_narratives.py`: LLM now categorizes each article into `fake` (debunk), `verified` (fact-check confirmed), or `news` (general news). Verdict always starts with "Спростовано:" or "Підтверджено:".
+- `dashboard/index.html`: Renders category badges (🚨✅📰) with color coding and significance score.
+- Accuracy: 49/50 = 98% on manual audit of latest run.
+
+### Files changed
+- `label_narratives.py`: new prompt with category classification + examples
+- `dashboard/index.html`: renderFakes() updated with category badges
+- `disinfo_channels.json`: pruned 12 dead channels (21→9 active)
+
+---
+
 ## KPI v12 — Альтернативна точка зору (Plan C)
 
 > **Статус:** Розробка. KPI v11 залишається основою.
