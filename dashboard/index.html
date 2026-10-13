@@ -596,7 +596,7 @@ tr.former-deputy:hover td { opacity: 0.75; }
     <div class="card">
       <div class="card-header">
         <div class="card-title">ТОП перевірок фактчекерів</div>
-        <div style="font-size:12px;color:var(--text2)">фейки дня, які спростували ЦПД / VoxCheck / StopFake</div>
+        <div style="font-size:12px;color:var(--text2)">спростування фейків та верифікація фактів за добу</div>
       </div>
       <div id="ia-fakes"></div>
     </div>
@@ -2986,13 +2986,24 @@ function renderFakes(fakes) {
   }
   let html = '<div style="display:flex;flex-direction:column;gap:10px">';
   for (const f of top) {
-    const essence = f.one_line || f.title;
+    // Категорія бейдж + іконка
+    const catMap = { fake: ['🚨 Спростування', 'rgba(239,68,68,.12)', 'var(--red)'],
+                     verified: ['✅ Підтвердження', 'rgba(34,197,94,.12)', 'var(--green)'],
+                     news: ['📰 Новина', 'rgba(59,130,246,.12)', 'var(--blue)'] };
+    const [catLabel, catBg, catColor] = catMap[f.category] || catMap.news;
+    
+    // display_text або one_line fallback на title
+    const essence = f.display_text || f.one_line || f.title;
     html += `
       <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:var(--bg2)">
+        <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;font-weight:600;color:${catColor};background:${catBg};padding:2px 8px;border-radius:10px">${escHtml(catLabel)}</span>
+          ${f.url ? `<a href="${attr(f.url)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-size:12px">повний розбір ↗</a>` : ''}
+        </div>
         <div style="font-size:13.5px;line-height:1.45;margin-bottom:8px">${escHtml(essence)}</div>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="background:rgba(37,99,235,.12);color:var(--blue);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${escHtml(f.source || '')}</span>
-          ${f.url ? `<a href="${attr(f.url)}" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:none;font-size:12px">повний розбір ↗</a>` : ''}
+          <span style="font-size:11px;color:var(--text2)">значимість: ${f.significance}/10</span>
         </div>
       </div>`;
   }

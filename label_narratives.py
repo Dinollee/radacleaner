@@ -98,13 +98,20 @@ def rank_fakes(fakes, data):
     out = []
     for n, f in enumerate(fakes):
         d = by_i.get(n) or {}
+        category = str(d.get("category") or "").strip()
+        if category not in ("fake", "verified", "news"):
+            category = "news"
         try:
             sig = min(10, max(1, int(d.get("significance"))))
         except (TypeError, ValueError):
             sig = 0
+        # verdict або один_line — fallback на title якщо нічого немає
+        verdict = str(d.get("verdict") or "").strip()
         one_line = str(d.get("one_line") or "").strip()
+        display_text = verdict or one_line or f["title"][:200]
         out.append({"title": f["title"], "url": f["url"], "source": f["source"],
-                    "one_line": one_line, "significance": sig})
+                    "category": category, "display_text": display_text,
+                    "significance": sig})
     return sorted(out, key=lambda f: -f["significance"])
 
 
@@ -134,17 +141,37 @@ def run():
         if fakes:
             titles = [{"i": n, "title": f["title"]} for n, f in enumerate(fakes)]
             fakes_data = ask_llm(
-                "Нижче — заголовки перевірок українських фактчекерів (ЦПД, VoxCheck, "
-                f"StopFake тощо) за добу — це фейкі, які вони спростували:\n"
+                "Нижче — заголовки статей українських фактчекерів (ЦПД, VoxCheck, "
+                f"StopFake, Детектор медіа, SPRAVDI) за добу:\n"
                 f"{json.dumps(titles, ensure_ascii=False)}\n\n"
-                "Для кожного оціни значимість 1–10 (10 — національний масштаб, впливає "
-                "на громадську думку чи безпеку; 1 — вузькоспеціальна перевірка) і передай "
-                "суть перевірки одним реченням українською.\nПоверни СТРОГО JSON-масив: "
-                '[{"i":0,"significance":5,"one_line":"..."}]')
+                "Для КОЖНОЇ статті визнач тип і дай оцінку:\n\n"
+                "ТИПИ СТАТЕЙ:\n"
+                "- fake: стаття СПРОСТОВУЄ конкретний фейк або дезінформацію. Розпізнай за словами «ФЕЙК:», «БРЕХНЯ:», «НЕ ПРАВДА:», «НЕВІРНО:» у заголовку АБО якщо заголовок говорить про російську пропаганду, маніпуляції, фейкові кампанії, підроблені відео/фото, брехливі заяви.\n"
+                "- verified: стаття ПІДТВЕРДЖУє факт. Заголовок твердить щось без заперечних слів.\n"
+                "- news: звичайна новина або аналіз, не перевірка конкретного твердження.\n\n"
+                "ВАЖЛИВО: Якщо заголовок містить «російська пропаганда», «фейкова кампанія», «маніпуляція», «брехня», «спотворено», «імітація» — це ОБОВ'ЯЗКОВО category=fake.\n\n"
+                "ВИМОГИ ДО ВІДПОВІДІ:\n"
+                "1. category: строго одна з — 'fake', 'verified', 'news'\n"
+                "2. verdict: для 'fake' — коротко опиши ЩО спростовано («Спростовано: військовий вбив односельця»). Для 'verified' — «Підтверджено: ...». Для 'news' — просто суть.\n"
+                "3. significance: 1–10 (10 — національний масштаб, безпека; 5 — регіональне; 1 — вузькотематичне)\n\n"
+                "Приклади:\n"
+                '- Заголовок "ФЕЙК: На Сарненщині військовий вбив односельця" → {"category":"fake","verdict":"Спростовано: твердження про вбивство громадянина військовим на Сарненщині","significance":6}\n'
+                '- Заголовок "Україна запровадила санкції проти виробників балістики" → {"category":"verified","verdict":"Підтверджено: Україна дійсно запровадила санкції проти ВПК РФ","significance":8}\n'
+                '- Заголовок "Кремль відмовився від перемир\'я" → {"category":"news","verdict":"Кремль відхилив пропозицію про 60-денне перемир\'я для виборів","significance":7}\n'
+                '- Заголовок "Російські втручання: дальбобійну зброю видають за західну" → {"category":"fake","verdict":"Спростовано: російська пропаганда видає українську зброю за західну","significance":7}\n'
+                '- Заголовок "Російська пропаганда спотворила результати опитування" → {"category":"fake","verdict":"Спростовано: твердження про високу довіру українців до ЄС було спотворено російською пропагандою","significance":6}\n\n'
+                "Поверни СТРОГО JSON-масив:\n"
+                '[{"i":0,"category":"fake","verdict":"...","significance":5}]')
         digest_fakes = rank_fakes(fakes, fakes_data)
 
         log(f"LLM labels: {'ok' if isinstance(labels_data, list) else 'FALLBACK токены'}, "
             f"fakes: {'ok' if isinstance(fakes_data, list) else 'FALLBACK без оценок'}")
+
+        # Підрахунок категорій для логу
+        fake_count = sum(1 for f in digest_fakes if f.get("category") == "fake")
+        verified_count = sum(1 for f in digest_fakes if f.get("category") == "verified")
+        news_count = sum(1 for f in digest_fakes if f.get("category") == "news")
+        log(f"Фейки: {len(digest_fakes)} (спростувань={fake_count}, підтверджень={verified_count}, новин={news_count})")
 
         value = json.dumps({
             "generated_at": datetime.now(timezone.utc).isoformat(),
