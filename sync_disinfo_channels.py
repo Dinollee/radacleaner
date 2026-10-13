@@ -33,7 +33,7 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0 Safari/537
 SBU_ARTICLE = "https://www.5.ua/dv/life/272194"
 SEARX = "https://serch.h.dino.pp.ua/search"
 DEAD_STREAK_MAX = 3
-MIN_CHANNELS = 10
+MIN_CHANNELS = 8
 TG_PAUSE_SEC = 2
 
 
@@ -160,6 +160,9 @@ def main(dry_run=False):
         else:
             unresolved.append(n)
         time.sleep(TG_PAUSE_SEC)
+    # NOTE: SearXNG (serch.h.dino.pp.ua) returns 403 — resolve_handle() fails
+    # for all new names. Manual addition required for any new channels.
+    # Check unresolved list in data/.disinfo_unresolved.json after run.
 
     # 2. Проверка живости всех каналов
     alive_channels = []
