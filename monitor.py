@@ -224,6 +224,7 @@ def get_unprocessed_changes(limit=100):
         "JOIN bills b ON cl.bill_id = b.id "
         "LEFT JOIN risk_assessments ra ON ra.bill_id = b.id "
         "WHERE cl.notified = 0 "
+        "AND cl.change_type IN ('new', 'status_fix', 'status_change') "
         "ORDER BY cl.created_at ASC LIMIT ?",
         [limit],
     )
@@ -305,6 +306,7 @@ def run_monitor(test_mode=False, force=False):
     status_changes = [c for c in changes if c["change_type"] == "status_change"]
 
     # B variant: окремий пуш для законів stage 4 з citizen_impact
+    processed_ids = []
     if _laws_signed_enabled():
         _fetch_laws_with_impact(status_changes)
     sent_impact_ids = set()
@@ -319,8 +321,8 @@ def run_monitor(test_mode=False, force=False):
                 else:
                     log.info("[TEST] LAW IMPACT #%s: %s", info["bill_number"], msg[:200])
             sent_impact_ids.add(bill_id)
+            processed_ids.append(info["change_id"])
 
-    processed_ids = []
     for bill in new_bills:
         if quiet and bill["overall_score"] < CRITICAL_SCORE_THRESHOLD:
             continue
@@ -334,18 +336,23 @@ def run_monitor(test_mode=False, force=False):
 
     # A variant: решта статусних змін (без citizen_impact або без impact даних)
     remaining = [c for c in status_changes if c["bill_id"] not in sent_impact_ids]
-    if remaining and not quiet:
-        for i in range(0, len(remaining), 15):
-            chunk = remaining[i:i + 15]
-            msg = format_status_update_group(chunk)
-            if not test_mode:
-                send_message(msg)
-                time.sleep(0.3)
-            else:
-                log.info("[TEST] %s", msg[:200])
-        processed_ids.extend([c["change_id"] for c in remaining])
-    elif quiet:
-        log.info("Skipping %d status changes", len(status_changes))
+    if remaining:
+        if quiet:
+            # Під час тихих годин — один стислий дайджест замість груп
+            msg = format_status_update_group(remaining[:30])
+            send_message(msg)
+            time.sleep(0.3)
+            processed_ids.extend([c["change_id"] for c in remaining])
+        else:
+            for i in range(0, len(remaining), 15):
+                chunk = remaining[i:i + 15]
+                msg = format_status_update_group(chunk)
+                if not test_mode:
+                    send_message(msg)
+                    time.sleep(0.3)
+                else:
+                    log.info("[TEST] %s", msg[:200])
+                processed_ids.extend([c["change_id"] for c in chunk])
     if processed_ids:
         mark_processed(processed_ids)
     log.info("Done: %d processed, %d law-impact pushes", len(processed_ids), len(sent_impact_ids))
